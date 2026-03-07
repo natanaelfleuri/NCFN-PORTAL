@@ -68,12 +68,6 @@ export default function Navigation() {
                         <Search className="w-4 h-4 lg:w-3 lg:h-3" /> Investigar
                     </Link>
                     <Link
-                        href="/admin/varreduras"
-                        className={`transition px-4 py-2 lg:px-3 lg:py-1 rounded-md text-sm font-medium flex items-center gap-2 lg:gap-1 ${pathname?.startsWith("/admin/varreduras") ? "text-[#bc13fe] bg-[#bc13fe]/10 border border-[#bc13fe]/30 shadow-[0_0_8px_rgba(188,19,254,0.2)]" : "text-gray-400 hover:text-[#bc13fe]"}`}
-                    >
-                        <Radar className="w-4 h-4 lg:w-3 lg:h-3" /> Varreduras
-                    </Link>
-                    <Link
                         href="/admin/relatorios"
                         className={`transition px-4 py-2 lg:px-3 lg:py-1 rounded-md text-sm font-medium flex items-center gap-2 lg:gap-1 ${pathname?.startsWith("/admin/relatorios") ? "text-[#bc13fe] bg-[#bc13fe]/10 border border-[#bc13fe]/30 shadow-[0_0_8px_rgba(188,19,254,0.2)]" : "text-gray-400 hover:text-[#bc13fe]"}`}
                     >
@@ -132,7 +126,7 @@ export default function Navigation() {
             </button>
 
             {/* Desktop Navigation */}
-            <nav className="hidden lg:flex gap-2 items-center justify-end">
+            <nav className="hidden lg:flex gap-1 items-center justify-center flex-1">
                 <NavLinks />
             </nav>
 

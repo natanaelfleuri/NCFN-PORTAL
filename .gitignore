@@ -13,8 +13,22 @@ build/
 *.db-journal
 
 # Exclusão solicitada pelo usuário (Investigação/AI/OSINT)
-moltbot/
+# Agora incluímos o código fonte para documentação, mas omitimos os dados
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+*.log
+tsconfig.tsbuildinfo
+
+# Banco de Dados
+*.db
+*.db-journal
+
+# Dados Sensíveis/Arquivos de Coleta
 arquivos/
+moltbot/arquivos/
+moltbot/2_OSINT/
 
 # Segredos e Configurações Pessoais
 .env

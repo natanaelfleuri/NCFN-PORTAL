@@ -82,7 +82,9 @@ export default function IaConfigPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      return await res.json();
+      const data = await res.json();
+      if (data.error) setActionMsg(`Erro: ${data.error}`);
+      return data;
     } catch (e) {
       console.error(e);
       return { error: "Erro na conexão" };
@@ -91,11 +93,13 @@ export default function IaConfigPage() {
 
   const handleUpdateConfig = async (payload: any) => {
     setSaveLoading(true);
-    await postAction({ action: "update_ai_config", ...payload });
+    const res = await postAction({ action: "update_ai_config", ...payload });
     setSaveLoading(false);
-    setActionMsg("Configuração salva com sucesso.");
-    setTimeout(() => setActionMsg(""), 3000);
-    fetchConfig();
+    if (!res.error) {
+      setActionMsg("Configuração salva com sucesso.");
+      setTimeout(() => setActionMsg(""), 3000);
+      fetchConfig();
+    }
   };
 
   const handlePullModel = async () => {

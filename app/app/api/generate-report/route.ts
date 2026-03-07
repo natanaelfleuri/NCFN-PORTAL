@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
         y = drawField('DATA GERAÇÃO:', now, y);
         y = drawField('NÓ ORIGEM:', nodeId, y);
         y = drawField('PROTOCOLO:', 'ZERO-TRUST ARCHITECTURE / AES-256-GCM', y);
+        y = drawField('AUDITOR:', 'NCFN SECURE HASHING V1.0', y);
 
         y -= 20;
         page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 1, color: rgb(0.9, 0.9, 0.9) });

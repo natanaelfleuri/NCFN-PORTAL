@@ -40,15 +40,33 @@ export default function RootLayout({
           <BiometricSecurity>
             <div className="min-h-screen flex flex-col items-center ml-auto mr-auto military-hardened relative overflow-hidden">
               <div className="scanline-overlay absolute inset-0 z-0 opacity-10 pointer-events-none"></div>
+              
+              {/* Global Watermark */}
+              <div 
+                className="fixed inset-0 pointer-events-none opacity-[0.03] grayscale z-0"
+                style={{
+                  backgroundImage: 'url("/branding/logo.png")',
+                  backgroundSize: '400px',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat'
+                }}
+              ></div>
 
               <header className="w-full max-w-6xl py-4 lg:py-6 px-4 flex justify-between items-center border-b border-gray-800 bg-black/40 backdrop-blur-md sticky top-0 z-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-[#bc13fe] to-[#00f3ff] rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(188,19,254,0.3)] shrink-0">
-                    <span className="text-white font-black text-sm italic">N</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="w-10 h-10 relative shrink-0">
+                    <img 
+                      src="/branding/logo.png" 
+                      alt="NCFN Logo" 
+                      className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(0,243,255,0.4)]"
+                    />
                   </div>
                   <h1 className="text-xl lg:text-2xl font-black text-white tracking-widest uppercase italic truncate">NCFN.NET</h1>
                 </div>
-                <Navigation />
+                <div className="flex-1 flex justify-center">
+                  <Navigation />
+                </div>
+                <div className="w-[160px] hidden lg:block shrink-0"></div> {/* Balanced Spacer */}
               </header>
 
               <main className="w-full max-w-6xl p-4 flex-grow relative z-10">

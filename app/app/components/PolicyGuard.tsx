@@ -15,14 +15,18 @@ export default function PolicyGuard({ children }: { children: React.ReactNode })
 
     const handleAccept = async () => {
         setLoading(true);
+        // Instant visual feedback for the user
         try {
             const res = await fetch('/api/policy-accept', { method: 'POST' });
             if (res.ok) {
-                await update(); // trigger JWT update to refresh session
-                setAccepted(true);
+                setAccepted(true); // Immediate hide even before session update
+                await update(); // trigger JWT update to refresh session in background
+            } else {
+                alert("Erro ao salvar aceite. Tente novamente.");
             }
         } catch (e) {
             console.error(e);
+            alert("Erro de conexão. Verifique sua internet.");
         } finally {
             setLoading(false);
         }

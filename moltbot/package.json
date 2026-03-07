@@ -1,0 +1,33 @@
+{
+  "name": "moltbot",
+  "version": "1.0.0",
+  "description": "Forensic Bot for NCFN Portal",
+  "main": "agent.ts",
+  "type": "module",
+  "scripts": {
+    "start": "NODE_OPTIONS='--loader ts-node/esm' node agent.ts",
+    "dev": "NODE_OPTIONS='--loader ts-node/esm' ts-node-dev agent.ts",
+    "seed": "NODE_OPTIONS='--loader ts-node/esm' node seed.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0",
+    "@google/generative-ai": "^0.13.0",
+    "ollama": "^0.5.1",
+    "dotenv": "^16.4.5",
+    "fs-extra": "^11.2.0",
+    "@prisma/client": "^6.19.2",
+    "sharp": "^0.32.6",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.13"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/fs-extra": "^11.0.4",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5",
+    "prisma": "^6.19.2",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^6.4.15"
+  }
+}

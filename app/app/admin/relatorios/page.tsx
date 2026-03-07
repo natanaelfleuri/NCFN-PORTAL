@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Hash, Shield, Download, Copy, CheckCircle, Search,
-  ArrowLeft, Filter, Eye, Loader2, AlertTriangle, User, Clock, Zap
+  ArrowLeft, Filter, Eye, Loader2, AlertTriangle, User, Clock, Zap, Bot
 } from "lucide-react";
 import Link from "next/link";
 
@@ -44,7 +44,8 @@ export default function RelatoriosPage() {
       if (res.ok) {
         const data = await res.json();
         setEvidences(data.evidences || []);
-        setStats(data.stats);
+        // The new API returns metadata for the whole list
+        setStats(data.metadata?.stats || data.stats);
       }
     } finally {
       setLoading(false);
@@ -210,7 +211,14 @@ export default function RelatoriosPage() {
                           {new Date(ev.createdAt).toLocaleDateString("pt-BR")}
                         </span>
                         {ev.hasAiReport && (
-                          <span className="text-[10px] bg-[#bc13fe]/10 text-[#bc13fe] border border-[#bc13fe]/20 px-1.5 py-0.5 rounded">AI ✓</span>
+                          <span className="text-[10px] bg-[#bc13fe]/10 text-[#bc13fe] border border-[#bc13fe]/20 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <Bot className="w-2.5 h-2.5" /> IA ✓
+                          </span>
+                        )}
+                        {ev.recordIntegrityHash && (
+                            <span className="text-[10px] text-gray-700 bg-gray-800/50 px-1.5 py-0.5 rounded border border-gray-700/30">
+                                <Shield className="w-2.5 h-2.5 inline mr-1" /> Verificado
+                            </span>
                         )}
                       </div>
                     </div>

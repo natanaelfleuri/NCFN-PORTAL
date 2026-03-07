@@ -46,9 +46,6 @@ model Session {
 model User {
   id                   String    @id @default(cuid())
   name                 String?
-  fullName             String?   // For Hash Auditor Certification
-  documentId           String?   // For Hash Auditor Certification
-  certificationAuth    String?   // Extra credentials for reports
   email                String?   @unique
   emailVerified        DateTime?
   image                String?
@@ -58,17 +55,6 @@ model User {
   deadManTriggerAction String?   @default("LOCKDOWN") // LOCKDOWN or DELETE_ALL
   accounts             Account[]
   sessions             Session[]
-  aiConfig             UserAiConfig?
-}
-
-model UserAiConfig {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  geminiKey       String?
-  openaiKey       String?
-  preferredModel  String   @default("gemini-1.5-pro")
-  updatedAt       DateTime @updatedAt
 }
 
 model VerificationToken {
@@ -159,7 +145,6 @@ model OsintScheduledScan {
 
 model MoltbotConfig {
   id              String   @id @default("default")
-  geminiKey       String?  // Optional, can be overridden by .env
   dailyQuotaBRL   Float    @default(10.0)
   currentUsageBRL Float    @default(0.0)
   activeMode      String   @default("HYBRID") // HYBRID, OLLAMA_ONLY, GEMINI_ONLY
@@ -177,6 +162,7 @@ model MoltbotLog {
   costBRL       Float    @default(0.0)
   createdAt     DateTime @default(now())
 }
+
 model InvestigationTarget {
   id        String   @id @default(cuid())
   url       String   @unique
