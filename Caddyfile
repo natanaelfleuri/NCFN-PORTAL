@@ -1,0 +1,3 @@
+ncfn.net {
+    reverse_proxy portal:3000
+}

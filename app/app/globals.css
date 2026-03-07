@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0a0a0f;
+  --foreground: #e2e8f0;
+  --neon-blue: #00f3ff;
+  --neon-purple: #bc13fe;
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  background-image: url('/bg-futuristic.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.glass-panel {
+  background: rgba(15, 15, 25, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.neon-text {
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.5), 0 0 20px rgba(0, 243, 255, 0.3);
+}
+
+.neon-border {
+  border: 1px solid rgba(0, 243, 255, 0.3);
+  box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.1), 0 0 10px rgba(0, 243, 255, 0.1);
+}
+
+.hover-neon:hover {
+  border-color: rgba(0, 243, 255, 0.8);
+  box-shadow: inset 0 0 15px rgba(0, 243, 255, 0.2), 0 0 15px rgba(0, 243, 255, 0.2);
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+/* Blindagem Militar de Interface */
+.military-hardened {
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.military-text {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  letter-spacing: 0.05em;
+}
+
+.scanline-overlay {
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%,
+      rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg,
+      rgba(255, 0, 0, 0.03),
+      rgba(0, 255, 0, 0.01),
+      rgba(0, 255, 0, 0.03));
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+/* Custom Scrollbar for Command Center feel */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #bc13fe;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00f3ff;
+}

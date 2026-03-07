@@ -1,0 +1,28 @@
+# Configurações de Exclusão NCFN
+# Apenas Portal de Documentos e Infraestrutura
+
+# Node/Build
+node_modules/
+.next/
+dist/
+build/
+*.log
+
+# Banco de Dados
+*.db
+*.db-journal
+
+# Exclusão solicitada pelo usuário (Investigação/AI/OSINT)
+moltbot/
+arquivos/
+
+# Segredos e Configurações Pessoais
+.env
+.env.local
+.env.production
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db

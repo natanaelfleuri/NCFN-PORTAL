@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  portal:
+    image: node:18-alpine
+    container_name: portal_ncfn
+    working_dir: /app
+    user: "root"
+    volumes:
+      - ./app:/app
+      - ./arquivos:/arquivos
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXTAUTH_URL=https://ncfn.net
+      - ADMIN_EMAIL=fleuriengenharia@gmail.com
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_MODEL=mistral
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: sh -c "chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:alpine
+    container_name: caddy_ncfn
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+  moltbot:
+    build:
+      context: ./moltbot
+    container_name: moltbot_ncfn
+    working_dir: /app
+    volumes:
+      - ./moltbot:/app
+      - ./arquivos:/arquivos
+      - ./app/prisma/dev.db:/app/prisma/dev.db
+    environment:
+      - NODE_ENV=development
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - DATABASE_URL=file:./prisma/dev.db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: >
+      sh -xc "npm install && npx prisma generate && npm run start -- --service"
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

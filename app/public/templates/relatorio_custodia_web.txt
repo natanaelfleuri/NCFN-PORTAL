@@ -1,0 +1,27 @@
+RELATÓRIO DE CUSTÓDIA – PRESERVAÇÃO DE CONTEÚDO WEB
+
+O Portal NCFN, através de seu mecanismo automatizado de captura e preservação (Moltbot), realizou a coleta e custódia do conteúdo digital abaixo caracterizado, cujas propriedades técnicas garantem sua integridade e autenticidade de origem:
+
+A presente certificação atesta que este sistema acessou, processou e armazenou os dados provenientes da rede mundial de computadores conforme os parâmetros identificados, aplicando protocolos de segurança de nível militar para garantir sua imutabilidade e auditabilidade futura para fins periciais.
+
+PROTOCOLO DE CAPTURA E PRESERVAÇÃO FORENSE
+Conforme o fluxo operacional de preservação de evidências digitais, a coleta foi submetida a um processamento tripartite:
+    1. Registro do Código Fonte: Extração e preservação do código-fonte (HTML/JS) da página no momento exato do acesso, garantindo a prova do que era exibido tecnicamente.
+    2. Relatório de Metadados de Rede: Documento contendo a URL de destino, endereço IP do servidor de origem, saltos de rede (se aplicável), User-Agent utilizado, data/hora (Timestamp UTC) e o hash dos componentes.
+    3. Evidência Visual e Criptografia (AES): Captura de tela (Screenshot) ou PDF preservado em container com criptografia AES-256 bits, garantindo a visualização fidedigna dos dados no ato da coleta.
+
+CERTIFICAÇÃO DE ORIGEM E INTEGRIDADE (PROVA DIGITAL)
+Diferente de carregamentos manuais, esta coleta foi executada diretamente pelos servidores do Portal NCFN, o que permite atestar o seguinte:
+    • Autenticidade de Origem: O portal garante que o conteúdo capturado corresponde exatamente ao que estava disponível na URL informada no exato momento do registro, sem interferência humana no processo de transporte de dados.
+    • Integridade Técnica: A responsabilidade deste certificador abrange a totalidade do processo, desde a requisição ao servidor de destino até o armazenamento final no Cofre NCFN. A imutabilidade é garantida pela assinatura digital única (Hash SHA-256) gerada imediatamente após o recebimento dos pacotes de dados.
+    • Fé Pública de Preservação: O ativo digital preservado encontra-se blindado contra alterações, modificações ou corrupções externas, sendo passível de perícia técnica para validação de sua cadeia de custódia ininterrupta.
+
+[Assinatura Digital NCFN - Autoridade de Captura]
+Selo de Autenticidade e Coleta Automatizada Aplicado
+
+DADOS DA CADEIA DE CUSTÓDIA (METADADOS DE REDE)
+URL: [URL_CAPTURADA]
+IP DESTINO: [IP_SERVIDOR_ORIGEM]
+DATA/HORA: [TIMESTAMP_ISO_8601]
+USER-AGENT: [BROWSER_CLIENT_INFO]
+HASH SHA-256 (PACOTE): [HASH_RESULTANTE]

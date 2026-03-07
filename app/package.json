@@ -1,0 +1,42 @@
+{
+  "name": "app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^1.4.0",
+    "@marsidev/react-turnstile": "^1.4.2",
+    "@prisma/client": "^6.19.2",
+    "@types/leaflet": "^1.9.21",
+    "fs-extra": "^11.3.4",
+    "geoip-lite": "^1.4.10",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.576.0",
+    "next": "14.2.35",
+    "next-auth": "^4.24.11",
+    "node-cron": "^4.2.1",
+    "pdf-lib": "^1.17.1",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-hot-toast": "^2.6.0",
+    "react-leaflet": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/geoip-lite": "^1.4.4",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "prisma": "^6.19.2",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
