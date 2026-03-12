@@ -20,8 +20,7 @@ services:
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - CF_ACCESS_TEAM_DOMAIN=${CF_ACCESS_TEAM_DOMAIN}
       - CRYPTO_SALT=${CRYPTO_SALT}
       - JWT_SECRET=${JWT_SECRET}
       - CRON_SECRET=${CRON_SECRET}
@@ -44,6 +43,17 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
+
+  # ─── Cloudflare Tunnel ──────────────────────────────────────────────────────
+  # Conecta o portal à edge da Cloudflare sem expor portas públicas
+  # O roteamento é configurado no dashboard CF → tunnel → ncfn.net → http://portal:3000
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ncfn_cloudflared
+    restart: unless-stopped
+    # network_mode: host → localhost:3002 resolve para o host (onde portal expõe a porta)
+    network_mode: host
+    command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiYzFlOWI4ZjEtNTAxMS00MGZhLTg4NDAtYjIyMTJjMDJhYmM3IiwicyI6Ik1qVXpZakJtWXpRdE4yVmxPUzAwWVRreUxUazNaREF0WldNNU1HRTFPVGRqWlRBMyJ9
 
   # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
   # Ativar: docker compose --profile whisper up -d

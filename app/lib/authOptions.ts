@@ -1,7 +1,8 @@
 import type { NextAuthOptions, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
-import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaClient } from "@prisma/client";
+import { verifyCfJwt } from "@/lib/cfAccess";
 
 const prisma = new PrismaClient();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL!;
@@ -18,9 +19,25 @@ type AppJWT = JWT & {
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    CredentialsProvider({
+      id: "cloudflare-access",
+      name: "Cloudflare Access",
+      credentials: {
+        cfToken: { label: "CF JWT", type: "text" },
+      },
+      async authorize(credentials) {
+        const token = credentials?.cfToken;
+        if (!token) return null;
+
+        const result = await verifyCfJwt(token);
+        if (!result?.email) return null;
+
+        return {
+          id: result.email,
+          email: result.email,
+          name: result.email,
+        };
+      },
     }),
   ],
   callbacks: {
@@ -69,7 +86,6 @@ export const authOptions: NextAuthOptions = {
           const dbUser = await prisma.user.findUnique({ where: { email: t.email } });
           t.policyAcceptedAt = dbUser?.policyAcceptedAt?.toISOString() ?? null;
           t.totpEnabled = dbUser?.totpEnabled ?? false;
-          // totpVerified: only true if explicitly set during this session
           if (t.totpEnabled && t.totpVerified === undefined) {
             t.totpVerified = false;
           }
@@ -111,4 +127,3 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
-
