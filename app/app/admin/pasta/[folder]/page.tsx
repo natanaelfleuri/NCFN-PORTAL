@@ -1,10 +1,11 @@
 "use client";
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { FileText, Image as ImageIcon, Download, ArrowLeft, Search, Archive, CheckCircle, Lock, Unlock, UploadCloud, Loader2, Eye, X, Save, Edit3, Fingerprint, Copy, Trash2, Trash, FileDown, PackageOpen } from 'lucide-react';
+import { FileText, Image as ImageIcon, Download, ArrowLeft, Search, Archive, CheckCircle, Lock, Unlock, UploadCloud, Loader2, Eye, X, Save, Edit3, Fingerprint, Copy, Trash2, Trash, FileDown, PackageOpen, Bot } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import SecurePreview from '../../../components/SecurePreview';
 import Simulated2FA from '../../../components/Simulated2FA';
+import AiAnalysisModal from '../../../components/AiAnalysisModal';
 import { formatBytes, formatDate } from '../../../utils';
 
 type FileItem = { folder: string; filename: string; isPublic: boolean; size: number; mtime: string; };
@@ -33,8 +34,9 @@ export default function AdminFolderView({ params }: { params: { folder: string }
     const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
     const [actionTitle, setActionTitle] = useState('');
     const [bundleLoading, setBundleLoading] = useState<string | null>(null);
+    const [aiTarget, setAiTarget] = useState<string | null>(null);
 
-    const isForensicFolder = folderName === '9_ACESSO_TEMPORARIO_E_UNICO';
+    const isForensicFolder = folderName === '_ACESSO_TEMPORARIO';
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -524,6 +526,22 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                                                 </button>
                                             )}
 
+                                            {/* ── Botão Perito Sansão (IA) ── */}
+                                            {!isSystemFile && (
+                                                <button
+                                                    onClick={() => setAiTarget(file.filename)}
+                                                    className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition border ${
+                                                        aiTarget === file.filename
+                                                            ? 'bg-[#bc13fe]/30 text-[#bc13fe] border-[#bc13fe]/60'
+                                                            : 'bg-[#bc13fe]/8 text-[#bc13fe]/70 hover:bg-[#bc13fe]/20 hover:text-[#bc13fe] border-[#bc13fe]/20 hover:border-[#bc13fe]/50'
+                                                    }`}
+                                                    title="Analisar com IA — Perito Sansão"
+                                                >
+                                                    <Bot className="w-3.5 h-3.5" />
+                                                    <span className="hidden sm:inline">Perito IA</span>
+                                                </button>
+                                            )}
+
                                             {!isSystemFile && (
                                                 <button
                                                     onClick={() => setCryptoModal({ filename: file.filename, action: file.filename.endsWith('.enc') ? 'decrypt' : 'encrypt' })}
@@ -703,7 +721,6 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                 </div>
             )}
 
-            {/* Modal de Compartilhamento (Sênior) */}
             {/* Modal 2FA Simulado */}
             <Simulated2FA
                 isOpen={is2FAOpen}
@@ -711,6 +728,15 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                 onSuccess={() => pendingAction && pendingAction()}
                 actionName={actionTitle}
             />
+
+            {/* Modal IA — Perito Sansão (caixa flutuante) */}
+            {aiTarget && (
+                <AiAnalysisModal
+                    folder={folderName}
+                    filename={aiTarget}
+                    onClose={() => setAiTarget(null)}
+                />
+            )}
 
         </div>
     );

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, Bot, Search, FileSearch, Trash2, Users, FileText, Globe, Cpu, TrendingUp, Clock } from 'lucide-react';
+import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, Bot, Search, FileSearch, Trash2, Users, FileText, Globe, Cpu, TrendingUp, Clock, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { formatBytes } from '../utils';
@@ -29,6 +29,8 @@ const MODULES = [
     { href: '/admin/security', icon: ShieldAlert, label: 'Segurança', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)' },
     { href: '/admin/laudo-forense', icon: TrendingUp, label: 'Laudo com IA', color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)' },
     { href: '/admin/teste', icon: Cpu, label: 'Testes de Sistema', color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.25)' },
+    { href: '/admin/cofre', icon: BookOpen, label: 'Cofre Obsidian', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.25)' },
+    { href: '/admin/auditoria-sansao', icon: FileSearch, label: 'Auditoria Sansão', color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)' },
 ];
 
 export default function AdminDashboard() {

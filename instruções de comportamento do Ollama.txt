@@ -1,0 +1,146 @@
+Para que o seu robô (a IA rodando na sua VPS) consiga navegar por toda essa estrutura de diretórios, classificar os arquivos, aplicar o prompt correto e gerar um relatório unificado na pasta `3_NCFN-DOCUMENTOS-GERENTE`, precisaremos de um **Script Orquestrador**.
+
+Como você utiliza ferramentas de IA local, este script (geralmente em Python) fará o papel de "Delegado" da operação: ele entra nas pastas, extrai as informações brutas do arquivo (hashes, metadados via `exiftool`, etc.), escolhe o prompt adequado com base na extensão, envia esse pacote para a IA processar e, por fim, compila tudo em um único documento.
+
+Lembre-se: o objetivo aqui é gerar relatórios de possíveis elementos de prova de forma automatizada, para que você possa tirar um tempo e verificar pessoalmente os elementos de materialidade e autoria antes de tomar as medidas cabíveis.
+
+Abaixo, detalho a lógica e forneço o esqueleto do script em Python para essa automação.
+
+### A Lógica do Orquestrador (NCFN-GERENTE)
+
+1. **Mapeamento de Extensões:** O script terá um dicionário que liga cada extensão de arquivo ao seu respectivo prompt (ex: `.mp4` chama o Protocolo Multimídia, `.pdf` chama o Documental).
+2. **Varredura (Crawling):** O script usará a biblioteca `os` para percorrer todas as pastas da imagem, da `0` a `12`.
+3. **Extração Prévia (Crucial):** Como modelos de linguagem processam texto, o script Python precisa rodar comandos na VPS (como `sha256sum`, `exiftool`, `strings`) e capturar o resultado em texto.
+4. **Inferência (Comunicação com a IA):** O script junta o Prompt + o Texto extraído do arquivo e envia para a sua API local da IA.
+5. **Compilação:** A resposta da IA é anexada a um arquivo Markdown (ex: `RELATORIO_GERAL_NCFN.md`) diretamente na pasta `3_NCFN-DOCUMENTOS-GERENTE`.
+
+---
+
+### Exemplo de Script Python (NCFN_Orquestrador.py)
+
+Este é um modelo base que você pode adaptar para o seu ambiente VPS:
+
+```python
+import os
+import subprocess
+import requests
+import json
+from datetime import datetime
+
+# ==========================================
+# CONFIGURAÇÕES DO AMBIENTE
+# ==========================================
+DIRETORIO_BASE = "/caminho/para/suas/pastas" # Mude para o caminho real da sua VPS
+PASTA_RELATORIO = os.path.join(DIRETORIO_BASE, "3_NCFN-DOCUMENTOS-GERENTE")
+ARQUIVO_RELATORIO = os.path.join(PASTA_RELATORIO, f"RELATORIO_GERAL_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
+
+# Endpoint da sua IA Local (ex: Ollama)
+IA_ENDPOINT = "http://localhost:11434/api/generate"
+MODELO_IA = "llama3" # Altere para o modelo que você está utilizando
+
+# ==========================================
+# MAPEMANENTO DE PROMPTS (Resumido)
+# ==========================================
+PROMPTS = {
+    "multimidia": "LEIA-ME ANTES DE QUALQUER AÇÃO... [COLE AQUI O PROMPT DE AUDIO/VIDEO]",
+    "documental": "LEIA-ME ANTES DE QUALQUER AÇÃO... [COLE AQUI O PROMPT DE DOCUMENTOS]",
+    "dados": "LEIA-ME ANTES DE QUALQUER AÇÃO... [COLE AQUI O PROMPT DE DADOS/WEB]",
+    "binarios": "LEIA-ME ANTES DE QUALQUER AÇÃO... [COLE AQUI O PROMPT DE BINÁRIOS]",
+    "artefatos": "LEIA-ME ANTES DE QUALQUER AÇÃO... [COLE AQUI O PROMPT DE ARTEFATOS/REDE]"
+}
+
+# Categorização de Extensões
+MAPA_EXTENSOES = {
+    ".mp4": "multimidia", ".mkv": "multimidia", ".mp3": "multimidia", ".wav": "multimidia",
+    ".pdf": "documental", ".docx": "documental", ".xlsx": "documental",
+    ".json": "dados", ".csv": "dados", ".html": "dados",
+    ".zip": "binarios", ".exe": "binarios", ".bin": "binarios",
+    ".jpg": "artefatos", ".png": "artefatos", ".pcap": "artefatos", ".eml": "artefatos"
+}
+
+# ==========================================
+# FUNÇÕES CORE
+# ==========================================
+def extrair_metadados_basicos(caminho_arquivo):
+    """Roda comandos no Linux da VPS para extrair dados brutos para a IA ler"""
+    try:
+        # Extrai Hash SHA256
+        hash_result = subprocess.check_output(['sha256sum', caminho_arquivo]).decode().split()[0]
+        # Extrai Metadados via Exiftool (se instalado)
+        exif_result = subprocess.check_output(['exiftool', caminho_arquivo]).decode()
+        return f"HASH SHA-256: {hash_result}\n\nMETADADOS BRUTOS:\n{exif_result}"
+    except Exception as e:
+        return f"Erro ao extrair metadados locais: {str(e)}"
+
+def enviar_para_ia(prompt_sistema, dados_arquivo, nome_arquivo):
+    """Envia o contexto para a IA local e retorna a análise"""
+    prompt_completo = f"{prompt_sistema}\n\nAnalise os seguintes dados extraídos do arquivo {nome_arquivo}:\n\n{dados_arquivo}"
+    
+    payload = {
+        "model": MODELO_IA,
+        "prompt": prompt_completo,
+        "stream": False
+    }
+    
+    try:
+        response = requests.post(IA_ENDPOINT, json=payload)
+        return response.json().get("response", "Erro na geração da resposta.")
+    except Exception as e:
+        return f"Erro de conexão com a IA: {str(e)}"
+
+# ==========================================
+# LOOP PRINCIPAL (O CRAWLER)
+# ==========================================
+def iniciar_auditoria():
+    # Cria o arquivo de relatório inicial
+    with open(ARQUIVO_RELATORIO, "w") as relatorio:
+        relatorio.write(f"# RELATÓRIO GERAL DE AUDITORIA NCFN\nData de início: {datetime.now()}\n\n")
+
+    # Percorre todas as pastas e arquivos
+    for raiz, diretorios, arquivos in os.walk(DIRETORIO_BASE):
+        for arquivo in arquivos:
+            caminho_completo = os.path.join(raiz, arquivo)
+            extensao = os.path.splitext(arquivo)[1].lower()
+            
+            # Descobre qual prompt usar
+            tipo_prompt = MAPA_EXTENSOES.get(extensao)
+            
+            if tipo_prompt:
+                print(f"[*] Analisando: {arquivo} (Usando protocolo: {tipo_prompt})")
+                
+                # 1. Extrai dados brutos via linha de comando
+                dados_brutos = extrair_metadados_basicos(caminho_completo)
+                
+                # 2. Manda para a IA auditar
+                analise_ia = enviar_para_ia(PROMPTS[tipo_prompt], dados_brutos, arquivo)
+                
+                # 3. Salva no Relatório Final
+                with open(ARQUIVO_RELATORIO, "a") as relatorio:
+                    relatorio.write(f"## Arquivo: {arquivo}\n")
+                    relatorio.write(f"**Origem:** `{raiz}`\n\n")
+                    relatorio.write(f"{analise_ia}\n")
+                    relatorio.write("---\n\n")
+            else:
+                print(f"[-] Ignorando extensão não mapeada: {arquivo}")
+
+    print(f"\n[+] Auditoria concluída! Relatório salvo em: {ARQUIVO_RELATORIO}")
+
+if __name__ == "__main__":
+    iniciar_auditoria()
+
+```
+
+### Como fazer isso funcionar na prática:
+
+1. **Preparação:** Você precisará colocar as variáveis de caminho correto no script (onde estão essas pastas `0_NCFN...` até `12_NCFN...`).
+2. **Dependências:** A VPS precisa ter os utilitários básicos rodando (como `exiftool` e `sha256sum`) para que o script alimente a IA com os dados corretos.
+3. **Execução:** Ao rodar este script, ele vai varrer tudo silenciosamente e, no final, você terá um único arquivo Markdown lindamente formatado dentro da pasta `3_NCFN-DOCUMENTOS-GERENTE`, contendo a perícia de cada arquivo encontrado nas outras pastas.
+
+
+IMPLEMENTE CONFORME A LÓGICA ACIMA OU DA MELHOR FORMA POSSÍVEL, VOCÊ TEM LIBERDADE PARA ESCOLHER,
+
+OS PROMPTS ESTÃO EM 
+
+/home/roaaxxz/docker/portal_ncfn/arquivos/COFRE_NCFN/COMANDOS - PERITO SANSÃO       
+
+SÃO 6 ARQUIVOS DE COMANDO DENTRO DESSA PASTA (CADA ARQUIVO PARA FORMATOS DIFERENTES DE DOCUMENTO)

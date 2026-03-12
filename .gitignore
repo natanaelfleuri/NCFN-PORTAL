@@ -27,8 +27,10 @@ tsconfig.tsbuildinfo
 
 # Dados Sensíveis/Arquivos de Coleta
 arquivos/
-moltbot/arquivos/
-moltbot/2_OSINT/
+moltbot/
+
+# Playwright
+.playwright/
 
 # Segredos e Configurações Pessoais
 .env

@@ -19,7 +19,7 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
         }
 
-        const folderPath = path.join(process.cwd(), '../arquivos/9_ACESSO_TEMPORARIO_E_UNICO');
+        const folderPath = path.join(process.cwd(), '../arquivos/_ACESSO_TEMPORARIO');
 
         if (!fs.existsSync(folderPath)) {
             return NextResponse.json({ records: [] });

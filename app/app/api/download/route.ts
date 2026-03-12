@@ -36,7 +36,7 @@ export async function GET(req: Request) {
         }
 
         // === MÓDULO FORENSE: INTERCEPTAÇÃO E GERAÇÃO ===
-        if (folder === '9_ACESSO_TEMPORARIO_E_UNICO' && !filename.includes('CERTIDAO_ACESSO')) {
+        if (folder === '_ACESSO_TEMPORARIO' && !filename.includes('CERTIDAO_ACESSO')) {
             const certidaoPath = path.join(process.cwd(), '../arquivos', folder, `${filename}_CERTIDAO_ACESSO.txt`);
 
             // 1. Verificação de Bloqueio (Se a certidão existe, o arquivo original sumiu. Mostra a tela de bloqueio HTML)
@@ -135,7 +135,7 @@ foi permanentemente deletado do servidor local.
         }
 
         // Caso não seja da pasta 9, verificar existência normalmente
-        if (folder !== '9_ACESSO_TEMPORARIO_E_UNICO' || filename.includes('CERTIDAO_ACESSO')) {
+        if (folder !== '_ACESSO_TEMPORARIO' || filename.includes('CERTIDAO_ACESSO')) {
             if (!fs.existsSync(filePath)) {
                 console.error(`[DOWNLOAD API 404] Caminho TENTADO: ${filePath}`);
                 return new NextResponse('Arquivo alvo não encontrado', { status: 404 });
@@ -149,7 +149,7 @@ foi permanentemente deletado do servidor local.
         let fileBuffer = await fs.readFile(filePath);
 
         // --- 4.1 Data-Room Virtual: Anti-Vazamento Watermark (Se for PDF e da pasta Forense) ---
-        if (folder === '9_ACESSO_TEMPORARIO_E_UNICO' && filename.toLowerCase().endsWith('.pdf') && !filename.includes('CERTIDAO_ACESSO')) {
+        if (folder === '_ACESSO_TEMPORARIO' && filename.toLowerCase().endsWith('.pdf') && !filename.includes('CERTIDAO_ACESSO')) {
             try {
                 const ipStr = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
                 const dateStr = new Date().toISOString();
@@ -177,7 +177,7 @@ foi permanentemente deletado do servidor local.
         // ----------------------------------------------------------------------------------------
 
         // 5. Autodestruição (Gatilho de Exclusão do Arquivo Físico caso seja da Pasta 9)
-        if (folder === '9_ACESSO_TEMPORARIO_E_UNICO' && !filename.includes('CERTIDAO_ACESSO')) {
+        if (folder === '_ACESSO_TEMPORARIO' && !filename.includes('CERTIDAO_ACESSO')) {
             try {
                 // Aguardamos gravação da certidão para evitar inconsistências e em seguida deletamos o alvo
                 await fs.unlink(filePath);

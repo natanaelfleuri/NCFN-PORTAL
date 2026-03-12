@@ -25,7 +25,7 @@ export default function PublicFolderView({ params }: { params: { folder: string 
     const [shareFile, setShareFile] = useState<string | null>(null);
     const [whoAvailable, setWhoAvailable] = useState<Record<string, string>>({});
 
-    const isForensicFolder = folderName === '9_ACESSO_TEMPORARIO_E_UNICO';
+    const isForensicFolder = folderName === '_ACESSO_TEMPORARIO';
 
     useEffect(() => {
         fetch('/api/files')
@@ -216,7 +216,7 @@ export default function PublicFolderView({ params }: { params: { folder: string 
                                             </div>
                                         </div>
 
-                                        {folderName.includes('9_') && !isCertidao && (
+                                        {isForensicFolder && !isCertidao && (
                                             <div className="bg-gray-900/60 p-3 rounded-lg border border-gray-800 flex flex-col sm:flex-row sm:items-center gap-2">
                                                 <span className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest shrink-0">Destinatário:</span>
                                                 <input

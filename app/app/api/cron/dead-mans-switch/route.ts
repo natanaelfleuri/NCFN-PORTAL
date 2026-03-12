@@ -56,13 +56,28 @@ export async function GET(req: NextRequest) {
                         // Read all folders and destroy
                         const items = await fs.readdir(storageRoot);
                         for (const item of items) {
-                            if (item !== '.gitkeep' && item !== 'Lixeira') {
+                            if (item !== '.gitkeep' && item !== 'lixeira') {
                                 await fs.remove(path.join(storageRoot, item));
                             }
                         }
 
                         // Force recreation of basic structure to not crash the app entirely
-                        const defaultFolders = ['0_CRIADA_PELO_SISTEMA', 'Lixeira', '1_ZONA_FRANCA_PUBLICO', '9_ACESSO_TEMPORARIO_E_UNICO'];
+                        const defaultFolders = [
+                            'lixeira', 'forensics', 'capturas_web', '_ACESSO_TEMPORARIO',
+                            '0_NCFN-ULTRASECRETOS',
+                            '1_NCFN-PROVAS-SENSÍVEIS',
+                            '2_NCFN-ELEMENTOS-DE-PROVA',
+                            '3_NCFN-DOCUMENTOS-GERENTE',
+                            '4_NCFN-PROCESSOS-PROCEDIMENTOS-CONTRATOS',
+                            '5_NCFN-GOVERNOS-EMPRESAS',
+                            '6_NCFN-FORNECIDOS_sem_registro_de_coleta',
+                            '7_NCFN-CAPTURAS-WEB_OSINT',
+                            '8_NCFN-VIDEOS',
+                            '9_NCFN-PERFIS-CRIMINAIS_SUSPEITOS_CRIMINOSOS',
+                            '10_NCFN-ÁUDIO',
+                            '11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS',
+                            '12_NCFN-METADADOS-LIMPOS',
+                        ];
                         for (const sf of defaultFolders) {
                             await fs.ensureDir(path.join(storageRoot, sf));
                         }
