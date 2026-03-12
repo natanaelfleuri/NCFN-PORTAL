@@ -1,10 +1,24 @@
+// @ts-nocheck
+import { getSession, getDbUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import fs from 'fs-extra';
 import path from 'path';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
     try {
+        const session = await getSession();
+        if (!session?.user?.email) {
+            return NextResponse.json({ error: 'Não autorizado. Faça o login.' }, { status: 401 });
+        }
+
+        const dbUser = await getDbUser(session.user.email);
+        if (!dbUser || dbUser.role !== 'admin') {
+            return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
+        }
+
         const body = await req.json();
         const { folder, filename, password } = body;
 
@@ -22,11 +36,14 @@ export async function POST(req: Request) {
             return new NextResponse('Arquivo não consta como criptografado (.enc)', { status: 400 });
         }
 
-        const destFilePath = `${filePath.replace(/\.enc$/, '')}`; // Remove extensão .enc
+        const destFilePath = `${filePath.replace(/\.enc$/, '')}`;
 
-        const key = crypto.scryptSync(password, 'salt-forense-ncfn', 32);
+        const salt = process.env.CRYPTO_SALT;
+        if (!salt) {
+            return new NextResponse('Configuração de criptografia (salt) ausente no servidor.', { status: 500 });
+        }
+        const key = crypto.scryptSync(password, salt, 32);
 
-        // O arquivo .enc gravou o 'iv' de 16 bytes no início dele. Precisamos ler.
         const fileBuffer = await fs.readFile(filePath);
         if (fileBuffer.length < 16) {
             return new NextResponse('Falha de consistência: Arquivo comprometido.', { status: 400 });
@@ -37,7 +54,6 @@ export async function POST(req: Request) {
 
         const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
 
-        // Em caso de senha errada, a decriptação solta Exceção.
         let decryptedData;
         try {
             decryptedData = Buffer.concat([decipher.update(encryptedData), decipher.final()]);
@@ -47,7 +63,6 @@ export async function POST(req: Request) {
         }
 
         await fs.writeFile(destFilePath, decryptedData);
-        // Deleta o engatilhado `.enc` após conversão segura.
         await fs.unlink(filePath);
 
         return NextResponse.json({ success: true, message: 'Arquivo Descriptografado com sucesso. Restauração completada.' });

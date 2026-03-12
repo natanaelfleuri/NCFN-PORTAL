@@ -13,8 +13,8 @@ export default function PolicyPage() {
             <div className="flex items-center gap-4 border-b border-gray-800 pb-8">
                 <ShieldAlert className="w-12 h-12 text-[#bc13fe]" />
                 <div>
-                    <h1 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tighter">Políticas de Uso e Responsabilidade</h1>
-                    <p className="text-gray-500 font-mono text-xs mt-1 uppercase tracking-widest">Protocolo de Operação NCFN</p>
+                    <h1 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-tighter">TERMOS DE CUSTÓDIA DIGITAL</h1>
+                    <p className="text-gray-500 font-mono text-xs mt-1 uppercase tracking-widest">Protocolo de Operação e Responsabilidade — Nexus Cloud Forensic Network</p>
                 </div>
             </div>
 
@@ -24,7 +24,7 @@ export default function PolicyPage() {
                         <CheckCircle className="w-5 h-5 text-green-400" /> 1. Natureza do Serviço e Infraestrutura
                     </h2>
                     <p>
-                        O <strong>NCFN (Neural Computing & Future Networks)</strong> é uma ferramenta de infraestrutura lógica, descentralizada e self-hosted (auto-hospedada), projetada para armazenamento e gestão de dados com foco em criptografia e custódia privada. Nós fornecemos apenas o código; o ambiente de execução e os servidores físicos operacionais são de posse, configuração e controle absolutos do administrador do nó.
+                        O <strong>NCFN (Nexus Cloud Forensic Network)</strong> é uma plataforma de infraestrutura forense digital, descentralizada e self-hosted (auto-hospedada), projetada para armazenamento, gestão e custódia de evidências digitais com criptografia AES-256 e cadeia de integridade SHA-256. O protocolo NCFN fornece exclusivamente o software; o ambiente de execução, servidores físicos, chaves criptográficas e dados operacionais são de posse, configuração e controle absolutos do administrador do nó — sem qualquer acesso, auditoria ou intervenção remota pelos desenvolvedores do protocolo.
                     </p>
                 </section>
 

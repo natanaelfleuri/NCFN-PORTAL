@@ -1,13 +1,4 @@
-// import nodemailer from "nodemailer";
-// Mocking nodemailer as it's missing and permission issues prevent installation
-const nodemailer = {
-    createTransport: (config: any) => ({
-        sendMail: async (options: any) => {
-            console.log("[MOCK MAILER] Would send email:", options.subject);
-            return { messageId: "mocked_" + Date.now() };
-        }
-    })
-};
+import nodemailer from "nodemailer";
 
 /**
  * Envia o relatório forense por e-mail para a central NCFN

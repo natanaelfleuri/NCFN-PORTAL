@@ -109,7 +109,7 @@ export default function BiometricSecurity({ children }: { children: React.ReactN
                     <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-xl text-center">
                         <p className="text-red-400 text-[10px] font-mono leading-tight">
                             VIOLAÇÃO DE PROTOCOLO DETECTADA.<br />
-                            VÍNCULO: {localStorage.getItem("ncfn_app_installer")}<br />
+                            Nexus Cyber Forensic Network: Biometria Confirmada {localStorage.getItem("ncfn_app_installer")}<br />
                             TENTATIVA: {session?.user?.email}
                         </p>
                     </div>
@@ -133,8 +133,8 @@ export default function BiometricSecurity({ children }: { children: React.ReactN
                 </div>
 
                 <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold neon-text military-text uppercase tracking-widest text-[#bc13fe]">Cofre Travado</h2>
-                    <p className="text-gray-500 text-xs uppercase tracking-tighter mt-2">Protocolo de Segurança Nível Militar Ativado</p>
+                    <h2 className="text-2xl font-bold neon-text military-text uppercase tracking-widest text-[#bc13fe]">Identidade Protegida</h2>
+                    <p className="text-gray-500 text-xs uppercase tracking-tighter mt-2">Segurança Nexus Cyber Forensic Network</p>
                     <p className="text-gray-400 text-[10px] mt-4 px-2 leading-relaxed">
                         Este dispositivo está sob supervisão do software NCFN Core. O acesso aos diretórios criptografados e logs forenses locais exige a verificação imediata da biometria do operador autorizado. Qualquer falha neste procedimento acionará um alerta remoto.
                     </p>

@@ -1,9 +1,11 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Path to a lockout state file. When this file exists, the service is locked.
-const LOCK_FILE = path.join(process.env.VAULT_DIR || '/data/ncfn-vault', '_SYSTEM_LOCKOUT');
+// Path unificado do lockfile — mesma localização usada pelo cron/dead-mans-switch
+const ARQUIVOS_DIR = path.join(process.cwd(), '../arquivos');
+const LOCK_FILE = path.join(ARQUIVOS_DIR, '_SYSTEM_LOCKOUT');
 
 /**
  * GET /api/dead-man-switch
@@ -19,7 +21,10 @@ export async function GET() {
  * Body: { action: 'lock' | 'unlock', masterKey: string }
  */
 export async function POST(req: NextRequest) {
-    const MASTER_KEY = process.env.MASTER_UNLOCK_KEY || 'NCFN_MASTER_2026';
+    const MASTER_KEY = process.env.MASTER_UNLOCK_KEY;
+    if (!MASTER_KEY) {
+        return NextResponse.json({ error: 'Configuração de segurança (chave mestra) ausente no servidor.' }, { status: 500 });
+    }
 
     let body: { action?: string; masterKey?: string };
     try {
@@ -32,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     if (masterKey !== MASTER_KEY) {
         // Log intrusion attempt
-        const logFile = path.join(process.env.VAULT_DIR || '/data/ncfn-vault', '_registros_acesso.txt');
+        const logFile = path.join(ARQUIVOS_DIR, '_registros_acesso.txt');
         const logEntry = `[INTRUSION] Dead Man's Switch attempt failed: ${new Date().toISOString()} IP: (server-side)\n`;
         fs.appendFileSync(logFile, logEntry);
         return NextResponse.json({ error: 'Chave mestra inválida. Tentativa registrada.' }, { status: 403 });

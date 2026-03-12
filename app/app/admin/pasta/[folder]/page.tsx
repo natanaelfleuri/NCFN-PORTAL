@@ -1,7 +1,8 @@
 "use client";
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { FileText, Image as ImageIcon, Download, ArrowLeft, Search, Archive, CheckCircle, Lock, Unlock, UploadCloud, Loader2, Eye, X, Save, Edit3, Fingerprint, Copy, Trash2, Trash, FileDown } from 'lucide-react';
+import { FileText, Image as ImageIcon, Download, ArrowLeft, Search, Archive, CheckCircle, Lock, Unlock, UploadCloud, Loader2, Eye, X, Save, Edit3, Fingerprint, Copy, Trash2, Trash, FileDown, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import SecurePreview from '../../../components/SecurePreview';
 import Simulated2FA from '../../../components/Simulated2FA';
 import { formatBytes, formatDate } from '../../../utils';
@@ -26,11 +27,12 @@ export default function AdminFolderView({ params }: { params: { folder: string }
     const [hashModal, setHashModal] = useState<{ filename: string, hashResult: string } | null>(null);
     const [cryptoPassword, setCryptoPassword] = useState('');
     const [cryptoLoading, setCryptoLoading] = useState(false);
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    // toastMessage replaced by react-hot-toast
     const [isDragging, setIsDragging] = useState(false);
     const [is2FAOpen, setIs2FAOpen] = useState(false);
     const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
     const [actionTitle, setActionTitle] = useState('');
+    const [bundleLoading, setBundleLoading] = useState<string | null>(null);
 
     const isForensicFolder = folderName === '9_ACESSO_TEMPORARIO_E_UNICO';
 
@@ -50,10 +52,10 @@ export default function AdminFolderView({ params }: { params: { folder: string }
         fetchFiles();
     }, [folderName]);
 
-    const showToast = (msg: string) => {
-        setToastMessage(msg);
-        setTimeout(() => setToastMessage(null), 3000);
-    };
+    const showToast = (msg: string) => toast(msg, {
+        style: { background: '#1a0530', border: '1px solid rgba(188,19,254,0.4)', color: '#fff', fontWeight: 'bold', fontSize: '13px' },
+        iconTheme: { primary: '#bc13fe', secondary: '#fff' },
+    });
 
     const togglePublic = async (filename: string, isPublic: boolean) => {
         setFiles(files.map(f => f.filename === filename ? { ...f, isPublic: !isPublic } : f));
@@ -246,6 +248,29 @@ export default function AdminFolderView({ params }: { params: { folder: string }
         window.location.href = `/api/download?folder=${encodeURIComponent(folderName)}&filename=${encodeURIComponent(filename)}`;
     };
 
+    const handleBundleDownload = async (filename: string) => {
+        setBundleLoading(filename);
+        const tid = toast.loading('Gerando bundle forense...', {
+            style: { background: '#0a0020', border: '1px solid rgba(188,19,254,0.4)', color: '#fff' },
+        });
+        try {
+            const url = `/api/download-bundle?folder=${encodeURIComponent(folderName)}&filename=${encodeURIComponent(filename)}`;
+            const res = await fetch(url);
+            if (!res.ok) { toast.error('Erro ao gerar bundle.', { id: tid }); return; }
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = res.headers.get('content-disposition')?.match(/filename="(.+)"/)?.[1] || `bundle_${filename}.zip`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            toast.success('Bundle forense gerado!', { id: tid, style: { background: '#001a0a', border: '1px solid rgba(0,243,255,0.4)', color: '#fff' } });
+        } catch {
+            toast.error('Falha ao gerar bundle.', { id: tid });
+        } finally {
+            setBundleLoading(null);
+        }
+    };
+
     const getIcon = (filename: string) => {
         if (filename.match(/\.(jpg|jpeg|png|gif|webp)$/i)) return <ImageIcon className="text-[#bc13fe] w-5 h-5" />;
         if (filename.match(/\.(zip|rar|7z)$/i)) return <Archive className="text-yellow-400 w-5 h-5" />;
@@ -270,7 +295,16 @@ export default function AdminFolderView({ params }: { params: { folder: string }
         return result;
     }, [files, search, filterType, sortOrder]);
 
-    if (loading) return <div className="text-center mt-20 text-[#bc13fe] animate-pulse">Carregando Diretório Restrito...</div>;
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center mt-24 gap-4">
+            <div className="relative w-16 h-16">
+                <div className="absolute inset-0 rounded-full border-2 border-[#bc13fe]/20 animate-ping" />
+                <div className="absolute inset-2 rounded-full border-2 border-[#bc13fe]/40 animate-spin" />
+                <div className="absolute inset-4 rounded-full bg-[#bc13fe]/20" />
+            </div>
+            <p className="text-[#bc13fe] font-mono text-sm animate-pulse tracking-widest uppercase">Carregando Diretório Restrito...</p>
+        </div>
+    );
 
     return (
         <div
@@ -291,12 +325,7 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                 </div>
             )}
 
-            {/* Toast Notification */}
-            {toastMessage && (
-                <div className="fixed top-8 right-8 z-50 bg-[#bc13fe]/90 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-[0_0_20px_rgba(188,19,254,0.5)] animate-bounce">
-                    {toastMessage}
-                </div>
-            )}
+            {/* Toast via react-hot-toast — renderizado pelo ToastProvider no layout */}
 
             <div className="flex flex-col sm:flex-row items-center gap-4 border-b border-gray-800 pb-6">
                 <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -357,7 +386,7 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
                     <input
                         type="text"
-                        placeholder="Buscar arquivo no cofre..."
+                        placeholder="Buscar arquivo no vault..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="w-full bg-gray-900/80 border border-gray-700 text-white rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-[#bc13fe] transition text-sm"
@@ -459,18 +488,18 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                                             {!isSystemFile && (
                                                 <button
                                                     onClick={() => {
-                                                        setToastMessage("Identidade Hash...");
+                                                        const tid = toast.loading('Computando hash...', { style: { background: '#0a0020', border: '1px solid rgba(0,243,255,0.3)', color: '#fff' } });
                                                         fetch(`/api/hash?folder=${encodeURIComponent(folderName)}&filename=${encodeURIComponent(file.filename)}`)
                                                             .then(res => res.json())
                                                             .then(data => {
-                                                                setToastMessage(null);
+                                                                toast.dismiss(tid);
                                                                 if (data.hash) {
                                                                     setHashModal({ filename: file.filename, hashResult: data.hash });
                                                                 } else {
-                                                                    showToast("Falha Hash.");
+                                                                    toast.error('Falha ao obter hash.');
                                                                 }
                                                             })
-                                                            .catch(() => showToast("Erro Motor"));
+                                                            .catch(() => { toast.dismiss(tid); toast.error('Erro no motor hash.'); });
                                                     }}
                                                     className="shrink-0 p-2 bg-gray-800 text-[#00f3ff] hover:bg-[#00f3ff]/20 border border-gray-700 hover:border-[#00f3ff]/30 rounded-lg transition"
                                                     title="Hash SHA-256"
@@ -518,6 +547,21 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                                                 <Download className="w-4 h-4" />
                                                 <span className="text-[10px] font-bold sm:text-xs">{(isForensicFolder && !isSystemFile) ? "Único" : (isSystemFile ? "Log" : "Baixar")}</span>
                                             </button>
+
+                                            {!isSystemFile && (
+                                                <button
+                                                    onClick={() => handleBundleDownload(file.filename)}
+                                                    disabled={bundleLoading === file.filename}
+                                                    title="Bundle Forense (ZIP + Criptografado + Relatório PDF)"
+                                                    className="shrink-0 flex items-center gap-1.5 px-2.5 py-2 rounded-lg transition border bg-[#00f3ff]/5 text-[#00f3ff]/60 hover:bg-[#00f3ff]/15 hover:text-[#00f3ff] border-[#00f3ff]/20 hover:border-[#00f3ff]/40 disabled:opacity-40"
+                                                >
+                                                    {bundleLoading === file.filename
+                                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        : <PackageOpen className="w-3.5 h-3.5" />
+                                                    }
+                                                    <span className="text-[9px] font-bold hidden sm:inline">ZIP</span>
+                                                </button>
+                                            )}
 
                                             {!isSystemFile && (
                                                 <div className="flex gap-1 shrink-0">

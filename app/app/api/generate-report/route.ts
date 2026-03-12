@@ -1,19 +1,32 @@
+// @ts-nocheck
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 import fs from 'fs';
 import path from 'path';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
-const VAULT_DIR = process.env.VAULT_DIR || '/data/ncfn-vault';
+const VAULT_DIR = path.resolve(process.env.VAULT_DIR || '/data/ncfn-vault');
 
 export async function GET(req: NextRequest) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    if (!token || token.role !== 'admin') {
+        return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: token ? 403 : 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const folder = searchParams.get('folder');
 
-    if (!folder || folder.includes('..')) {
+    if (!folder || folder.includes('..') || folder.includes('/')) {
         return NextResponse.json({ error: 'Pasta inválida.' }, { status: 400 });
     }
 
-    const folderPath = path.join(VAULT_DIR, folder);
+    const folderPath = path.resolve(VAULT_DIR, folder);
+
+    // Prevent directory traversal
+    if (!folderPath.startsWith(VAULT_DIR + path.sep) && folderPath !== VAULT_DIR) {
+        return NextResponse.json({ error: 'Pasta inválida.' }, { status: 400 });
+    }
     if (!fs.existsSync(folderPath)) {
         return NextResponse.json({ error: 'Pasta não encontrada.' }, { status: 404 });
     }

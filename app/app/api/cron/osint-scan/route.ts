@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from '@/lib/prisma';
 import { exec } from "child_process";
 import { createHash } from "crypto";
 import { promisify } from "util";
@@ -9,7 +9,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 minutes max for Vercel/Next edge
 
 const execAsync = promisify(exec);
-const prisma = new PrismaClient();
 
 // ─── Auth by CRON_SECRET ────────────────────────────────────────────────────
 function validateCronSecret(req: NextRequest): boolean {
@@ -17,23 +16,24 @@ function validateCronSecret(req: NextRequest): boolean {
   if (!cronSecret) return false;
   const authHeader = req.headers.get("authorization");
   if (authHeader === `Bearer ${cronSecret}`) return true;
-  // Also accept as query param for curl simplicity
-  const url = new URL(req.url);
-  if (url.searchParams.get("secret") === cronSecret) return true;
+  // Also accept X-Cron-Secret header
+  if (req.headers.get("x-cron-secret") === cronSecret) return true;
   return false;
 }
 
 // ─── Docker command builder ─────────────────────────────────────────────────
 function buildScanCommand(tool: string, target: string): string {
+  // ncfn-osint-cli: imagem leve pré-instalada com sherlock, theharvester e nmap.
+  // Build: docker build -f scripts/Dockerfile.osint-cli -t ncfn-osint-cli .
   const baseFlags = "--rm --network host --memory=512m --cpus=1.0";
   const t = target.replace(/[^a-zA-Z0-9@._\-+]/g, "").trim().slice(0, 100);
   switch (tool) {
     case "sherlock":
-      return `docker run ${baseFlags} kalilinux/kali-rolling bash -c "pip install sherlock-project -q 2>/dev/null && sherlock ${t} --print-found --no-color 2>&1 | head -150"`;
+      return `docker run ${baseFlags} ncfn-osint-cli sherlock ${t} --print-found --no-color 2>&1 | head -150`;
     case "theharvester":
-      return `docker run ${baseFlags} kalilinux/kali-rolling bash -c "apt-get install -y theharvester -qq 2>/dev/null && theHarvester -d ${t} -b all -l 50 2>&1 | head -150"`;
+      return `docker run ${baseFlags} ncfn-osint-cli theHarvester -d ${t} -b all -l 50 2>&1 | head -150`;
     default:
-      return `docker run ${baseFlags} kalilinux/kali-rolling bash -c "echo 'tool: ${tool}, target: ${t}'; nmap -sV -Pn --open -T3 ${t} 2>&1 | head -100"`;
+      return `docker run ${baseFlags} ncfn-osint-cli nmap -sV -Pn --open -T3 ${t} 2>&1 | head -100`;
   }
 }
 

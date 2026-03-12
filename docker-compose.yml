@@ -3,24 +3,34 @@ version: '3.8'
 services:
   portal:
     image: node:18-alpine
-    container_name: portal_ncfn
+    container_name: portal_ncfn_dev
     working_dir: /app
     user: "root"
     volumes:
       - ./app:/app
       - ./arquivos:/arquivos
+      - ./COFRE_NCFN:/COFRE_NCFN
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "3000:3000"
+      - "3002:3000"
     environment:
       - NODE_ENV=development
-      - NEXTAUTH_URL=https://ncfn.net
-      - ADMIN_EMAIL=fleuriengenharia@gmail.com
-      - OLLAMA_URL=http://host.docker.internal:11434
-      - OLLAMA_MODEL=mistral
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3002}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-fleuriengenharia@gmail.com}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - CRYPTO_SALT=${CRYPTO_SALT}
+      - JWT_SECRET=${JWT_SECRET}
+      - CRON_SECRET=${CRON_SECRET}
+      - MASTER_UNLOCK_KEY=${MASTER_UNLOCK_KEY}
+    env_file:
+      - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: sh -c "chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
+    command: sh -c "apk add --no-cache exiftool file 2>/dev/null || true && chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
     restart: unless-stopped
 
   caddy:
@@ -35,26 +45,58 @@ services:
       - caddy_data:/data
       - caddy_config:/config
 
-  moltbot:
-    build:
-      context: ./moltbot
-    container_name: moltbot_ncfn
-    working_dir: /app
-    volumes:
-      - ./moltbot:/app
-      - ./arquivos:/arquivos
-      - ./app/prisma/dev.db:/app/prisma/dev.db
+  # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
+  # Ativar: docker compose --profile whisper up -d
+  # RAM: ~1.5GB com modelo base
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: ncfn_whisper
+    profiles:
+      - whisper
+    ports:
+      - "9000:9000"
     environment:
-      - NODE_ENV=development
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OLLAMA_URL=http://host.docker.internal:11434
-      - DATABASE_URL=file:./prisma/dev.db
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: >
-      sh -xc "npm install && npx prisma generate && npm run start -- --service"
+      - ASR_MODEL=base
+    restart: unless-stopped
+
+  # ─── ChromaDB (RAG Jurídico) ────────────────────────────────────────────────
+  # Ativar: docker compose --profile rag up -d
+  # RAM: ~300MB, embeddings via Ollama (nomic-embed-text)
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ncfn_chromadb
+    profiles:
+      - rag
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    restart: unless-stopped
+
+  # ─── OSINT Desktop (Ubuntu/XFCE via noVNC) ─────────────────────────────────
+  # Substitui Kasm Workspaces: requer ~2-4GB RAM (vs 16GB do Kasm).
+  # Ativar: docker compose --profile osint up -d
+  # Acessar: http://localhost:3003  (senha: OSINT_DESKTOP_PASSWORD no .env)
+  osint-desktop:
+    image: lscr.io/linuxserver/webtop:ubuntu-xfce
+    container_name: ncfn_osint
+    profiles:
+      - osint
+    ports:
+      - "3003:3000"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+      - PASSWD=${OSINT_DESKTOP_PASSWORD:-OsintNcfn@2026!}
+    volumes:
+      - osint_home:/config
+      - ./scripts/osint-install.sh:/custom-cont-init.d/99-osint.sh:ro
+    shm_size: "1gb"
     restart: unless-stopped
 
 volumes:
   caddy_data:
   caddy_config:
+  osint_home:
+  chroma_data:

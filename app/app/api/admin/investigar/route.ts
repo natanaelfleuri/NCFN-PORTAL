@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from '@/lib/prisma';
 import { exec } from "child_process";
 import { createHash } from "crypto";
 import { promisify } from "util";
@@ -9,7 +9,6 @@ import { sendForensicReport } from "@/lib/mailer";
 
 export const dynamic = "force-dynamic";
 const execAsync = promisify(exec);
-const prisma = new PrismaClient();
 
 // ─── Sanitização de Alvo (anti command-injection) ─────────────────────────────
 function sanitizeTarget(target: string): string {
@@ -19,15 +18,17 @@ function sanitizeTarget(target: string): string {
 
 // ─── Gerador de comando Docker ─────────────────────────────────────────────────
 function buildDockerCommand(tool: string, target: string): string {
-  const baseFlags = "--rm --network host --timeout 120";
+  // ncfn-osint-cli: imagem leve pré-instalada com sherlock, theharvester e nmap.
+  // Build: docker build -f scripts/Dockerfile.osint-cli -t ncfn-osint-cli .
+  const baseFlags = "--rm --network host";
 
   switch (tool) {
     case "sherlock":
-      return `docker run ${baseFlags} kalilinux/kali-rolling bash -c "pip install sherlock-project -q 2>/dev/null && sherlock ${target} --print-found --no-color 2>&1 | head -200"`;
+      return `docker run ${baseFlags} ncfn-osint-cli sherlock ${target} --print-found --no-color 2>&1 | head -200`;
     case "theharvester":
-      return `docker run ${baseFlags} kalilinux/kali-rolling bash -c "apt-get install -y theharvester -qq 2>/dev/null && theHarvester -d ${target} -b all -l 100 2>&1 | head -200"`;
+      return `docker run ${baseFlags} ncfn-osint-cli theHarvester -d ${target} -b all -l 100 2>&1 | head -200`;
     case "nmap":
-      return `docker run ${baseFlags} kalilinux/kali-rolling bash -c "nmap -sV -Pn --open -T4 ${target} 2>&1 | head -200"`;
+      return `docker run ${baseFlags} ncfn-osint-cli nmap -sV -Pn --open -T4 ${target} 2>&1 | head -200`;
     default:
       throw new Error("Ferramenta inválida");
   }
@@ -40,14 +41,10 @@ async function formatWithAI(rawOutput: string, target: string, tool: string): Pr
   let geminiKey = process.env.GEMINI_API_KEY;
 
   try {
-    const config = await prisma.moltbotConfig.findFirst();
-    if (config) {
-      model = config.activeModel || model;
-      ollamaUrl = config.ollamaEndpoint || ollamaUrl;
-      geminiKey = config.geminiApiKey || geminiKey;
-    }
+    const adminUser = await prisma.user.findFirst({ where: { role: 'admin' }, include: { aiConfig: true } });
+    if (adminUser?.aiConfig?.geminiKey) geminiKey = adminUser.aiConfig.geminiKey;
   } catch (e) {
-    console.error("Erro ao buscar config:", e);
+    // Continua com defaults de env
   }
 
   const prompt = `Você é um perito forense digital da Polícia Federal.  

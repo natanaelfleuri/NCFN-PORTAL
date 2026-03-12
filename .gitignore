@@ -40,3 +40,17 @@ moltbot/2_OSINT/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Claude Code
+.claude/
+.claudeignore
+.playwright-mcp/
+
+# Vault e dados operacionais (nunca publicar)
+COFRE_NCFN/
+arquivos/
+
+# Scripts de deploy com dados internos
+ncfn-sync.sh
+rebuild-dev.sh
+script_nav.py

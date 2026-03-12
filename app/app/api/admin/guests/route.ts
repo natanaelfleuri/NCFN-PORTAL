@@ -1,27 +1,25 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { PrismaClient } from '@prisma/client';
+// @ts-nocheck
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-const prisma = new PrismaClient();
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL!;
-
-async function isAdmin() {
-    const session = await getServerSession();
-    return session?.user?.email === ADMIN_EMAIL;
+async function isAdmin(req: NextRequest) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    return token?.role === 'admin';
 }
 
-export async function GET() {
-    if (!await isAdmin()) {
+export async function GET(req: NextRequest) {
+    if (!await isAdmin(req)) {
         return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
     const guests = await prisma.guestEmail.findMany({ orderBy: { createdAt: 'desc' } });
     return NextResponse.json(guests);
 }
 
-export async function POST(req: Request) {
-    if (!await isAdmin()) {
+export async function POST(req: NextRequest) {
+    if (!await isAdmin(req)) {
         return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
     const { email, name } = await req.json();
@@ -35,8 +33,8 @@ export async function POST(req: Request) {
     return NextResponse.json(guest);
 }
 
-export async function DELETE(req: Request) {
-    if (!await isAdmin()) {
+export async function DELETE(req: NextRequest) {
+    if (!await isAdmin(req)) {
         return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
     const { email } = await req.json();

@@ -119,7 +119,7 @@ export default function SpotlightSearch() {
                         type="text"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        placeholder="Pesquisar ativos, processos ou materialidade Ciber-Gaeco..."
+                        placeholder="Pesquisar no Nexus Cyber Forensic Network (Processos, Hashes, Documentos)..."
                         className="flex-grow bg-transparent text-white text-lg focus:outline-none placeholder-gray-600"
                     />
                     <button onClick={() => setIsOpen(false)} className="p-2 text-gray-500 hover:text-white rounded-lg transition">

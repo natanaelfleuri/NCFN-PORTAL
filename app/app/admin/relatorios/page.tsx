@@ -6,7 +6,7 @@ import {
   ArrowLeft, Filter, Eye, Loader2, AlertTriangle, User, Clock, Zap, Bot
 } from "lucide-react";
 import Link from "next/link";
-
+import QRCodeGenerator from "../../components/QRCodeGenerator";
 type Evidence = {
   id: string; type: "manual" | "auto"; target: string; tool: string;
   sha256Hash: string; operatorEmail: string; triggeredBy: string;
@@ -36,6 +36,11 @@ export default function RelatoriosPage() {
   const [search, setSearch] = useState("");
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   const fetchEvidences = async () => {
     setLoading(true);
@@ -116,8 +121,8 @@ export default function RelatoriosPage() {
               <FileText className="w-6 h-6 text-[#bc13fe]" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">Galeria de Relatórios</h1>
-              <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Cadeia de Custódia — SHA-256</p>
+              <h1 className="text-2xl font-black text-white tracking-tight">Custódia de Evidências</h1>
+              <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Materialidade Digital · SHA-256 · Cadeia de Custódia Certificada</p>
             </div>
           </div>
         </div>
@@ -128,15 +133,15 @@ export default function RelatoriosPage() {
         <div className="grid grid-cols-3 gap-4 mb-8 no-print">
           <div className="glass-panel p-4 rounded-2xl border border-[#bc13fe]/30 text-center">
             <div className="text-2xl font-black text-white">{stats.totalEvidences}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Total Evidências</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Total de Evidências</div>
           </div>
           <div className="glass-panel p-4 rounded-2xl border border-cyan-500/30 text-center">
             <div className="text-2xl font-black text-cyan-400">{stats.totalManual}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Manuais</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Inserção Manual</div>
           </div>
           <div className="glass-panel p-4 rounded-2xl border border-purple-500/30 text-center">
             <div className="text-2xl font-black text-purple-400">{stats.totalAuto}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Automáticas</div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Coleta Automatizada</div>
           </div>
         </div>
       )}
@@ -243,7 +248,7 @@ export default function RelatoriosPage() {
                 <div className="p-5 border-b border-gray-800 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-[#bc13fe] uppercase tracking-wider flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5" /> Evidência Digital
+                      <Shield className="w-3.5 h-3.5" /> Laudo de Custódia · NCFN
                     </span>
                     <div className="flex items-center gap-2 no-print">
                       <button onClick={printReport} className="p-1.5 text-gray-500 hover:text-white border border-gray-800 rounded-lg hover:border-gray-600 transition">
@@ -269,7 +274,7 @@ export default function RelatoriosPage() {
                   <div className="bg-black/60 border border-[#bc13fe]/20 rounded-lg p-3 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-[#bc13fe] uppercase tracking-wider flex items-center gap-1">
-                        <Hash className="w-3 h-3" /> SHA-256 (Cadeia de Custódia)
+                        <Hash className="w-3 h-3" /> Assinatura SHA-256 · Imutável
                       </span>
                       <button onClick={() => copyHash(selected.sha256Hash)} className="text-[10px] text-gray-500 hover:text-white flex items-center gap-1">
                         {copiedHash === selected.sha256Hash ? <CheckCircle className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
@@ -277,8 +282,15 @@ export default function RelatoriosPage() {
                       </button>
                     </div>
                     <code className="text-[10px] text-[#bc13fe] break-all block">{selected.sha256Hash}</code>
-                    <div className="text-[9px] text-gray-700">Verificação de integridade: {selected.recordIntegrityHash}</div>
+                    <div className="text-[9px] text-gray-700 mt-2">Verificação de integridade: {selected.recordIntegrityHash}</div>
                   </div>
+
+                  {/* QR Code Verification */}
+                  {origin && (
+                    <div className="flex justify-center my-4 print:my-8 print:border print:border-gray-300 print:p-4 print:break-inside-avoid">
+                      <QRCodeGenerator data={`${origin}/verify?hash=${selected.sha256Hash}`} size={160} colorDark="#bc13fe" />
+                    </div>
+                  )}
                 </div>
 
                 {/* AI Report */}
@@ -286,7 +298,7 @@ export default function RelatoriosPage() {
                   {selected.hasAiReport && selected.aiReport && (
                     <div>
                       <h4 className="text-xs font-bold text-[#bc13fe] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                        <Eye className="w-3.5 h-3.5" /> Relatório de Materialidade (IA)
+                        <Eye className="w-3.5 h-3.5" /> Análise de Materialidade · IA Generativa
                       </h4>
                       <div className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed bg-black/30 rounded-lg p-3 border border-gray-800">
                         {selected.aiReport}
@@ -297,7 +309,7 @@ export default function RelatoriosPage() {
                   {/* Raw output */}
                   <div>
                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5" /> Output Bruto ({selected.rawOutputSize} bytes)
+                      <FileText className="w-3.5 h-3.5" /> Output Pericial Bruto ({selected.rawOutputSize} bytes)
                     </h4>
                     <pre className="text-[10px] font-mono text-gray-500 bg-black/50 border border-gray-900 rounded-lg p-3 max-h-48 overflow-auto whitespace-pre-wrap">
                       {(selected as any).rawOutput?.slice(0, 3000)}

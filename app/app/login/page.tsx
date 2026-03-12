@@ -40,10 +40,11 @@ function LoginContent() {
                 />
 
                 <h2 className="text-4xl font-bold text-white mb-2" style={{ textShadow: '0 0 10px rgba(188, 19, 254, 0.5)' }}>
-                    COFRE RESTRITO
+                    ACESSO RESTRITO
                 </h2>
-                <p className="text-gray-400 mb-8 text-sm">
-                    Acesso exclusivo por autenticação segura
+                <p className="text-gray-400 mb-8 text-sm leading-relaxed">
+                    Autenticação de identidade forense via credencial Google verificada.<br />
+                    <span className="text-[10px] text-gray-600 font-mono">Acesso condicionado a autorização prévia do administrador do nó.</span>
                 </p>
 
                 {error && (
@@ -51,8 +52,8 @@ function LoginContent() {
                         <AlertTriangle className="w-5 h-5 shrink-0" />
                         <p className="text-sm text-left">
                             {error === 'unauthorized'
-                                ? 'Acesso negado. Seu email não está autorizado.'
-                                : 'Erro na autenticação. Tente novamente.'}
+                                ? 'Credencial não autorizada. Solicite acesso ao administrador do nó NCFN.'
+                                : 'Falha no protocolo de autenticação. Verifique sua conexão e tente novamente.'}
                         </p>
                     </div>
                 )}
@@ -86,8 +87,8 @@ function LoginContent() {
                     Entrar com Google
                 </button>
 
-                <p className="mt-6 text-gray-600 text-xs">
-                    Apenas emails autorizados têm acesso ao Cofre
+                <p className="mt-6 text-gray-600 text-xs font-mono">
+                    Acesso restrito · Lista de permissões explícitas · TLS 1.3 Ativo
                 </p>
             </div>
         </div>

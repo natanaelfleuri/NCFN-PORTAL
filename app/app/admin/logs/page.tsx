@@ -55,9 +55,9 @@ export default function GuestLogsPage() {
             <div className="text-center space-y-2">
                 <h2 className="text-4xl font-bold flex items-center justify-center gap-3" style={{ textShadow: '0 0 10px rgba(188,19,254,0.5)' }}>
                     <Activity className="w-9 h-9 text-[#bc13fe]" />
-                    LOGS DE ACESSO
+                    LOG DE SESSÕES OPERACIONAIS
                 </h2>
-                <p className="text-gray-400 text-sm">Registro de todos os acessos de convidados ao portal</p>
+                <p className="text-gray-400 text-sm">Registro técnico e temporal de todas as sessões de acesso ao Portal NCFN — IP, duração, identidade e horário em UTC</p>
             </div>
 
             {logs.length === 0 ? (

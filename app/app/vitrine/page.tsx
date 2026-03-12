@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Folder, FileText, Globe, Search, ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import PublicAuth from "../components/PublicAuth";
 
 type FileItem = {
     folder: string;
@@ -41,16 +40,15 @@ export default function VitrinePage() {
     );
 
     return (
-        <PublicAuth>
-            <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 py-12">
                 {/* Header Section */}
                 <div className="text-center mb-16 space-y-4">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#00f3ff]/10 border border-[#00f3ff]/30 rounded-full text-[#00f3ff] text-xs font-bold uppercase tracking-[0.2em] animate-pulse">
-                        <Globe className="w-4 h-4" /> Distribuição Pública NCFN
+                        <Globe className="w-4 h-4" /> Canal de Distribuição Forense Certificada
                     </div>
-                    <h1 className="text-5xl lg:text-7xl font-black text-white tracking-tighter italic">VITRINE DE ATIVOS</h1>
+                    <h1 className="text-5xl lg:text-7xl font-black text-white tracking-tighter italic">VITRINE PÚBLICA</h1>
                     <p className="text-gray-500 font-mono text-sm max-w-2xl mx-auto uppercase tracking-widest opacity-80">
-                        Repositório de acesso público para documentações e ativos certificados pelo protocolo NCFN.
+                        Repositório público de ativos forenses autorizados pelo protocolo NCFN — cada arquivo carrega cadeia de custódia verificável, hash SHA-256 e registro de acesso permanente.
                     </p>
                 </div>
 
@@ -59,7 +57,7 @@ export default function VitrinePage() {
                     <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00f3ff] transition-colors" />
                     <input
                         type="text"
-                        placeholder="BUSCAR ATIVO NA REDE..."
+                        placeholder="BUSCAR ATIVO FORENSE, PASTA OU HASH..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full bg-black/40 backdrop-blur-xl border border-white/10 focus:border-[#00f3ff]/50 rounded-2xl py-6 pl-16 pr-6 text-white font-mono tracking-widest focus:outline-none transition-all shadow-[0_0_50px_rgba(0,0,0,0.5)]"
@@ -103,7 +101,7 @@ export default function VitrinePage() {
                                         href={`/pasta/${file.folder}`}
                                         className="inline-flex items-center gap-2 text-xs font-black text-[#00f3ff] uppercase tracking-widest hover:gap-4 transition-all"
                                     >
-                                        Acessar Setor <ArrowRight className="w-4 h-4" />
+                                        Ver Detalhes <ArrowRight className="w-4 h-4" />
                                     </Link>
                                 </div>
                             </div>
@@ -115,7 +113,7 @@ export default function VitrinePage() {
                             <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto">
                                 <Search className="w-8 h-8 text-gray-600" />
                             </div>
-                            <h3 className="text-xl font-bold text-gray-400 uppercase tracking-widest">Nenhum Ativo Público</h3>
+                            <h3 className="text-xl font-bold text-gray-400 uppercase tracking-widest">Nenhuma Evidência</h3>
                             <p className="text-gray-600 text-sm leading-relaxed">
                                 Nenhum arquivo foi marcado como público para exibição na vitrine externa.
                             </p>
@@ -132,7 +130,6 @@ export default function VitrinePage() {
                         Todos os downloads na vitrine pública são monitorados e as identidades de rede registradas para fins forenses conforme o protocolo NCFN de custódia digital.
                     </p>
                 </div>
-            </div>
-        </PublicAuth>
+        </div>
     );
 }

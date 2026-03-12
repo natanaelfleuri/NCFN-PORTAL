@@ -41,12 +41,12 @@ export default function PolicyGuard({ children }: { children: React.ReactNode })
                     </div>
 
                     <h2 className="text-2xl sm:text-3xl font-black text-white text-center uppercase tracking-tighter mb-4">
-                        Termo de Responsabilidade NCFN
+                        Termo de Responsabilidade Nexus Cyber Forensic Network
                     </h2>
 
                     <div className="text-gray-300 text-sm leading-relaxed space-y-4 mb-8 bg-black/50 p-6 rounded-2xl border border-gray-800 h-64 overflow-y-auto custom-scrollbar">
                         <p>
-                            Você está acessando a infraestrutura de Segurança de Dados NCFN. Antes de prosseguir, é obrigatório manifestar sua concordância irrestrita com os termos operativos:
+                            Você está acessando a infraestrutura de Segurança de Dados Nexus Cyber Forensic Network. Antes de prosseguir, é obrigatório manifestar sua concordância irrestrita com os termos operativos:
                         </p>
                         <ul className="list-disc pl-5 space-y-2 text-gray-400">
                             <li>O uso desta plataforma impõe <strong>exclusiva e intransferível responsabilidade</strong> sobre o conteúdo criptografado em seu nó.</li>

@@ -1,0 +1,291 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Portal NCFN — Docker Compose de PRODUÇÃO (VPS)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml --profile whisper up -d
+#
+# ANTES DE SUBIR:
+#   1. cp .env.example .env && nano .env    (preencher todos os valores)
+#   2. DEV_BYPASS deve ser FALSE ou ausente
+#   3. bash scripts/fix-permissions.sh
+#   4. bash scripts/setup-vps.sh            (apenas na primeira vez)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+networks:
+  # Rede externa: Caddy ↔ Portal (e serviços opcionais)
+  ncfn_public:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  # Rede interna: serviços sem acesso externo
+  ncfn_internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
+
+services:
+
+  # ─── Portal NCFN ──────────────────────────────────────────────────────────
+  portal:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      target: runner
+    image: ncfn/portal:latest
+    container_name: portal_ncfn
+    restart: unless-stopped
+
+    networks:
+      - ncfn_public
+
+    # IMPORTANTE: Porta NÃO exposta externamente — acesso apenas via Caddy
+    # (remover o expose e usar apenas a rede interna)
+    expose:
+      - "3000"
+
+    volumes:
+      # Banco de dados SQLite (persistente, isolado)
+      - ncfn_db:/app/prisma
+      # Vault forense (COFRE_NCFN)
+      - ./COFRE_NCFN:/COFRE_NCFN:rw
+      # Arquivos de upload
+      - ./arquivos:/arquivos:rw
+
+    environment:
+      - NODE_ENV=production
+      - DEV_BYPASS=false
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
+      - OLLAMA_VISION_MODEL=${OLLAMA_VISION_MODEL:-llava}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - CRYPTO_SALT=${CRYPTO_SALT}
+      - JWT_SECRET=${JWT_SECRET}
+      - CRON_SECRET=${CRON_SECRET}
+      - MASTER_UNLOCK_KEY=${MASTER_UNLOCK_KEY}
+      - NCFN_FORENSIC_SECRET=${NCFN_FORENSIC_SECRET}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
+      - CHROMA_URL=${CHROMA_URL:-http://chromadb:8000}
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Hardening de segurança
+    security_opt:
+      - no-new-privileges:true
+    read_only: false          # SQLite precisa de escrita — usar volume dedicado
+    tmpfs:
+      - /tmp:size=100m,noexec,nosuid
+
+    # Limites de recursos (ajustar conforme VPS)
+    deploy:
+      resources:
+        limits:
+          cpus: "0.80"
+          memory: 2G
+        reservations:
+          cpus: "0.20"
+          memory: 512M
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ─── Caddy (Reverse Proxy + TLS automático) ──────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy_ncfn
+    restart: unless-stopped
+
+    networks:
+      - ncfn_public
+
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"          # HTTP/3 (QUIC)
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+    security_opt:
+      - no-new-privileges:true
+
+    # Liveness probe via admin API (porta 2019, interna ao container)
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2019/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 256M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: ncfn_whisper
+    profiles:
+      - whisper
+    restart: unless-stopped
+
+    networks:
+      - ncfn_internal      # Apenas acessível internamente pelo portal
+
+    # NÃO expor porta para o host em produção
+    expose:
+      - "9000"
+
+    environment:
+      - ASR_MODEL=${WHISPER_MODEL:-base}
+
+    security_opt:
+      - no-new-privileges:true
+
+    # Liveness probe — ASR service raiz retorna 200 quando carregado
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000/"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 120s    # Whisper demora para carregar o modelo
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 1536M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ─── ChromaDB (RAG Jurídico) ────────────────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ncfn_chromadb
+    profiles:
+      - rag
+    restart: unless-stopped
+
+    networks:
+      - ncfn_internal      # Apenas acessível internamente pelo portal
+
+    expose:
+      - "8000"
+
+    volumes:
+      - chroma_data:/chroma/chroma
+
+    security_opt:
+      - no-new-privileges:true
+
+    # Liveness probe — heartbeat endpoint nativo do ChromaDB
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 512M
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ─── OSINT Desktop (Ubuntu/XFCE via noVNC) ─────────────────────────────────
+  # Substitui Kasm Workspaces: requer ~2-4GB RAM (vs 16GB do Kasm).
+  # Ativar: docker compose -f docker-compose.prod.yml --profile osint up -d
+  # Acesso via Caddy: configurar reverse proxy para porta 3000 interna.
+  osint-desktop:
+    image: lscr.io/linuxserver/webtop:ubuntu-xfce
+    container_name: ncfn_osint
+    profiles:
+      - osint
+    restart: unless-stopped
+
+    networks:
+      - ncfn_public
+
+    ports:
+      - "127.0.0.1:3003:3000"  # Apenas localhost; acessar via Caddy ou tunnel
+
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+      - PASSWD=${OSINT_DESKTOP_PASSWORD}
+
+    volumes:
+      - osint_home:/config
+      - ./scripts/osint-install.sh:/custom-cont-init.d/99-osint.sh:ro
+
+    shm_size: "1gb"
+
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  ncfn_db:
+    driver: local         # SQLite persistente (substitui bind mount do prisma/)
+  chroma_data:
+    driver: local
+  osint_home:
+    driver: local

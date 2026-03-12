@@ -1,10 +1,24 @@
+// @ts-nocheck
+import { getSession, getDbUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import fs from 'fs-extra';
 import path from 'path';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
     try {
+        const session = await getSession();
+        if (!session?.user?.email) {
+            return NextResponse.json({ error: 'Não autorizado. Faça o login.' }, { status: 401 });
+        }
+
+        const dbUser = await getDbUser(session.user.email);
+        if (!dbUser || dbUser.role !== 'admin') {
+            return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
+        }
+
         const body = await req.json();
         const { folder, filename, password } = body;
 
@@ -24,16 +38,17 @@ export async function POST(req: Request) {
 
         const destFilePath = `${filePath}.enc`;
 
-        // Motor: Gerar chave fixa de 32 bytes através da senha do usuário
-        const key = crypto.scryptSync(password, 'salt-forense-ncfn', 32);
-        // Vetor de inicialização (IV) de 16 bytes
+        const salt = process.env.CRYPTO_SALT;
+        if (!salt) {
+            return new NextResponse('Configuração de criptografia (salt) ausente no servidor.', { status: 500 });
+        }
+        const key = crypto.scryptSync(password, salt, 32);
         const iv = crypto.randomBytes(16);
 
         const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
         const input = fs.createReadStream(filePath);
         const output = fs.createWriteStream(destFilePath);
 
-        // Prepend o IV no começo do arquivo para permitir descriptografia futura
         output.write(iv);
 
         await new Promise((resolve, reject) => {
@@ -42,7 +57,6 @@ export async function POST(req: Request) {
                 .on('error', reject);
         });
 
-        // Deleção do arquivo original vulnerável após criptografar Sênior (Semente de Segurança Secundária)
         await fs.unlink(filePath);
 
         return NextResponse.json({ success: true, message: 'Malha Criptográfica Aplicada (AES-256-CBC). O arquivo original foi expurgado.' });

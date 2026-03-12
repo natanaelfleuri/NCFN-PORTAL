@@ -23,7 +23,7 @@ async function hashFile(filePath: string): Promise<string> {
 // BOT AUDITOR SÊNIOR (Roda todo dia às 03:00 AM)
 // Para testes rápidos, está configurado para "*/5 * * * *" (a cada 5 mins)
 // -------------------------------------------------------------
-cron.schedule('*/5 * * * *', async () => {
+cron.schedule('0 3 * * *', async () => {
     console.log('[BOT AUDITOR] Iniciando Varredura de Integridade Forense...');
     try {
         const targetPath = path.join(ROOT_ARCHIVES, TARGET_FOLDER);

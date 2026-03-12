@@ -1,7 +1,6 @@
 "use client";
 import { useState, useRef } from 'react';
 import { ShieldCheck, UploadCloud, Copy, Fingerprint, Info, X } from 'lucide-react';
-import PublicAuth from '../components/PublicAuth';
 
 export default function OnlineAuditor() {
     const [file, setFile] = useState<File | null>(null);
@@ -76,13 +75,12 @@ export default function OnlineAuditor() {
     };
 
     return (
-        <PublicAuth>
-            <div className="max-w-4xl mx-auto mt-8 space-y-12">
+        <div className="max-w-4xl mx-auto mt-8 space-y-12">
                 <div className="text-center mb-12 space-y-4">
-                    <h2 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-[#bc13fe]">AUDITOR FORENSE CLOUD</h2>
+                    <h2 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-[#bc13fe]">AUDITORIA DE INTEGRIDADE FORENSE</h2>
                     <p className="text-gray-400 max-w-2xl mx-auto">
-                        Motor de validação de Assinaturas SHA-256 executado <b>In-Memory</b> (vRAM).<br />
-                        <span className="text-xs text-[#bc13fe] border-b border-[#bc13fe]/30 pb-1">Seu arquivo NUNCA é salvo fisicamente em nossos servidores durante este processo.</span>
+                        Motor criptográfico de validação de assinaturas <b>SHA-256</b> executado integralmente em memória volátil (vRAM) — sem persistência em disco.<br />
+                        <span className="text-xs text-[#bc13fe] border-b border-[#bc13fe]/30 pb-1">Nenhum byte do seu arquivo é gravado em mídia permanente durante todo o processo de auditoria.</span>
                     </p>
                 </div>
 
@@ -99,13 +97,14 @@ export default function OnlineAuditor() {
                             <div className="w-24 h-24 mb-6 rounded-full bg-gray-800/80 flex items-center justify-center shadow-[0_0_30px_rgba(0,243,255,0.1)]">
                                 <ShieldCheck className="w-12 h-12 text-[#00f3ff]" />
                             </div>
-                            <h3 className="text-xl font-bold text-white mb-2">Arraste a Evidência Digital para cá</h3>
-                            <p className="text-gray-500 mb-6">ou clique no botão abaixo para explorar os diretórios locais.</p>
+                            <h3 className="text-xl font-bold text-white mb-2">Submeter Objeto Pericial</h3>
+                            <p className="text-gray-500 mb-2">Arraste o arquivo para calcular sua assinatura SHA-256 e verificar autenticidade.</p>
+                            <p className="text-[10px] text-gray-700 font-mono mb-6 uppercase tracking-widest">Suporte a qualquer formato · Sem limite de tamanho · Processamento local</p>
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 className="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl border border-gray-600 transition flex items-center gap-3"
                             >
-                                <UploadCloud className="w-5 h-5" /> Localizar Arquivo
+                                <UploadCloud className="w-5 h-5" /> Carregar Evidência Digital
                             </button>
                         </>
                     ) : (
@@ -120,19 +119,19 @@ export default function OnlineAuditor() {
                                 </div>
                                 <div className="flex flex-col truncate w-full">
                                     <span className="text-white font-bold truncate text-lg">{file.name}</span>
-                                    <span className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB • Analisando Integridade Molecular</span>
+                                    <span className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB • Computando assinatura SHA-256 em vRAM...</span>
                                 </div>
                             </div>
 
                             {loading ? (
                                 <div className="text-center space-y-4">
                                     <div className="w-16 h-16 border-4 border-t-[#00f3ff] border-gray-800 rounded-full animate-spin mx-auto"></div>
-                                    <p className="text-[#00f3ff] font-bold animate-pulse">Extraindo Identidade Hash na RAM Virtual...</p>
+                                    <p className="text-[#00f3ff] font-bold animate-pulse">Computando digest SHA-256 em memória volátil...</p>
                                 </div>
                             ) : generatedHash ? (
                                 <div className="w-full max-w-2xl space-y-6">
                                     <div className="bg-black/80 border border-gray-800 p-6 rounded-2xl relative group">
-                                        <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest font-bold">Hash SHA-256 Calculado:</p>
+                                        <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest font-bold">Digest SHA-256 · Assinatura Forense:</p>
                                         <p className="font-mono text-xl text-[#00f3ff] break-all tracking-wide">{generatedHash}</p>
                                         <button
                                             onClick={() => navigator.clipboard.writeText(generatedHash)}
@@ -145,12 +144,12 @@ export default function OnlineAuditor() {
                                     <div className="bg-gray-950 p-6 rounded-2xl border border-gray-800 space-y-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
                                         <h4 className="font-bold text-white flex items-center gap-2">
                                             <ShieldCheck className="w-5 h-5 text-gray-400" />
-                                            Certificação de Autenticidade
+                                            Verificação de Autenticidade — Aferição Cruzada
                                         </h4>
                                         <div className="flex flex-col sm:flex-row gap-3">
                                             <input
                                                 type="text"
-                                                placeholder="Cole o Hash original do NCFN aqui para aferição cruzada..."
+                                                placeholder="Cole aqui o hash SHA-256 de referência (emitido pelo portal NCFN ou pelo perito responsável)..."
                                                 value={expectedHash}
                                                 onChange={e => setExpectedHash(e.target.value)}
                                                 className="flex-grow bg-black border border-gray-700 rounded-xl px-4 py-3 font-mono text-sm focus:border-[#bc13fe] focus:outline-none transition text-white"
@@ -161,7 +160,7 @@ export default function OnlineAuditor() {
                                                 disabled={!expectedHash}
                                                 className="shrink-0 px-6 py-3 bg-[#bc13fe] hover:bg-[#a00bdb] disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold rounded-xl transition shadow-[0_0_15px_rgba(188,19,254,0.4)] disabled:shadow-none"
                                             >
-                                                Emitir Veredito
+                                                Validar Veredito
                                             </button>
                                         </div>
 
@@ -169,8 +168,8 @@ export default function OnlineAuditor() {
                                             <div className="mt-4 bg-green-900/20 border border-green-500/50 p-4 rounded-xl flex items-start gap-4 animate-in fade-in zoom-in duration-300">
                                                 <div className="p-2 bg-green-500 rounded-lg text-white shrink-0">✅</div>
                                                 <div>
-                                                    <h5 className="text-green-400 font-bold text-lg">AUTÊNTICO E INTACTO</h5>
-                                                    <p className="text-green-200/70 text-sm">O arquivo analisado na memória possui integridade estrutural matemática 100% idêntica ao carimbo oficial do Portal NCFN.</p>
+                                                    <h5 className="text-green-400 font-bold text-lg">ÍNTEGRO · EVIDÊNCIA AUTÊNTICA</h5>
+                                                    <p className="text-green-200/70 text-sm">O digest SHA-256 computado em vRAM é <strong>bit-a-bit idêntico</strong> ao hash de referência fornecido. A evidência digital não sofreu nenhuma modificação, adulteração ou corrupção desde sua certificação original pelo Portal NCFN. Valor probatório intacto.</p>
                                                 </div>
                                             </div>
                                         )}
@@ -179,8 +178,8 @@ export default function OnlineAuditor() {
                                             <div className="mt-4 bg-red-900/20 border border-red-500/50 p-4 rounded-xl flex items-start gap-4 animate-in fade-in zoom-in duration-300 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
                                                 <div className="p-2 bg-red-500 rounded-lg text-white shrink-0 animate-bounce">❌</div>
                                                 <div>
-                                                    <h5 className="text-red-400 font-bold text-lg">ALERTA VERMELHO: FRAUDE DETECTADA</h5>
-                                                    <p className="text-red-200/70 text-sm">O código arquitetural do arquivo sofreu mutação. Ele não confere com o original do banco de dados.</p>
+                                                    <h5 className="text-red-400 font-bold text-lg">ALERTA CRÍTICO: INTEGRIDADE COMPROMETIDA</h5>
+                                                    <p className="text-red-200/70 text-sm">O digest SHA-256 calculado <strong>diverge</strong> do hash de referência. O arquivo sofreu alteração — intencional ou acidental — após a emissão do carimbo original. A evidência não pode ser aceita como autêntica. Valor probatório: <span className="font-bold">NULO</span>. Recomenda-se investigação imediata da cadeia de custódia.</p>
                                                 </div>
                                             </div>
                                         )}
@@ -194,13 +193,12 @@ export default function OnlineAuditor() {
                 <div className="flex items-start gap-4 bg-gray-900/30 p-6 rounded-2xl border border-gray-800">
                     <Info className="w-6 h-6 text-[#bc13fe] shrink-0 mt-1" />
                     <div>
-                        <h4 className="text-white font-bold mb-2">Segurança em Nível de Memória (vRAM)</h4>
+                        <h4 className="text-white font-bold mb-2">Arquitetura de Segurança — Processamento In-Memory</h4>
                         <p className="text-gray-400 text-sm leading-relaxed">
-                            Ao soltar um arquivo neste painel, nossa arquitetura Serverless aloca os bytes temporariamente na memória RAM do servidor Cloud primário, sem nunca submeter os buffers aos discos magnéticos (HD/SSD). O motor algorítmico extrai a assinatura e imediatamente executa a varredura do Garbage Collector, aniquilando e sobrescrevendo a memória RAM utilizada, não deixando absolutamente nenhum rastro cibernético.
+                            O arquivo submetido é alocado exclusivamente em <strong>memória RAM volátil (vRAM)</strong> do servidor — nunca tocando disco magnético ou SSD. O algoritmo SHA-256 opera sobre o buffer em memória e, imediatamente após o cálculo do digest, o Garbage Collector é acionado explicitamente para sobrescrever e desalocar os blocos de RAM utilizados. O ciclo completo — ingresso, hash, descarte — ocorre em milissegundos sem deixar rastro persistente. <strong>Nenhum log de conteúdo é gerado</strong>, apenas o hash resultante. Isso garante que a auditoria seja juridicamente segura: o perito obtém a assinatura sem que o arquivo seja custodiado por terceiros.
                         </p>
                     </div>
                 </div>
-            </div>
-        </PublicAuth>
+        </div>
     );
 }

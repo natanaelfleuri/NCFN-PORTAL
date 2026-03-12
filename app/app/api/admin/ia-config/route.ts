@@ -1,13 +1,12 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from '@/lib/prisma';
 import { exec } from "child_process";
 import { promisify } from "util";
 
 export const dynamic = "force-dynamic";
 const execAsync = promisify(exec);
-const prisma = new PrismaClient();
 
 function isSuperAdmin(token: any): boolean {
   return token?.role === "admin";
@@ -46,14 +45,6 @@ export async function GET(req: NextRequest) {
     select: { id: true, target: true, tool: true, status: true, durationSecs: true, createdAt: true },
   });
 
-  // Moltbot Config
-  let aiConfig = await prisma.moltbotConfig.findUnique({ where: { id: "default" } });
-  if (!aiConfig) {
-    aiConfig = await prisma.moltbotConfig.create({
-      data: { id: "default", dailyQuotaBRL: 10, activeMode: "HYBRID" }
-    });
-  }
-
   return NextResponse.json({
     ollamaUrl,
     ollamaOnline,
@@ -61,10 +52,6 @@ export async function GET(req: NextRequest) {
     models,
     keywords,
     recentScans,
-    aiConfig: {
-      ...aiConfig,
-      geminiKey: aiConfig.geminiKey ? "****" + aiConfig.geminiKey.slice(-4) : null,
-    },
   });
 }
 
@@ -164,28 +151,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, created });
   }
 
-  // ── Update AI Config ────────────────────────────────────────────────────
-  if (action === "update_ai_config") {
-    const { dailyQuotaBRL, activeMode, geminiKey } = body;
-    const updateData: any = {};
-    
-    if (dailyQuotaBRL !== undefined) {
-      updateData.dailyQuotaBRL = parseFloat(dailyQuotaBRL);
-    }
-    
-    if (activeMode !== undefined) {
-      updateData.activeMode = activeMode;
-    }
 
-    if (geminiKey && geminiKey !== "****") {
-      updateData.geminiKey = geminiKey;
+
+  // ── Analyze image with LLaVA ────────────────────────────────────────────
+  if (action === "analyze_image") {
+    const { imageBase64, prompt } = body;
+    if (!imageBase64) {
+      return NextResponse.json({ error: "imageBase64 é obrigatório." }, { status: 400 });
     }
-    
-    const updated = await prisma.moltbotConfig.update({
-      where: { id: "default" },
-      data: updateData,
-    });
-    return NextResponse.json({ ok: true, config: updated });
+    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    const model = process.env.OLLAMA_VISION_MODEL || "llava";
+    const analysisPrompt = prompt || "Analise esta imagem forense detalhadamente. Descreva: elementos visuais relevantes, textos visíveis, metadados aparentes, possíveis evidências, anomalias ou manipulações detectadas. Seja técnico e objetivo.";
+    try {
+      const res = await fetch(`${ollamaUrl}/api/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          prompt: analysisPrompt,
+          images: [imageBase64],
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!res.ok) throw new Error(`Ollama ${model} indisponível — rode: ollama pull ${model}`);
+      const data = await res.json();
+      return NextResponse.json({ ok: true, response: data.response, model });
+    } catch (err: any) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 503 });
+    }
   }
 
   return NextResponse.json({ error: "Ação desconhecida." }, { status: 400 });

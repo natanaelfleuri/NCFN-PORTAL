@@ -1,11 +1,10 @@
 import { NextResponse, NextRequest } from 'next/server';
 import fs from 'fs-extra';
 import path from 'path';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { getToken } from 'next-auth/jwt';
 import crypto from 'crypto';
 
-const prisma = new PrismaClient();
 const ARQUIVOS_DIR = path.join(process.cwd(), '../arquivos');
 
 export const dynamic = 'force-dynamic';

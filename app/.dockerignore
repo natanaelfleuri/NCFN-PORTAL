@@ -1,0 +1,53 @@
+# ── Segurança: NUNCA incluir no contexto de build ──────────────────────────
+.env
+.env.*
+!.env.example
+
+# Dados sensíveis
+prisma/dev.db
+prisma/dev.db-shm
+prisma/dev.db-wal
+prisma/*.db
+
+# Desenvolvimento
+.next/cache
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Controle de versão
+.git
+.gitignore
+
+# CI/CD e metadados
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Testes
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+coverage/
+
+# IDE e OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Playwright
+playwright-report/
+test-results/
+
+# Logs
+*.log
+logs/
+
+# Scripts de desenvolvimento
+scripts/setup-vps.sh
+rebuild-dev.sh

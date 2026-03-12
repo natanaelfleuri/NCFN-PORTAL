@@ -1,19 +1,20 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
-import { PrismaClient } from "@prisma/client";
+import { getSession, getDbUser } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = "force-dynamic";
-const prisma = new PrismaClient();
 
 export async function GET(req: NextRequest) {
     try {
-        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-        if (!token?.email || token.role !== 'admin') {
+        const session = await getSession();
+        if (!session?.user?.email) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-
-        const user = await prisma.user.findUnique({ where: { email: token.email } });
+        const user = await getDbUser(session.user.email);
+        if (!user || user.role !== 'admin') {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
         return NextResponse.json({
             deadManSwitchDays: user?.deadManSwitchDays || 0,
@@ -28,15 +29,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-        if (!token?.email || token.role !== 'admin') {
+        const session = await getSession();
+        if (!session?.user?.email) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        const postUser = await getDbUser(session.user.email);
+        if (!postUser || postUser.role !== 'admin') {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const { deadManSwitchDays, deadManTriggerAction } = await req.json();
 
         await prisma.user.update({
-            where: { email: token.email },
+            where: { email: session.user.email },
             data: {
                 deadManSwitchDays: parseInt(deadManSwitchDays) === 0 ? null : parseInt(deadManSwitchDays),
                 deadManTriggerAction

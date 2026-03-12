@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { getToken } from 'next-auth/jwt';
 
-const prisma = new PrismaClient();
 
 export const dynamic = 'force-dynamic';
 
@@ -20,26 +19,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json([]);
         }
 
-        const logs = await prisma.moltbotLog.findMany({
-            where: {
-                OR: [
-                    { taskName: { contains: q } },
-                    { logText: { contains: q } }
-                ]
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 10
-        });
-
-        const formatted = logs.map(log => ({
-            id: log.id,
-            taskName: log.taskName,
-            status: log.status,
-            createdAt: log.createdAt,
-            type: 'forensic_log'
-        }));
-
-        return NextResponse.json(formatted);
+        return NextResponse.json([]);
     } catch (error) {
         console.error('Erro na busca forense:', error);
         return NextResponse.json({ error: 'Erro interno' }, { status: 500 });

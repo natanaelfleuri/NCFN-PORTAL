@@ -67,7 +67,7 @@ export default function SecurePreview({ url, filename, type, textContent, onClos
                 <div className="flex items-center gap-2 px-5 py-2 bg-yellow-500/5 border-b border-yellow-500/10">
                     <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
                     <p className="text-yellow-600 text-[10px] font-mono">
-                        PROTOCOLO NCFN: Captura de tela, cópia e contexto web bloqueados. Sessão monitorada.
+                        PROTOCOLO NEXUS CYBER FORENSIC NETWORK: Captura de tela, cópia e contexto web bloqueados. Sessão monitorada.
                     </p>
                 </div>
 
@@ -97,7 +97,7 @@ export default function SecurePreview({ url, filename, type, textContent, onClos
                 {/* Footer */}
                 <div className="flex items-center justify-between px-5 py-3 bg-black/60 border-t border-gray-800 shrink-0">
                     <p className="text-[10px] font-mono text-gray-600 uppercase tracking-widest">
-                        NCFN Zero-Trust Viewer | Sessão: {new Date().toISOString()}
+                        Nexus Cyber Forensic Network Zero-Trust Viewer | Sessão: {new Date().toISOString()}
                     </p>
                     <div className="flex items-center gap-1 text-[10px] text-gray-600">
                         <FileText className="w-3 h-3" />
@@ -110,7 +110,7 @@ export default function SecurePreview({ url, filename, type, textContent, onClos
                     <div className="grid grid-cols-3 gap-20 -rotate-12 scale-150">
                         {Array.from({ length: 9 }).map((_, i) => (
                             <div key={i} className="text-white font-mono text-[10px] uppercase tracking-widest whitespace-nowrap">
-                                NCFN PROTOCOL | {new Date().toISOString().split('T')[0]} | SESSION_{Math.random().toString(36).substring(7).toUpperCase()}
+                                NEXUS CYBER FORENSIC NETWORK | {new Date().toISOString().split('T')[0]} | SESSION_{Math.random().toString(36).substring(7).toUpperCase()}
                             </div>
                         ))}
                     </div>

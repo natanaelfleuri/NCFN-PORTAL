@@ -7,9 +7,12 @@ const prisma = new PrismaClient();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL!;
 
 type AppJWT = JWT & {
-  role?: "admin" | "guest";
+  role?: "admin" | "superadmin" | "user" | "guest";
   loginAt?: number;
   policyAcceptedAt?: string | null;
+  totpEnabled?: boolean;
+  totpVerified?: boolean;
+  loginIp?: string;
 };
 
 export const authOptions: NextAuthOptions = {
@@ -64,10 +67,15 @@ export const authOptions: NextAuthOptions = {
       if (t.email) {
         if (t.role === "admin") {
           const dbUser = await prisma.user.findUnique({ where: { email: t.email } });
-          t.policyAcceptedAt = dbUser?.policyAcceptedAt ?? null;
+          t.policyAcceptedAt = dbUser?.policyAcceptedAt?.toISOString() ?? null;
+          t.totpEnabled = dbUser?.totpEnabled ?? false;
+          // totpVerified: only true if explicitly set during this session
+          if (t.totpEnabled && t.totpVerified === undefined) {
+            t.totpVerified = false;
+          }
         } else {
           const guest = await prisma.guestEmail.findUnique({ where: { email: t.email } });
-          t.policyAcceptedAt = guest?.policyAcceptedAt ?? null;
+          t.policyAcceptedAt = guest?.policyAcceptedAt?.toISOString() ?? null;
         }
       }
 
@@ -91,6 +99,8 @@ export const authOptions: NextAuthOptions = {
         s.user.role = t.role;
         s.user.loginAt = t.loginAt;
         s.user.policyAcceptedAt = t.policyAcceptedAt;
+        (s.user as any).totpEnabled = t.totpEnabled;
+        (s.user as any).totpVerified = t.totpVerified;
       }
       return s;
     },

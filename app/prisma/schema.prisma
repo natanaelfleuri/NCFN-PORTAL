@@ -8,10 +8,14 @@ datasource db {
 }
 
 model FileStatus {
-  id       String   @id @default(cuid())
-  filename String
-  folder   String
-  isPublic Boolean  @default(false)
+  id        String     @id @default(cuid())
+  filename  String
+  folder    String
+  isPublic  Boolean    @default(false)
+  ownerId   String?
+  user      User?      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  size      Int        @default(0)
+  burnToken BurnToken?
 
   @@unique([folder, filename])
 }
@@ -56,9 +60,25 @@ model User {
   lastSeenAt           DateTime? @default(now())
   deadManSwitchDays    Int?      
   deadManTriggerAction String?   @default("LOCKDOWN") // LOCKDOWN or DELETE_ALL
+  
+  // NCFN Plan & Quota Tracking
+  role                 String    @default("user") // admin, user
+  planType             String    @default("TRIAL") // TRIAL, PRO
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  proAccessUntil       DateTime?
+  uploadedFilesCount   Int       @default(0)
+  totalBytesUsed       Int       @default(0) // Safe up to 9PB in JS
+
+  // TOTP 2FA
+  totpSecret           String?
+  totpEnabled          Boolean   @default(false)
+
   accounts             Account[]
   sessions             Session[]
   aiConfig             UserAiConfig?
+  files                FileStatus[]
+  trashItems           TrashItem[] @relation(name: "UserTrashItems")
 }
 
 model UserAiConfig {
@@ -105,6 +125,8 @@ model TrashItem {
   deletedAt    DateTime @default(now())
   size         Int
   mtime        DateTime
+  ownerId      String?
+  user         User?    @relation(name: "UserTrashItems", fields: [ownerId], references: [id], onDelete: SetNull)
 }
 
 model SharedLink {
@@ -157,29 +179,91 @@ model OsintScheduledScan {
   createdAt     DateTime      @default(now())
 }
 
-model MoltbotConfig {
-  id              String   @id @default("default")
-  geminiKey       String?  // Optional, can be overridden by .env
-  dailyQuotaBRL   Float    @default(10.0)
-  currentUsageBRL Float    @default(0.0)
-  activeMode      String   @default("HYBRID") // HYBRID, OLLAMA_ONLY, GEMINI_ONLY
-  lastScanAt      DateTime?
-  updatedAt       DateTime @updatedAt
-}
 
-model MoltbotLog {
-  id            String   @id @default(cuid())
-  taskName      String
-  status        String   // success, failure, stopped_by_quota
-  logText       String
-  screenshotPath String?
-  sha256Hash    String
-  costBRL       Float    @default(0.0)
-  createdAt     DateTime @default(now())
-}
 model InvestigationTarget {
   id        String   @id @default(cuid())
   url       String   @unique
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model BurnToken {
+  id         String     @id @default(cuid())
+  fileId     String     @unique
+  file       FileStatus @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  folder     String
+  filename   String
+  token      String     @unique
+  consumed   Boolean    @default(false)
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@unique([folder, filename])
+}
+
+model TimestampRecord {
+  id        String   @id @default(cuid())
+  sha256    String   @unique
+  filename  String?
+  folder    String?
+  captureId String?
+  tsrBase64 String   // RFC 3161 TSR binary (base64)
+  tsaUrl    String   @default("https://freetsa.org/tsr")
+  createdAt DateTime @default(now())
+}
+
+model LaudoForense {
+  id              String   @id @default(cuid())
+  titulo          String
+  numeroCaso      String?
+  operatorEmail   String
+  evidencias      String   // JSON: array of {filename, folder, hash, type}
+  metodologia     String?
+  achados         String?  // AI-generated findings
+  conclusao       String?  // AI-generated conclusion
+  quesitos        String?  // Custom questions
+  pdfFile         String?
+  status          String   @default("rascunho") // rascunho | final
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CanaryFile {
+  id              String    @id @default(cuid())
+  filename        String
+  folder          String
+  description     String?
+  alertEmail      String
+  accessCount     Int       @default(0)
+  lastAccessedAt  DateTime?
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  @@unique([folder, filename])
+}
+
+model WebCapture {
+  id              String   @id @default(cuid())
+  url             String
+  profile         String   @default("completa") // rapida | completa | deep
+  operatorEmail   String
+  serverIp        String?
+  serverLocation  String?
+  sslIssuer       String?
+  sslExpiry       String?
+  sslFingerprint  String?
+  whoisData       String?
+  httpHeaders     String?
+  screenshotFile  String?
+  pdfFile         String?
+  htmlFile        String?
+  harFile         String?
+  hashScreenshot  String?
+  hashPdf         String?
+  hashHtml        String?
+  rfcTimestamp    String?
+  certidaoPdf     String?
+  status          String   @default("processing") // processing | done | error
+  errorMessage    String?
+  createdAt       DateTime @default(now())
 }

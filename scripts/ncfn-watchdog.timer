@@ -1,0 +1,16 @@
+[Unit]
+Description=NCFN Watchdog Timer — verifica containers a cada 60s
+Requires=ncfn-watchdog.service
+
+[Timer]
+# Aguarda 2 min após o boot antes da primeira checagem
+OnBootSec=2min
+# Dispara a cada 60 segundos (igual a k8s periodSeconds)
+OnUnitActiveSec=60s
+# Tolerância de 10s (evita disparo exato simultâneo com outros timers)
+AccuracySec=10s
+# Executa mesmo se ficou offline (sem "perda" de ciclos)
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,10 +1,8 @@
 // @ts-nocheck
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import fs from 'fs-extra';
 import path from 'path';
 import { Download, AlertTriangle, FileLock2 } from 'lucide-react';
-
-const prisma = new PrismaClient();
 
 export default async function SharedLinkPage({ params }: { params: { token: string } }) {
     const { token } = params;

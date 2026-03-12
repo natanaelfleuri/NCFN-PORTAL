@@ -1,0 +1,14 @@
+[Unit]
+Description=NCFN Container Watchdog (liveness probe + auto-restart)
+Documentation=https://github.com/natanaelfleuri/NCFN-PORTAL
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/roaaxxz/docker/portal_ncfn/scripts/ncfn-watchdog.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ncfn-watchdog
+# Não falhar se o script retornar erro (container pode estar temporariamente down)
+SuccessExitStatus=0 1

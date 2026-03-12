@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-const prisma = new PrismaClient();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL!;
 
 export async function GET(req: NextRequest) {

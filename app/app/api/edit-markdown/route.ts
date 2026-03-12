@@ -1,9 +1,23 @@
+// @ts-nocheck
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
+import { getSession, getDbUser } from '@/lib/auth';
 import fs from 'fs-extra';
 import path from 'path';
 
+const ARQUIVOS_BASE = path.resolve(process.cwd(), '../arquivos');
+
 export async function POST(req: Request) {
     try {
+        const session = await getSession();
+        if (!session?.user?.email) {
+            return new NextResponse('Não autorizado', { status: 401 });
+        }
+        const dbUser = await getDbUser(session.user.email);
+        if (!dbUser || dbUser.role !== 'admin') {
+            return new NextResponse('Acesso restrito a administradores', { status: 403 });
+        }
+
         const body = await req.json();
         const { folder, filename, content } = body;
 
@@ -15,7 +29,12 @@ export async function POST(req: Request) {
             return new NextResponse('Apenas edição de arquivos Markdown (.md) é permitida', { status: 403 });
         }
 
-        const filePath = path.join(process.cwd(), '../arquivos', folder, filename);
+        const filePath = path.resolve(ARQUIVOS_BASE, folder, filename);
+
+        // Prevent directory traversal
+        if (!filePath.startsWith(ARQUIVOS_BASE + path.sep)) {
+            return new NextResponse('Caminho inválido', { status: 403 });
+        }
 
         if (!fs.existsSync(filePath)) {
             return new NextResponse('Arquivo não encontrado', { status: 404 });

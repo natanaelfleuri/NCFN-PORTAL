@@ -1,0 +1,24 @@
+# NCFN OSINT CLI — Imagem leve para scans automatizados (sherlock, theharvester, nmap)
+# Substitui kalilinux/kali-rolling (~1.5GB) com imagem ~300MB pré-instalada.
+#
+# Build (uma vez):
+#   docker build -f scripts/Dockerfile.osint-cli -t ncfn-osint-cli .
+#
+# Após o build, os scans em investigar/route.ts e osint-scan/route.ts
+# usam esta imagem sem precisar instalar nada em runtime.
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nmap \
+    whois \
+    dnsutils \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    sherlock-project \
+    theHarvester
+
+WORKDIR /scan
