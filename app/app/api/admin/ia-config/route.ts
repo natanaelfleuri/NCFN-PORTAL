@@ -92,8 +92,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Modelo inválido." }, { status: 400 });
     }
     try {
-      const { stdout } = await execAsync(`ollama pull ${model} 2>&1`, { timeout: 600000 });
-      return NextResponse.json({ ok: true, output: stdout.slice(0, 2000) });
+      const ollamaUrl = process.env.OLLAMA_URL || "http://host.docker.internal:11434";
+      const res = await fetch(`${ollamaUrl}/api/pull`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: model, stream: false }),
+        signal: AbortSignal.timeout(600000),
+      });
+      if (!res.ok) throw new Error(`Ollama pull retornou HTTP ${res.status}`);
+      const data = await res.json();
+      return NextResponse.json({ ok: true, message: `Modelo ${model} atualizado.`, data });
     } catch (err: any) {
       return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
     }

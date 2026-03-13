@@ -98,10 +98,11 @@ Responda EXCLUSIVAMENTE em formato JSON válido com os campos:
             if (!res.ok) throw new Error("Ollama indisponível");
             const data = await res.json();
 
-            // Extrair JSON da resposta
+            // Extrair JSON da resposta (strip markdown code blocks first)
             let parsed: any = {};
             try {
-                const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+                const rawResp = (data.response || '').replace(/```json?\n?/gi, '').replace(/```/g, '');
+                const jsonMatch = rawResp.match(/\{[\s\S]*\}/);
                 if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
             } catch {
                 parsed = {

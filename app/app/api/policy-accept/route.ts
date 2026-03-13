@@ -16,14 +16,16 @@ export async function POST(req: NextRequest) {
         const now = new Date();
 
         if (token.role === 'admin') {
-            await prisma.user.update({
+            await prisma.user.upsert({
                 where: { email: token.email },
-                data: { policyAcceptedAt: now }
+                update: { policyAcceptedAt: now, lastSeenAt: now },
+                create: { email: token.email, policyAcceptedAt: now, lastSeenAt: now },
             });
         } else {
-            await prisma.guestEmail.update({
+            await prisma.guestEmail.upsert({
                 where: { email: token.email },
-                data: { policyAcceptedAt: now }
+                update: { policyAcceptedAt: now },
+                create: { email: token.email, policyAcceptedAt: now },
             });
         }
 

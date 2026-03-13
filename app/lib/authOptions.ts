@@ -46,15 +46,11 @@ export const authOptions: NextAuthOptions = {
       if (!email) return false;
 
       if (email === ADMIN_EMAIL) {
-        try {
-          await prisma.user.upsert({
-            where: { email },
-            update: { lastSeenAt: new Date() },
-            create: { email, lastSeenAt: new Date() },
-          });
-        } catch (e) {
-          console.error("[AUTH] Failed to update admin lastSeenAt", e);
-        }
+        await prisma.user.upsert({
+          where: { email },
+          update: { lastSeenAt: new Date() },
+          create: { email, lastSeenAt: new Date() },
+        });
         return true;
       }
 

@@ -205,8 +205,30 @@ export async function POST(req: Request) {
                     }
                 }
 
+                // Salvar laudo em [Laudo IA]
+                if (fullText) {
+                    try {
+                        const laudoDir = path.join(ARQUIVOS_BASE, '[Laudo IA]');
+                        fs.mkdirpSync(laudoDir);
+                        const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        const safeFolder = folder.replace(/[^a-zA-Z0-9._-]/g, '_');
+                        const laudoName = `laudo_ia_${safeFolder}_${safeName}_${Date.now()}.md`;
+                        const protocol = promptFile ? promptFile.replace(' - PERITO SANSÃO.md', '') : 'Genérico';
+                        const header = [
+                            `# Laudo IA — ${filename}`,
+                            `**Pasta:** ${folder}`,
+                            `**Protocolo:** ${protocol}`,
+                            `**Data:** ${new Date().toLocaleString('pt-BR')}`,
+                            '', '---', '',
+                        ].join('\n');
+                        fs.writeFileSync(path.join(laudoDir, laudoName), header + fullText);
+                        send({ type: 'done', fullText, filename, saved: `[Laudo IA]/${laudoName}` });
+                    } catch {
+                        send({ type: 'done', fullText, filename });
+                    }
+                }
                 // In case ollama didn't send done
-                if (fullText) send({ type: 'done', fullText, filename });
+                if (!fullText) send({ type: 'done', fullText: '', filename });
 
             } catch (err: any) {
                 send({ type: 'error', msg: `Erro: ${err?.message ?? err}` });

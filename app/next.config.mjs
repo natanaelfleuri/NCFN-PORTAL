@@ -10,6 +10,17 @@ const nextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
+    async redirects() {
+        return [
+            // www.ncfn.net → ncfn.net (canonical)
+            {
+                source: '/:path*',
+                has: [{ type: 'host', value: 'www.ncfn.net' }],
+                destination: 'https://ncfn.net/:path*',
+                permanent: true,
+            },
+        ];
+    },
     async headers() {
         return [
             {
