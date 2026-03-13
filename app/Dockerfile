@@ -8,7 +8,10 @@ FROM node:18-alpine AS deps
 # Instalar dependências de sistema necessárias para build
 RUN apk add --no-cache \
     openssl \
-    libc6-compat
+    libc6-compat \
+    python3 \
+    make \
+    g++
 
 WORKDIR /app
 
