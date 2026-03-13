@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Archive, ShieldAlert, Globe, User, Home, Activity } from "lucide-react";
+import { ShieldAlert, Globe, User, Home, Activity, BookOpen } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/",        icon: Home,       label: "Hub",     exact: true },
-  { href: "/vault",   icon: Archive,    label: "Vault",   exact: false },
   { href: "/vitrine", icon: Globe,      label: "Vitrine", exact: false },
   { href: "/auditor", icon: Activity,   label: "Auditor", exact: false },
   { href: "/admin",   icon: ShieldAlert, label: "Admin",  exact: false, adminOnly: true },
+  { href: "/doc",     icon: BookOpen,   label: "Guia",    exact: false },
   { href: "/profile", icon: User,       label: "Perfil",  exact: false },
 ];
 

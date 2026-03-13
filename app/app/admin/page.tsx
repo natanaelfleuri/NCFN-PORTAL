@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, Bot, Search, FileSearch, Trash2, Users, FileText, Globe, Cpu, TrendingUp, Clock, BookOpen, Lock, KeyRound } from 'lucide-react';
+import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, Bot, Search, FileSearch, Trash2, Users, FileText, Globe, Cpu, TrendingUp, Clock, BookOpen, Archive, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { formatBytes } from '../utils';
@@ -31,7 +31,6 @@ const MODULES = [
     { href: '/admin/teste', icon: Cpu, label: 'Testes de Sistema', color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.25)' },
     { href: '/admin/cofre', icon: BookOpen, label: 'Cofre Obsidian', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.25)' },
     { href: '/admin/auditoria-sansao', icon: FileSearch, label: 'Auditoria Sansão', color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)' },
-    { href: '/vault', icon: Lock, label: 'Vault Forense NCFN', color: '#00f3ff', bg: 'rgba(0,243,255,0.08)', border: 'rgba(0,243,255,0.25)' },
     { href: '/admin/descriptar', icon: KeyRound, label: 'Descriptar Arquivo', color: '#f97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.25)' },
 ];
 
@@ -102,6 +101,29 @@ export default function AdminDashboard() {
                     <StatCard icon={ShieldAlert} value="Contingência" label="Exclusão Permanente" color="#ef4444" hover pulse />
                 </Link>
             </div>
+
+            {/* ─── Vault — Botão Principal ─── */}
+            <Link href="/vault" className="block px-1">
+                <div className="relative rounded-2xl p-5 lg:p-6 border border-[#bc13fe]/30 bg-[#bc13fe]/5 hover:bg-[#bc13fe]/10 hover:border-[#bc13fe]/50 transition-all duration-300 hover:shadow-[0_0_40px_rgba(188,19,254,0.15)] group">
+                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#bc13fe] to-transparent rounded-t-2xl" />
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-2xl bg-[#bc13fe]/10 border border-[#bc13fe]/25 flex items-center justify-center shrink-0 group-hover:shadow-[0_0_20px_rgba(188,19,254,0.3)] transition-all">
+                            <Archive className="w-6 h-6 lg:w-7 lg:h-7 text-[#bc13fe]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-[#bc13fe]/50 mb-0.5">Módulo Primário</p>
+                            <h3 className="text-base lg:text-lg font-black text-white uppercase tracking-wider leading-tight">Vault Forense NCFN</h3>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">Custódia · AES-256 · SHA-256 · RFC 3161 · {totalFiles} ativos</p>
+                        </div>
+                        <div className="shrink-0 flex flex-col items-end gap-1">
+                            <span className="text-[10px] font-black text-[#bc13fe] bg-[#bc13fe]/10 border border-[#bc13fe]/20 px-2.5 py-1 rounded-lg uppercase tracking-widest">
+                                {formatBytes(totalSize)}
+                            </span>
+                            <span className="text-[9px] text-gray-600 font-mono">COFRE ATIVO</span>
+                        </div>
+                    </div>
+                </div>
+            </Link>
 
             {/* ─── Charts ─── */}
             {validFiles.length > 0 && (

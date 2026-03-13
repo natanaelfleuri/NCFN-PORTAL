@@ -7,13 +7,14 @@ import {
   Home, Shield, Users, LogOut, Activity, Trash2, BookOpen,
   Menu, X, Globe, Search, FileText, Bot, User, Camera,
   ScanSearch, AlertTriangle, Sparkles, ChevronDown,
-  Lock, Database, Eye, ShieldAlert, Settings
+  Archive, Database, Eye, ShieldAlert
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import QuotaBar from "./QuotaBar";
 
 const ADMIN_LINKS = [
   { href: '/admin', icon: Home, label: 'Hub Central', color: '#00f3ff' },
+  { href: '/vault', icon: Archive, label: 'Vault Forense', color: '#00f3ff' },
   { href: '/admin/convidados', icon: Users, label: 'Convidados', color: '#bc13fe' },
   { href: '/admin/lixeira', icon: Trash2, label: 'Lixeira', color: '#ef4444' },
   { href: '/admin/logs', icon: Database, label: 'Logs', color: '#bc13fe' },
@@ -73,13 +74,6 @@ export default function Navigation() {
       {/* ─── Desktop Navigation (md+) ─── */}
       <nav className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar">
         {/* Main links */}
-        <Link href="/vault" className={isActive('/vault', true)
-          ? `${linkBase} text-white bg-white/10 border border-white/20`
-          : linkIdle
-        }>
-          <Lock className="w-3.5 h-3.5" /> Vault
-        </Link>
-
         <Link href="/vitrine" className={isActive('/vitrine') || isActive('/pasta/')
           ? `${linkBase} text-[#00f3ff] bg-[#00f3ff]/10 border border-[#00f3ff]/30`
           : linkIdle
@@ -111,7 +105,7 @@ export default function Navigation() {
                   {/* Hub Central — full-width highlight */}
                   <Link
                     href="/admin"
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all w-full mb-1 ${
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all w-full ${
                       isActive('/admin', true)
                         ? 'bg-[#00f3ff]/20 text-[#00f3ff] border border-[#00f3ff]/40 shadow-[0_0_15px_rgba(0,243,255,0.2)]'
                         : 'bg-[#00f3ff]/8 text-[#00f3ff] border border-[#00f3ff]/20 hover:bg-[#00f3ff]/15 hover:shadow-[0_0_12px_rgba(0,243,255,0.15)]'
@@ -121,8 +115,21 @@ export default function Navigation() {
                     Hub Central
                     <span className="ml-auto text-[8px] font-mono opacity-60">⌘ ADMIN</span>
                   </Link>
+                  {/* Vault — segundo botão destaque */}
+                  <Link
+                    href="/vault"
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all w-full mb-1 ${
+                      isActive('/vault')
+                        ? 'bg-[#bc13fe]/20 text-[#bc13fe] border border-[#bc13fe]/40 shadow-[0_0_15px_rgba(188,19,254,0.2)]'
+                        : 'bg-[#bc13fe]/8 text-[#bc13fe] border border-[#bc13fe]/20 hover:bg-[#bc13fe]/15 hover:shadow-[0_0_12px_rgba(188,19,254,0.15)]'
+                    }`}
+                  >
+                    <Archive className="w-4 h-4 flex-shrink-0 text-[#bc13fe]" />
+                    Vault Forense
+                    <span className="ml-auto text-[8px] font-mono opacity-60">COFRE</span>
+                  </Link>
                   <div className="grid grid-cols-2 gap-0.5">
-                  {ADMIN_LINKS.slice(1).map(link => (
+                  {ADMIN_LINKS.slice(2).map(link => (
                     <Link
                       key={link.href}
                       href={link.href}
@@ -215,7 +222,6 @@ export default function Navigation() {
             <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 no-scrollbar">
               {/* Principal */}
               <p className="text-[9px] font-black uppercase tracking-[0.25em] text-gray-600 px-3 pb-1 pt-2">Principal</p>
-              <MobileLink href="/vault" icon={Lock} label="Custódia Vault" active={isActive('/vault', true)} color="#ffffff" />
               <MobileLink href="/vitrine" icon={Globe} label="Vitrine Pública" active={isActive('/vitrine')} color="#00f3ff" />
               <MobileLink href="/auditor" icon={Activity} label="Auditor" active={isActive('/auditor')} color="#ff9900" />
               <MobileLink href="/doc" icon={BookOpen} label="Guia / Protocolos" active={isActive('/doc')} color="#00f3ff" />
