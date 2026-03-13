@@ -44,10 +44,9 @@ services:
     networks:
       - ncfn_public
 
-    # IMPORTANTE: Porta NÃO exposta externamente — acesso apenas via Caddy
-    # (remover o expose e usar apenas a rede interna)
-    expose:
-      - "3000"
+    # Porta exposta para cloudflared (host network) acessar via localhost:3002
+    ports:
+      - "127.0.0.1:3002:3000"
 
     volumes:
       # Banco de dados SQLite (persistente, isolado)
