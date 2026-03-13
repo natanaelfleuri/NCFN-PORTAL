@@ -33,7 +33,7 @@ export default async function SharedLinkPage({ params }: { params: { token: stri
         data: { views: { increment: 1 } }
     });
 
-    const filePath = path.join(process.cwd(), '../arquivos', link.folder, link.filename);
+    const filePath = path.join(process.cwd(), '../COFRE_NCFN', link.folder, link.filename);
     const exists = await fs.pathExists(filePath);
     const stats = exists ? await fs.stat(filePath) : null;
 

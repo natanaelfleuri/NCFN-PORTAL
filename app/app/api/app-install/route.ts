@@ -5,7 +5,7 @@ import path from 'path';
 import geoip from 'geoip-lite';
 import { getToken } from 'next-auth/jwt';
 
-const ARQUIVOS_DIR = path.join(process.cwd(), '../arquivos');
+const ARQUIVOS_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 const SYSTEM_FOLDER = '_SISTEMA_NCFN';
 const LOG_FILE = '_registros_instalacao.txt';
 

@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { getToken } from 'next-auth/jwt';
 
-const ARQUIVOS_DIR = path.join(process.cwd(), '../arquivos');
+const ARQUIVOS_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 const PROTECTED_FILES = ['_hashes_vps.txt', '_registros_acesso.txt'];
 
 export async function POST(req: NextRequest) {

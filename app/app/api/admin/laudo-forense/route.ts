@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import * as fs from "fs";
 import * as path from "path";
+import { callAI, readAIConfig } from "@/lib/aiService";
 
 export const dynamic = "force-dynamic";
 
@@ -85,28 +86,24 @@ Responda EXCLUSIVAMENTE em formato JSON válido com os campos:
   "conclusao": "Conclusão técnica objetiva respondendo os quesitos, com nexo causal entre evidências e fatos investigados (mínimo 2 parágrafos)"
 }`;
 
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-        const model = process.env.OLLAMA_MODEL || "mistral";
+        // Accept optional per-request AI override from frontend
+        const { aiProvider, aiModel } = body;
+        const configOverride = aiProvider ? { provider: aiProvider, model: aiModel || undefined } : undefined;
+        const aiCfg = readAIConfig();
+        const modelLabel = configOverride?.provider ? `${configOverride.provider}/${configOverride.model || ''}` : `${aiCfg.provider}/${aiCfg.model}`;
 
         try {
-            const res = await fetch(`${ollamaUrl}/api/generate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ model, prompt, stream: false }),
-                signal: AbortSignal.timeout(180000),
-            });
-            if (!res.ok) throw new Error("Ollama indisponível");
-            const data = await res.json();
+            const rawResp = await callAI(prompt, undefined, configOverride);
 
             // Extrair JSON da resposta (strip markdown code blocks first)
             let parsed: any = {};
             try {
-                const rawResp = (data.response || '').replace(/```json?\n?/gi, '').replace(/```/g, '');
-                const jsonMatch = rawResp.match(/\{[\s\S]*\}/);
+                const cleaned = rawResp.replace(/```json?\n?/gi, '').replace(/```/g, '');
+                const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
                 if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
             } catch {
                 parsed = {
-                    metodologia: data.response,
+                    metodologia: rawResp,
                     achados: "Ver metodologia completa acima.",
                     conclusao: "Análise gerada pela IA — revisar e complementar.",
                 };

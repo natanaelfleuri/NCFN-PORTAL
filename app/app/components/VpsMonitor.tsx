@@ -219,6 +219,14 @@ export default function VpsMonitor() {
                     </div>
                   )}
 
+                  {/* Server Location */}
+                  <div className="pt-1 border-t border-white/5">
+                    <div className="flex items-center gap-1.5 text-[9px] font-mono text-[#00f3ff]/50 uppercase tracking-widest">
+                      <span>🌎</span>
+                      <span>SERVIDORES FÍSICOS DEDICADOS — EUA &amp; BRASIL</span>
+                    </div>
+                  </div>
+
                   {/* Footer */}
                   <div className="pt-1 border-t border-white/5 text-[9px] text-gray-700 font-mono flex justify-between">
                     <span>Atualiza a cada 15s</span>

@@ -25,7 +25,7 @@ const MODULES = [
     { href: '/admin/lixeira', icon: Trash2, label: 'Lixeira Forense', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)' },
     { href: '/admin/logs', icon: Database, label: 'Logs do Sistema', color: '#14b8a6', bg: 'rgba(20,184,166,0.08)', border: 'rgba(20,184,166,0.25)' },
     { href: '/admin/ia-config', icon: Bot, label: 'Config IA', color: '#00f3ff', bg: 'rgba(0,243,255,0.08)', border: 'rgba(0,243,255,0.25)' },
-    { href: '/admin/forensics', icon: Eye, label: 'Painel Forense', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.25)' },
+    { href: '/admin/forensics', icon: Eye, label: 'Painel de Interceptações', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.25)' },
     { href: '/admin/security', icon: ShieldAlert, label: 'Segurança', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)' },
     { href: '/admin/laudo-forense', icon: TrendingUp, label: 'Laudo com IA', color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)' },
     { href: '/admin/teste', icon: Cpu, label: 'Testes de Sistema', color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.25)' },

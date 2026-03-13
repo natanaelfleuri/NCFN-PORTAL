@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Globe, Camera, FileText, Shield, Clock, Hash, AlertTriangle, CheckCircle, Download, Loader2, ChevronDown, ChevronUp, ExternalLink, Trash2 } from "lucide-react";
+import AIModelSelector from "@/app/components/AIModelSelector";
 
 type CaptureProfile = "rapida" | "completa" | "deep";
 
@@ -144,6 +145,9 @@ export default function CapturaWebPage() {
         <p className="text-gray-400 text-sm font-mono uppercase tracking-widest">
           Preserve evidências digitais com valor probatório
         </p>
+        <div className="flex justify-center mt-2">
+          <AIModelSelector />
+        </div>
       </div>
 
       {/* Formulário */}

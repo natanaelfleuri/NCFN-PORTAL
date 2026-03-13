@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { FileText, Sparkles, Download, Plus, Trash2, Eye, EyeOff, CheckCircle, Clock, ChevronDown, ChevronUp, X } from "lucide-react";
+import AIModelSelector from "@/app/components/AIModelSelector";
 
 interface Evidencia {
     name: string;
@@ -44,6 +45,8 @@ export default function LaudoForensePage() {
     const [generatingAI, setGeneratingAI] = useState<string | null>(null);
     const [generatingPDF, setGeneratingPDF] = useState<string | null>(null);
     const [msg, setMsg] = useState("");
+    const [aiProvider, setAiProvider] = useState(""); // empty = use site default
+    const [aiModel, setAiModel] = useState("");
 
     useEffect(() => {
         fetchLaudos();
@@ -107,7 +110,7 @@ export default function LaudoForensePage() {
         const res = await fetch("/api/admin/laudo-forense", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "generate_ai", id }),
+            body: JSON.stringify({ action: "generate_ai", id, aiProvider: aiProvider || undefined, aiModel: aiModel || undefined }),
         });
         const data = await res.json();
         if (data.ok) {
@@ -162,12 +165,15 @@ export default function LaudoForensePage() {
                         <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">IA Generativa · Redação técnico-jurídica automatizada · PDF certificado</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#bc13fe]/20 border border-[#bc13fe]/50 text-[#bc13fe] rounded-lg hover:bg-[#bc13fe]/30 transition-all text-sm font-bold"
-                >
-                    <Plus className="w-4 h-4" /> Novo Laudo
-                </button>
+                <div className="flex items-center gap-3">
+                    <AIModelSelector onChange={(prov, model) => { setAiProvider(prov); setAiModel(model); }} />
+                    <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#bc13fe]/20 border border-[#bc13fe]/50 text-[#bc13fe] rounded-lg hover:bg-[#bc13fe]/30 transition-all text-sm font-bold"
+                    >
+                        <Plus className="w-4 h-4" /> Novo Laudo
+                    </button>
+                </div>
             </div>
 
             {msg && (

@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Path unificado do lockfile — mesma localização usada pelo cron/dead-mans-switch
-const ARQUIVOS_DIR = path.join(process.cwd(), '../arquivos');
+const ARQUIVOS_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 const LOCK_FILE = path.join(ARQUIVOS_DIR, '_SYSTEM_LOCKOUT');
 
 /**

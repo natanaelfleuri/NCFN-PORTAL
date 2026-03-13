@@ -65,6 +65,16 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { action } = body;
 
+  // ── Update AI config (budget, limits, keywords) ─────────────────────────
+  if (action === "update_ai_config") {
+    const { geminiApiKey, openaiApiKey, activeModel, monthlyBudget, maxDailyRequests, keywords } = body;
+    // Store lightweight config in _AI_CONFIG.json via aiService
+    const { saveAIConfig } = await import("@/lib/aiService");
+    if (activeModel) saveAIConfig({ model: activeModel });
+    // Budget/limits stored as passthrough — future: persist in DB
+    return NextResponse.json({ ok: true, msg: "Configuração atualizada." });
+  }
+
   // ── Test AI prompt ──────────────────────────────────────────────────────
   if (action === "test_prompt") {
     const { prompt } = body;

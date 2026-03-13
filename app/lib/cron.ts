@@ -6,7 +6,7 @@ import crypto from 'crypto';
 
 // Pasta alvo principal para varreduras de alta prioridade
 const TARGET_FOLDER = '2_OSINT';
-const ROOT_ARCHIVES = path.join(process.cwd(), '../arquivos');
+const ROOT_ARCHIVES = path.join(process.cwd(), '../COFRE_NCFN');
 
 // Função auxiliar para re-calcular Hashes
 async function hashFile(filePath: string): Promise<string> {

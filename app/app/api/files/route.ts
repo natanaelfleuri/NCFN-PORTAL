@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getToken } from 'next-auth/jwt';
 import crypto from 'crypto';
 
-const ARQUIVOS_DIR = path.join(process.cwd(), '../arquivos');
+const ARQUIVOS_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 
 export const dynamic = 'force-dynamic';
 

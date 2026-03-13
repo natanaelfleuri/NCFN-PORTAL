@@ -5,7 +5,7 @@ import { getSession, getDbUser } from '@/lib/auth';
 import fs from 'fs-extra';
 import path from 'path';
 
-const VAULT_BASE = path.resolve(process.cwd(), '../arquivos/COFRE_NCFN');
+const VAULT_BASE = path.resolve(process.cwd(), '../COFRE_NCFN');
 const IGNORED_DIRS = new Set(['.smart-env', '.trash', '.obsidian', '.git']);
 
 type TreeNode = {

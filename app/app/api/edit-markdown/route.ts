@@ -5,7 +5,7 @@ import { getSession, getDbUser } from '@/lib/auth';
 import fs from 'fs-extra';
 import path from 'path';
 
-const ARQUIVOS_BASE = path.resolve(process.cwd(), '../arquivos');
+const ARQUIVOS_BASE = path.resolve(process.cwd(), '../COFRE_NCFN');
 
 export async function POST(req: Request) {
     try {

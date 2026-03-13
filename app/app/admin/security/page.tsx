@@ -93,6 +93,8 @@ export default function SecuritySettings() {
                             <option value={7}>7 Dias - Risco Médio</option>
                             <option value={14}>14 Dias - Risco Moderado</option>
                             <option value={30}>30 Dias - Risco Baixo</option>
+                            <option value={90}>90 Dias - Risco Mínimo</option>
+                            <option value={360}>360 Dias - Monitoramento Anual</option>
                         </select>
                         <p className="text-xs text-gray-500 mt-2 ml-1">Sua última conexão com sucesso resetará a contagem deste timer.</p>
                     </div>

@@ -1,0 +1,83 @@
+# 01
+
+Em https://ncfn.net/upgrade atualize os planos kconforme abaixo: 
+
+
+#### Tabela de Planos: NEXUS CYBER FORENSIC NETWORK
+
+**1. Plano PRO (Essencial)** _A porta de entrada para validação e preservação de dados._
+
+- **Investimento:** R$ 75,00 / mês
+    
+- **Armazenamento:** 25 GB de arquivos tratados
+    
+- **Perfil Ideal:** Investigadores independentes ou usuários que precisam de extrações e relatórios pontuais com garantia de integridade.
+    
+- **Gatilho de Venda:** "Segurança e validação acessíveis para suas primeiras auditorias."
+    
+
+**2. Plano ULTRA | Nível 2** _Mais capacidade para quem lida com investigações, acusações ou defesas constantes.
+
+- **Investimento:** R$ 165,00 / mês
+    
+- **Armazenamento:** 100 GB de arquivos tratados
+    
+- **Perfil Ideal:** Profissionais de inteligência e pequenos escritórios que geram um volume moderado de relatórios de fontes abertas e mídias.
+    
+- **Gatilho de Venda:** "Quatro vezes mais espaço por uma fração do preço."
+    
+
+**3. Plano FULL | Nível 3 (⭐ Mais Popular)** _O ecossistema completo para a cadeia de custódia._
+
+- **Investimento:** R$ 230,00 / mês
+    
+- **Armazenamento:** 300 GB de arquivos tratados
+    
+- **Perfil Ideal:** Agências de investigação, escritórios de advocacia e peritos que precisam de retenção de longo prazo e segurança robusta para múltiplas evidências digitais.
+    
+- **Gatilho de Venda:** "A escolha definitiva para quem não pode comprometer espaço na hora de preservar provas."
+    
+
+**4. Plano MESTRE FULL (Avançado)** _Poder de processamento e armazenamento em nível pericial._
+
+- **Investimento:** R$ 720,00 / mês
+    
+- **Armazenamento:** 2 TB (2.000 GB) de arquivos tratados
+    
+- **Perfil Ideal:** Departamentos de _compliance_, laboratórios forenses e equipes que realizam extrações massivas e tratamento de imagens/vídeos em alta resolução.
+    
+- **Gatilho de Venda:** "Infraestrutura massiva para auditorias complexas e ininterruptas."
+    
+
+**5. Plano CORPORATIVO (Enterprise)** _Isolamento e escala máxima para operações críticas._
+
+- **Investimento:** R$ 1.450,00 / mês
+    
+- **Armazenamento:** 5 TB de arquivos tratados
+    
+- **Perfil Ideal:** Grandes corporações, auditorias de grande porte e órgãos que exigem o grau máximo de armazenamento para espelhamento de dados estruturados e não estruturados.
+    
+- **Gatilho de Venda:** "Escalabilidade e custódia de dados sem restrições para operações de grande impacto."
+
+________________________________________
+
+# 02 - 
+
+Crie na documentação do site que no plano FULL, MESTRE FULL e CORPORATIVO, cópias dos arquivos tratados são armazenadas em locais físicos não divulgados por motivo de segurança, mas são BUNKER'S dedicados, contra agentes externos, conforme o nível de acesso ou a necessidade do gerente/cliente.
+
+
+# 03 
+
+https://ncfn.net/admin todos os dados dos painéis analíticos  devem retratar os arquivos custodiados
+
+# 04 
+
+O App e a visualização do portal deve ter um layout responsivo onde os elementos gráficos fiquem visíveis e organizados da melhor forma, o menu deve mostrar todas as opções de forma visível (não está atualmente), o que for preciso desenvolver um novo layout sinta-se a vontade, deve haver a opção de logar com o desbloqueio do celular, capriche nas modificações do APP para tornar a navegação incrível, se for preciso implementar melhorias de layout, funções, integrações, fique a vontade e implemente automaticamente 
+
+# 05 - 
+
+revise todos os códigos e implemente automaticamente as alterações que farão sentido para o sistema no geral ser coeso e lógico, implemente automaticamente melhorias.
+
+# 06 
+
+publique a nova versão do site na VPS e deixe disponível e funcional no ncfn.net (celular e computador) , e pelo APP

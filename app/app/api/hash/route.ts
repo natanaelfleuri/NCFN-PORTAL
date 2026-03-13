@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
         if (!folder || !filename) return new NextResponse('Faltam parâmetros', { status: 400 });
 
-        const filePath = path.join(process.cwd(), '../arquivos', folder, filename);
+        const filePath = path.join(process.cwd(), '../COFRE_NCFN', folder, filename);
 
         if (!fs.existsSync(filePath)) return new NextResponse('Arquivo não encontrado', { status: 404 });
 
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
                 const stat = await fs.stat(filePath);
 
                 // --- Registro Sênior de Hashes no Diretório ---
-                const folderPath = path.join(process.cwd(), '../arquivos', folder);
+                const folderPath = path.join(process.cwd(), '../COFRE_NCFN', folder);
                 const reportPath = path.join(folderPath, '_Lista_de_Hashes_SHA256.txt');
 
                 const timestampBR = new Intl.DateTimeFormat('pt-BR', {

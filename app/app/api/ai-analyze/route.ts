@@ -7,9 +7,10 @@ import { getSession, getDbUser } from '@/lib/auth';
 import fs from 'fs-extra';
 import path from 'path';
 import crypto from 'crypto';
+import { readAIConfig, callAI } from '@/lib/aiService';
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
-const ARQUIVOS_BASE  = path.resolve(process.cwd(), '../arquivos');
+const ARQUIVOS_BASE  = path.resolve(process.cwd(), '../COFRE_NCFN');
 const COFRE_BASE     = path.join(ARQUIVOS_BASE, 'COFRE_NCFN');
 const PROMPTS_DIR    = path.join(COFRE_BASE, 'COMANDOS - PERITO SANSÃO');
 
@@ -160,48 +161,68 @@ export async function POST(req: Request) {
                 send({ type: 'status', msg: 'Extraindo metadados e conteúdo...' });
                 const fileData = extractFileData(abs, ext);
 
-                // call ollama (streaming)
-                send({ type: 'status', msg: `Enviando para ${OLLAMA_MODEL} via Ollama...` });
+                // call AI (Ollama streaming or external API)
+                const aiConfig = readAIConfig();
+                send({ type: 'status', msg: `Enviando para ${aiConfig.provider === 'ollama' ? 'PERITO SANSÃO - IA NCFN' : aiConfig.provider.toUpperCase()} · ${aiConfig.model}...` });
 
-                const fullPrompt = `${systemPrompt}\n\n---\nAnalise os dados extraídos abaixo do arquivo "${filename}":\n\n${fileData}`;
-
-                const ollamaRes = await fetch(`${OLLAMA_URL}/api/generate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: OLLAMA_MODEL,
-                        prompt: fullPrompt,
-                        stream: true,
-                        options: { num_predict: 1200, temperature: 0.1 },
-                    }),
-                    signal: AbortSignal.timeout(120_000),
-                });
-
-                if (!ollamaRes.ok || !ollamaRes.body) {
-                    send({ type: 'error', msg: `Ollama retornou HTTP ${ollamaRes.status}` });
-                    controller.close();
-                    return;
-                }
-
-                // forward ollama stream token by token
-                const reader = ollamaRes.body.getReader();
-                const dec = new TextDecoder();
+                const fullPrompt = `Analise os dados extraídos abaixo do arquivo "${filename}":\n\n${fileData}`;
                 let fullText = '';
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    const lines = dec.decode(value, { stream: true }).split('\n').filter(Boolean);
-                    for (const line of lines) {
-                        try {
-                            const j = JSON.parse(line);
-                            if (j.response) {
-                                fullText += j.response;
-                                send({ type: 'chunk', text: j.response });
-                            }
-                            if (j.done) {
-                                send({ type: 'done', fullText, filename });
-                            }
-                        } catch {}
+
+                if (aiConfig.provider === 'ollama') {
+                    // Streaming path for Ollama
+                    const ollamaUrl = aiConfig.ollamaUrl || OLLAMA_URL;
+                    const combinedPrompt = systemPrompt ? `${systemPrompt}\n\n---\n${fullPrompt}` : fullPrompt;
+                    const ollamaRes = await fetch(`${ollamaUrl}/api/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: aiConfig.model || OLLAMA_MODEL,
+                            prompt: combinedPrompt,
+                            stream: true,
+                            options: { num_predict: 1200, temperature: 0.1 },
+                        }),
+                        signal: AbortSignal.timeout(120_000),
+                    });
+
+                    if (!ollamaRes.ok || !ollamaRes.body) {
+                        send({ type: 'error', msg: `Ollama retornou HTTP ${ollamaRes.status}` });
+                        controller.close();
+                        return;
+                    }
+
+                    const reader = ollamaRes.body.getReader();
+                    const dec = new TextDecoder();
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const lines = dec.decode(value, { stream: true }).split('\n').filter(Boolean);
+                        for (const line of lines) {
+                            try {
+                                const j = JSON.parse(line);
+                                if (j.response) {
+                                    fullText += j.response;
+                                    send({ type: 'chunk', text: j.response });
+                                }
+                                if (j.done) {
+                                    send({ type: 'done', fullText, filename });
+                                }
+                            } catch {}
+                        }
+                    }
+                } else {
+                    // Non-streaming path for external APIs (OpenAI, Anthropic, Google, etc.)
+                    try {
+                        fullText = await callAI(fullPrompt, systemPrompt || undefined, aiConfig);
+                        // Simulate streaming by sending chunks
+                        const chunkSize = 80;
+                        for (let i = 0; i < fullText.length; i += chunkSize) {
+                            send({ type: 'chunk', text: fullText.slice(i, i + chunkSize) });
+                        }
+                        send({ type: 'done', fullText, filename });
+                    } catch (err: any) {
+                        send({ type: 'error', msg: `Erro na API ${aiConfig.provider}: ${err?.message}` });
+                        controller.close();
+                        return;
                     }
                 }
 

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, Save, Eye, EyeOff, Search, Trash2, X } from 'lucide-react';
+import { BookOpen, ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, Save, Eye, EyeOff, Search, Trash2, X, ChevronsDown, ChevronsUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -24,13 +24,16 @@ function TreeItem({
     selected,
     onSelect,
     depth = 0,
+    forceOpen,
 }: {
     node: TreeNode;
     selected: string;
     onSelect: (n: TreeNode) => void;
     depth?: number;
+    forceOpen?: boolean | null;
 }) {
-    const [open, setOpen] = useState(depth < 2);
+    const [open, setOpen] = useState(false);
+    useEffect(() => { if (forceOpen !== null && forceOpen !== undefined) setOpen(!!forceOpen); }, [forceOpen]);
 
     if (node.type === 'folder') {
         return (
@@ -49,7 +52,7 @@ function TreeItem({
                     <span className="text-xs text-gray-300 truncate font-medium">{node.name}</span>
                 </button>
                 {open && node.children?.map(child => (
-                    <TreeItem key={child.path} node={child} selected={selected} onSelect={onSelect} depth={depth + 1} />
+                    <TreeItem key={child.path} node={child} selected={selected} onSelect={onSelect} depth={depth + 1} forceOpen={forceOpen} />
                 ))}
             </div>
         );
@@ -98,6 +101,7 @@ export default function CofrePage() {
     const [tree, setTree] = useState<TreeNode[]>([]);
     const [loadingTree, setLoadingTree] = useState(true);
     const [search, setSearch] = useState('');
+    const [forceOpen, setForceOpen] = useState<boolean | null>(null);
 
     const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
     const [content, setContent] = useState('');
@@ -105,6 +109,7 @@ export default function CofrePage() {
     const [loadingFile, setLoadingFile] = useState(false);
     const [saving, setSaving] = useState(false);
     const [preview, setPreview] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -167,6 +172,26 @@ export default function CofrePage() {
         return () => window.removeEventListener('keydown', handler);
     }, [handleSave]);
 
+    // ── delete note ────────────────────────────────────────────────────────
+    const handleDeleteNote = async () => {
+        if (!selectedNode) return;
+        if (!confirm(`Excluir "${selectedNode.name}" permanentemente?`)) return;
+        setDeleting(true);
+        try {
+            const res = await fetch(`/api/vault?path=${encodeURIComponent(selectedNode.path)}`, {
+                method: 'DELETE',
+            });
+            if (res.ok) {
+                setSelectedNode(null);
+                setContent('');
+                setSavedContent('');
+                await loadTree();
+            }
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     // ── new note ───────────────────────────────────────────────────────────
     const handleNewNote = async () => {
         const name = prompt('Nome da nova nota (sem extensão):');
@@ -194,13 +219,29 @@ export default function CofrePage() {
                         <BookOpen className="w-4 h-4 text-[#8b5cf6]" />
                         <span className="text-xs font-bold text-white/80 uppercase tracking-wider">Cofre NCFN</span>
                     </div>
-                    <button
-                        onClick={handleNewNote}
-                        title="Nova nota"
-                        className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#8b5cf6]/20 transition-colors"
-                    >
-                        <Plus className="w-3.5 h-3.5 text-[#8b5cf6]" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setForceOpen(true)}
+                            title="Expandir todas as pastas"
+                            className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#8b5cf6]/20 transition-colors"
+                        >
+                            <ChevronsDown className="w-3.5 h-3.5 text-[#8b5cf6]" />
+                        </button>
+                        <button
+                            onClick={() => setForceOpen(false)}
+                            title="Fechar todas as pastas"
+                            className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#8b5cf6]/20 transition-colors"
+                        >
+                            <ChevronsUp className="w-3.5 h-3.5 text-[#8b5cf6]" />
+                        </button>
+                        <button
+                            onClick={handleNewNote}
+                            title="Nova nota"
+                            className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#8b5cf6]/20 transition-colors"
+                        >
+                            <Plus className="w-3.5 h-3.5 text-[#8b5cf6]" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* search */}
@@ -233,7 +274,7 @@ export default function CofrePage() {
                         </p>
                     ) : (
                         filteredTree.map(node => (
-                            <TreeItem key={node.path} node={node} selected={selectedNode?.path ?? ''} onSelect={handleSelect} />
+                            <TreeItem key={node.path} node={node} selected={selectedNode?.path ?? ''} onSelect={handleSelect} forceOpen={forceOpen} />
                         ))
                     )}
                 </div>
@@ -273,6 +314,14 @@ export default function CofrePage() {
                                 >
                                     <Save className="w-3.5 h-3.5" />
                                     {saving ? 'Salvando...' : 'Salvar'}
+                                </button>
+                                <button
+                                    onClick={handleDeleteNote}
+                                    disabled={deleting}
+                                    title="Excluir nota"
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         </div>

@@ -5,9 +5,106 @@ import { useRouter } from "next/navigation";
 import {
   Bot, Cpu, Zap, Shield, Plus, Trash2, ToggleLeft, ToggleRight,
   RefreshCw, CheckCircle, XCircle, Play, Download, AlertTriangle,
-  Terminal, Tag, BookOpen, Loader2, ArrowLeft
+  Terminal, Tag, BookOpen, Loader2, ArrowLeft, Key, Globe, Star, Save
 } from "lucide-react";
 import Link from "next/link";
+
+// ── AI Model catalogue ────────────────────────────────────────────────────
+type ProviderDef = {
+  id: string;
+  label: string;
+  color: string;
+  border: string;
+  bg: string;
+  models: { id: string; label: string; description: string }[];
+  keyEnvHint: string;
+  isLocal?: boolean;
+};
+
+const AI_PROVIDERS: ProviderDef[] = [
+  {
+    id: 'ollama',
+    label: 'PERITO SANSÃO - IA NCFN',
+    color: 'text-green-400',
+    border: 'border-green-500/40',
+    bg: 'bg-green-500/10',
+    isLocal: true,
+    keyEnvHint: 'Local — não requer chave',
+    models: [
+      { id: 'mistral', label: 'Mistral 7B', description: 'Leve e rápido (4GB RAM)' },
+      { id: 'llama3:8b', label: 'LLaMA 3 8B', description: 'Meta — ótimo equilíbrio' },
+      { id: 'llama3:70b', label: 'LLaMA 3 70B', description: 'Alta precisão (40GB RAM)' },
+      { id: 'gemma2:9b', label: 'Gemma 2 9B', description: 'Google — eficiente' },
+      { id: 'phi3:mini', label: 'Phi-3 Mini', description: 'Microsoft — ultra leve' },
+      { id: 'qwen2:7b', label: 'Qwen 2 7B', description: 'Alibaba — multilíngue' },
+    ],
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    color: 'text-emerald-400',
+    border: 'border-emerald-500/40',
+    bg: 'bg-emerald-500/10',
+    keyEnvHint: 'OPENAI_API_KEY',
+    models: [
+      { id: 'gpt-4o', label: 'GPT-4o', description: 'Mais avançado da OpenAI' },
+      { id: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Rápido e econômico' },
+      { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', description: '128k contexto' },
+      { id: 'o1-mini', label: 'o1 Mini', description: 'Raciocínio avançado' },
+    ],
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic Claude',
+    color: 'text-orange-400',
+    border: 'border-orange-500/40',
+    bg: 'bg-orange-500/10',
+    keyEnvHint: 'ANTHROPIC_API_KEY',
+    models: [
+      { id: 'claude-opus-4-6', label: 'Claude Opus 4.6', description: 'Mais poderoso da Anthropic' },
+      { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', description: 'Equilíbrio velocidade/qualidade' },
+      { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', description: 'Ultra rápido e econômico' },
+    ],
+  },
+  {
+    id: 'google',
+    label: 'Google Gemini',
+    color: 'text-blue-400',
+    border: 'border-blue-500/40',
+    bg: 'bg-blue-500/10',
+    keyEnvHint: 'GOOGLE_AI_API_KEY',
+    models: [
+      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', description: 'Rápido e preciso' },
+      { id: 'gemini-2.0-pro', label: 'Gemini 2.0 Pro', description: 'Alta precisão' },
+      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', description: '1M tokens contexto' },
+    ],
+  },
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    color: 'text-purple-400',
+    border: 'border-purple-500/40',
+    bg: 'bg-purple-500/10',
+    keyEnvHint: 'DEEPSEEK_API_KEY',
+    models: [
+      { id: 'deepseek-chat', label: 'DeepSeek Chat', description: 'Geral — custo baixo' },
+      { id: 'deepseek-reasoner', label: 'DeepSeek Reasoner', description: 'Raciocínio avançado' },
+    ],
+  },
+  {
+    id: 'mistral',
+    label: 'Mistral AI (API)',
+    color: 'text-yellow-400',
+    border: 'border-yellow-500/40',
+    bg: 'bg-yellow-500/10',
+    keyEnvHint: 'MISTRAL_API_KEY',
+    models: [
+      { id: 'mistral-large-latest', label: 'Mistral Large', description: 'Mais capaz da Mistral' },
+      { id: 'mistral-small-latest', label: 'Mistral Small', description: 'Rápido e econômico' },
+      { id: 'codestral-latest', label: 'Codestral', description: 'Especializado em código' },
+    ],
+  },
+];
 
 const IS_ADMIN_ROLE = "admin";
 
@@ -38,6 +135,12 @@ type ConfigData = {
   };
 };
 
+type SavedAIModel = {
+  provider: string;
+  model: string;
+  hasApiKey: boolean;
+};
+
 export default function IaConfigPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -55,6 +158,14 @@ export default function IaConfigPage() {
   const [actionMsg, setActionMsg] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
 
+  // ── AI Model Selection ───────────────────────────────────────────────────
+  const [savedAI, setSavedAI] = useState<SavedAIModel>({ provider: 'ollama', model: 'mistral', hasApiKey: false });
+  const [selectedProvider, setSelectedProvider] = useState('ollama');
+  const [selectedModel, setSelectedModel] = useState('mistral');
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [savingModel, setSavingModel] = useState(false);
+  const [modelMsg, setModelMsg] = useState('');
+
   useEffect(() => {
     if (status === "unauthenticated") router.push("/auth/signin");
     if (status === "authenticated") {
@@ -65,13 +176,45 @@ export default function IaConfigPage() {
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch("/api/admin/ia-config");
-      const data = await res.json();
+      const [configRes, modelRes] = await Promise.all([
+        fetch("/api/admin/ia-config"),
+        fetch("/api/admin/ai-model"),
+      ]);
+      const data = await configRes.json();
       setConfig(data);
+      if (modelRes.ok) {
+        const md = await modelRes.json();
+        setSavedAI(md);
+        setSelectedProvider(md.provider || 'ollama');
+        setSelectedModel(md.model || 'mistral');
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveModel = async () => {
+    setSavingModel(true);
+    setModelMsg('');
+    try {
+      const res = await fetch('/api/admin/ai-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: selectedProvider, model: selectedModel, apiKey: apiKeyInput || undefined }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setModelMsg('IA padrão salva com sucesso! Todas as ferramentas usarão este modelo.');
+        setApiKeyInput('');
+        fetchConfig();
+        setTimeout(() => setModelMsg(''), 5000);
+      } else {
+        setModelMsg(`Erro: ${data.error}`);
+      }
+    } finally {
+      setSavingModel(false);
     }
   };
 
@@ -191,16 +334,16 @@ export default function IaConfigPage() {
           <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Local Intel</span>
         </div>
 
-        {/* Gemini Status */}
-        <div className={`glass-panel p-5 rounded-2xl border flex flex-col gap-2 ${config.aiConfig.geminiApiKey ? "border-cyan-500/30 font-bold" : "border-yellow-500/30"}`}>
+        {/* Active AI Model */}
+        <div className={`glass-panel p-5 rounded-2xl border flex flex-col gap-2 ${savedAI.hasApiKey || savedAI.provider === 'ollama' ? "border-cyan-500/30" : "border-yellow-500/30"}`}>
           <div className="flex items-center gap-2 text-cyan-400">
             <Zap className="w-5 h-5" />
-            <span className="font-bold text-sm text-white">{config.aiConfig.activeModel || "Gemini 2.0 Pro"}</span>
+            <span className="font-bold text-sm text-white">{savedAI.model || "mistral"}</span>
           </div>
-          <span className={`text-2xl font-black ${config.aiConfig.geminiApiKey ? "text-cyan-400" : "text-yellow-400"}`}>
-            {config.aiConfig.geminiApiKey ? "Ativo" : "Pendente"}
+          <span className={`text-2xl font-black ${savedAI.hasApiKey || savedAI.provider === 'ollama' ? "text-cyan-400" : "text-yellow-400"}`}>
+            {savedAI.provider === 'ollama' ? 'Local' : savedAI.hasApiKey ? 'Ativo' : 'Pendente'}
           </span>
-          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">SOTA AI Model</span>
+          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">{savedAI.provider.toUpperCase()}</span>
         </div>
 
         {/* Budget */}
@@ -210,9 +353,9 @@ export default function IaConfigPage() {
             <span className="font-bold text-sm text-white">Orçamento Mensal</span>
           </div>
           <span className="text-2xl font-black text-[#bc13fe]">
-            R$ {config.aiConfig.monthlyBudget?.toFixed(2) || "10.00"}
+            R$ {config.aiConfig?.monthlyBudget?.toFixed(2) || "10.00"}
           </span>
-          <span className="text-[10px] text-gray-500 uppercase tracking-widest">Limite Diário: {config.aiConfig.maxDailyRequests} Req.</span>
+          <span className="text-[10px] text-gray-500 uppercase tracking-widest">Limite Diário: {config.aiConfig?.maxDailyRequests ?? '∞'} Req.</span>
         </div>
 
         {/* Mode */}
@@ -228,38 +371,107 @@ export default function IaConfigPage() {
         </div>
       </div>
 
-      {/* Global AI Config Form */}
-      <div className="glass-panel p-6 rounded-2xl border border-[#bc13fe]/20 space-y-6">
-        <h2 className="text-sm font-bold uppercase tracking-widest text-[#bc13fe] flex items-center gap-2">
-          <Shield className="w-4 h-4" /> Configurações de Inteligência Artificial
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-            <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Gemini API Key</label>
-            <input
-                type="password"
-                defaultValue={config.aiConfig.geminiApiKey || ""}
-                placeholder={config.aiConfig.geminiApiKey ? "••••••••••••••••" : "Introduzir Chave..."}
-                className="w-full bg-black/60 border border-gray-800 rounded-xl px-4 py-3 text-xs text-[#bc13fe] font-mono focus:border-[#bc13fe]/50"
-                onBlur={(e) => {
-                if (e.target.value) handleUpdateConfig({ geminiApiKey: e.target.value });
-                }}
-            />
-            </div>
-            <div>
-            <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Modelo Principal</label>
-            <select
-                className="w-full bg-black/60 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-[#bc13fe]/50 font-bold"
-                defaultValue={config.aiConfig.activeModel}
-                onChange={(e) => handleUpdateConfig({ activeModel: e.target.value })}
-            >
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast & Cheap)</option>
-                <option value="gemini-2.0-pro">Gemini 2.0 Pro (High Precision)</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Standard)</option>
-            </select>
-            </div>
+      {/* ── IA ASSISTENTE PREFERÊNCIA ─────────────────────────────────────── */}
+      <div className="glass-panel p-6 rounded-2xl border border-[#bc13fe]/30 space-y-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-[#bc13fe] flex items-center gap-2">
+            <Star className="w-4 h-4" /> IA Assistente Preferência — Padrão do Site
+          </h2>
+          <div className="flex items-center gap-2 px-3 py-1 bg-black/50 rounded-lg border border-[#bc13fe]/20">
+            <Bot className="w-3.5 h-3.5 text-[#bc13fe]" />
+            <span className="text-[10px] font-mono text-[#bc13fe] uppercase tracking-widest">
+              {savedAI.provider === 'ollama' ? 'PERITO SANSÃO - IA NCFN' : savedAI.provider.toUpperCase()} · {savedAI.model}
+            </span>
+          </div>
         </div>
+
+        <p className="text-[11px] text-gray-500">
+          Selecione o modelo de IA padrão para todas as ferramentas do portal: Laudo Forense, Perícia de Arquivo, Captura Web e Análise de Evidências. Quando uma IA externa é configurada aqui, ela substitui o Ollama local em todo o sistema.
+        </p>
+
+        {/* Provider cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {AI_PROVIDERS.map(prov => (
+            <button
+              key={prov.id}
+              onClick={() => {
+                setSelectedProvider(prov.id);
+                setSelectedModel(prov.models[0].id);
+                setApiKeyInput('');
+              }}
+              className={`p-4 rounded-xl border text-left transition-all ${
+                selectedProvider === prov.id
+                  ? `${prov.border} ${prov.bg} shadow-lg`
+                  : 'border-gray-800 bg-gray-900/30 hover:border-gray-700'
+              }`}
+            >
+              <div className={`text-xs font-black uppercase tracking-wider mb-1 ${selectedProvider === prov.id ? prov.color : 'text-gray-400'}`}>
+                {prov.label}
+              </div>
+              <div className="text-[10px] text-gray-600">{prov.isLocal ? '🖥️ Local / Privado' : '☁️ API Externa'}</div>
+              {selectedProvider === prov.id && (
+                <div className={`mt-1.5 text-[9px] font-bold ${prov.color} opacity-80 uppercase tracking-widest`}>✓ SELECIONADO</div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Model + Key form */}
+        {selectedProvider && (() => {
+          const prov = AI_PROVIDERS.find(p => p.id === selectedProvider)!;
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Modelo</label>
+                <select
+                  className={`w-full bg-black/60 border rounded-xl px-4 py-3 text-sm font-bold focus:outline-none ${prov.border} text-white`}
+                  value={selectedModel}
+                  onChange={e => setSelectedModel(e.target.value)}
+                >
+                  {prov.models.map(m => (
+                    <option key={m.id} value={m.id}>{m.label} — {m.description}</option>
+                  ))}
+                </select>
+              </div>
+              {!prov.isLocal && (
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">
+                    API Key {savedAI.provider === selectedProvider && savedAI.hasApiKey && <span className="text-green-400">✓ Salva</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKeyInput}
+                    onChange={e => setApiKeyInput(e.target.value)}
+                    placeholder={savedAI.provider === selectedProvider && savedAI.hasApiKey ? '••••••••••••• (deixe vazio para manter)' : `Cole sua ${prov.keyEnvHint}...`}
+                    className={`w-full bg-black/60 border rounded-xl px-4 py-3 text-xs font-mono focus:outline-none ${prov.border}`}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {modelMsg && (
+          <div className={`px-4 py-3 rounded-xl text-xs font-mono border ${modelMsg.includes('Erro') ? 'border-red-500/40 bg-red-500/10 text-red-400' : 'border-green-500/40 bg-green-500/10 text-green-400'}`}>
+            {modelMsg}
+          </div>
+        )}
+
+        <button
+          onClick={handleSaveModel}
+          disabled={savingModel}
+          className="flex items-center gap-2 px-6 py-3 bg-[#bc13fe]/20 border border-[#bc13fe]/50 text-[#bc13fe] rounded-xl font-black text-sm hover:bg-[#bc13fe]/30 transition-all disabled:opacity-40 uppercase tracking-widest"
+        >
+          {savingModel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Salvar como IA Padrão do Site
+        </button>
+      </div>
+
+      {/* Legacy config section (budget, limits, keywords) */}
+      <div className="glass-panel p-6 rounded-2xl border border-gray-800 space-y-6">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+          <Shield className="w-4 h-4" /> Controles Adicionais
+        </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
@@ -269,7 +481,7 @@ export default function IaConfigPage() {
                 <input
                 type="number"
                 step="0.01"
-                defaultValue={config.aiConfig.monthlyBudget}
+                defaultValue={config.aiConfig?.monthlyBudget}
                 className="w-full bg-black/60 border border-gray-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white font-mono focus:border-[#bc13fe]/50"
                 onBlur={(e) => handleUpdateConfig({ monthlyBudget: parseFloat(e.target.value) })}
                 />
@@ -279,7 +491,7 @@ export default function IaConfigPage() {
             <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Limite Diário de Requisições</label>
             <input
                 type="number"
-                defaultValue={config.aiConfig.maxDailyRequests}
+                defaultValue={config.aiConfig?.maxDailyRequests}
                 className="w-full bg-black/60 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-[#bc13fe]/50"
                 onBlur={(e) => handleUpdateConfig({ maxDailyRequests: parseInt(e.target.value) })}
             />
@@ -289,7 +501,7 @@ export default function IaConfigPage() {
             <input
                 type="text"
                 placeholder="fraude, lavagem, desvio..."
-                defaultValue={config.aiConfig.keywords || ""}
+                defaultValue={config.aiConfig?.keywords || ""}
                 className="w-full bg-black/60 border border-gray-800 rounded-xl px-4 py-3 text-xs text-white font-mono focus:border-[#bc13fe]/50"
                 onBlur={(e) => handleUpdateConfig({ keywords: e.target.value })}
             />

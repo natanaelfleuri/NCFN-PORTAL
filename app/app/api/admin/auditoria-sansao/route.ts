@@ -9,8 +9,8 @@ import path from 'path';
 import crypto from 'crypto';
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
-const ARQUIVOS_BASE  = path.resolve(process.cwd(), '../arquivos');
-const COFRE_BASE     = path.join(ARQUIVOS_BASE, 'COFRE_NCFN');
+const COFRE_BASE     = path.resolve(process.cwd(), '../COFRE_NCFN');
+const ARQUIVOS_BASE  = COFRE_BASE; // alias for compat
 const PROMPTS_DIR    = path.join(COFRE_BASE, 'COMANDOS - PERITO SANSÃO');
 const RELATORIOS_DIR = path.join(COFRE_BASE, 'RELATORIOS');
 
@@ -206,6 +206,12 @@ export async function POST(req: Request) {
     const user = await adminGuard();
     if (!user) return new NextResponse('Não autorizado', { status: 401 });
 
+    let targetFolder: string | null = null;
+    try {
+        const body = await req.json().catch(() => ({}));
+        targetFolder = body?.folder || null;
+    } catch (_) {}
+
     const enc = new TextEncoder();
 
     const stream = new ReadableStream({
@@ -217,7 +223,9 @@ export async function POST(req: Request) {
             };
 
             try {
-                send({ type: 'log', msg: '🔍 Iniciando varredura forense...' });
+                send({ type: 'log', msg: targetFolder
+                    ? `🔍 Iniciando varredura da pasta: ${targetFolder}...`
+                    : '🔍 Iniciando varredura forense completa...' });
 
                 // 1. Load prompts
                 send({ type: 'log', msg: '📂 Carregando prompts do Perito Sansão...' });
@@ -230,14 +238,25 @@ export async function POST(req: Request) {
                 }
                 send({ type: 'log', msg: `✅ ${promptCount} protocolo(s) carregado(s).` });
 
-                // 2. Collect files (exclude COFRE_NCFN)
+                // 2. Collect files
                 send({ type: 'log', msg: '📁 Mapeando arquivos de custódia...' });
                 const allFiles: { rel: string; abs: string }[] = [];
 
-                if (fs.existsSync(ARQUIVOS_BASE)) {
-                    for (const entry of fs.readdirSync(ARQUIVOS_BASE, { withFileTypes: true })) {
-                        if (entry.name === 'COFRE_NCFN') continue; // skip vault internals
-                        const abs = path.join(ARQUIVOS_BASE, entry.name);
+                if (targetFolder) {
+                    // Single-folder mode: sanitize and scope
+                    const safeFolder = targetFolder.replace(/\.\./g, '').replace(/[/\\]/g, '');
+                    const folderAbs = path.join(COFRE_BASE, safeFolder);
+                    if (fs.existsSync(folderAbs)) {
+                        collectFiles(folderAbs, safeFolder, allFiles);
+                    } else {
+                        send({ type: 'error', msg: `❌ Pasta não encontrada: ${safeFolder}` });
+                        controller.close();
+                        return;
+                    }
+                } else if (fs.existsSync(COFRE_BASE)) {
+                    for (const entry of fs.readdirSync(COFRE_BASE, { withFileTypes: true })) {
+                        if (IGNORE_DIRS.has(entry.name)) continue;
+                        const abs = path.join(COFRE_BASE, entry.name);
                         if (entry.isDirectory()) {
                             collectFiles(abs, entry.name, allFiles);
                         } else {

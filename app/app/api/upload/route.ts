@@ -3,6 +3,7 @@ import { getSession, getDbUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import fs from 'fs-extra';
 import path from 'path';
+import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { checkRateLimit } from '@/lib/rateLimit';
 
@@ -49,12 +50,47 @@ export async function POST(req: Request) {
         const fileHash = require('crypto').createHash('sha256').update(buffer).digest('hex');
 
         // Caminho da pasta que está mapeada fisicamente
-        const rootPath = path.join(process.cwd(), '../arquivos');
+        const rootPath = path.join(process.cwd(), '../COFRE_NCFN');
         const folderPath = path.join(rootPath, folder);
         const filePath = path.join(folderPath, file.name);
 
         await fs.ensureDir(folderPath); // Garante que a pasta exista
         await fs.writeFile(filePath, buffer);
+
+        // ── Auto-criptografia AES-256-CBC ─────────────────────────────────
+        const autoPassword = crypto.randomBytes(24).toString('base64').replace(/[+/=]/g, '').slice(0, 32);
+        const salt = process.env.CRYPTO_SALT || 'ncfn-salt';
+        const key = crypto.scryptSync(autoPassword, salt, 32);
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+        const encBuffer = Buffer.concat([iv, cipher.update(buffer), cipher.final()]);
+        await fs.writeFile(`${filePath}.enc.bin`, encBuffer);
+
+        // ── Relatório forense de recepção ─────────────────────────────────
+        const sha256hash = fileHash; // already computed above
+        const md5hash = crypto.createHash('md5').update(buffer).digest('hex');
+        const reportContent = `=========================================================
+RELATÓRIO DE RECEPÇÃO FORENSE — NCFN
+=========================================================
+Arquivo: ${file.name}
+Pasta: ${folder}
+Tamanho: ${file.size} bytes
+Upload em: ${new Date().toLocaleString('pt-BR')}
+Uploader: ${session.user.email}
+
+INTEGRIDADE:
+  SHA-256: ${sha256hash}
+  MD5:     ${md5hash}
+
+CÓPIA AES GERADA: ${file.name}.enc.bin
+  Algoritmo: AES-256-CBC (scrypt key derivation)
+  SENHA: ${autoPassword}
+
+⚠️  GUARDE A SENHA ACIMA EM LOCAL MUITO SEGURO.
+     Sem ela não será possível recuperar o arquivo.
+=========================================================
+`;
+        await fs.writeFile(`${filePath}.RECIBO.txt`, reportContent, 'utf8');
 
         // Update Database Counters & Link File
         await prisma.user.update({
@@ -73,7 +109,7 @@ export async function POST(req: Request) {
 
         // Ping do Administrador (Alimenta e Reseta a bomba do Dead Man Switch)
         if (dbUser.role === 'admin' || dbUser.role === 'superadmin') {
-            await fs.writeFile(path.join(rootPath, '_LAST_SEEN_ADMIN.txt'), new Date().toISOString(), 'utf8').catch(() => { });
+            await fs.writeFile(path.join(process.cwd(), '../COFRE_NCFN/_LAST_SEEN_ADMIN.txt'), new Date().toISOString(), 'utf8').catch(() => { });
         }
 
         // Dispara Hash + RFC3161 Timestamp em background
@@ -86,7 +122,7 @@ export async function POST(req: Request) {
             body: JSON.stringify({ hash: fileHash, filename: file.name, folder }),
         }).catch(err => console.error("Erro no Auto-Timestamp Background:", err));
 
-        return NextResponse.json({ success: true, filename: file.name });
+        return NextResponse.json({ success: true, filename: file.name, encPassword: autoPassword });
     } catch (error) {
         console.error("Erro de upload:", error);
         return NextResponse.json({ error: 'Erro de processamento no upload' }, { status: 500 });

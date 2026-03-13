@@ -6,7 +6,7 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-const ROOT_ARCHIVES = path.join(process.cwd(), '../arquivos');
+const ROOT_ARCHIVES = path.join(process.cwd(), '../COFRE_NCFN');
 const TRASH_DIR = path.join(ROOT_ARCHIVES, 'lixeira');
 
 async function getUserSession(_req: NextRequest) {

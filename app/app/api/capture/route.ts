@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Diretório de saída
-  const captureDir = path.join(process.cwd(), '../arquivos/capturas_web', capture.id);
+  const captureDir = path.join(process.cwd(), '../COFRE_NCFN/capturas_web', capture.id);
   await fs.ensureDir(captureDir);
 
   try {

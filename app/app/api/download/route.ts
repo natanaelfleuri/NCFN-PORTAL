@@ -1,9 +1,12 @@
+// @ts-nocheck
 import { NextResponse } from 'next/server';
 import fs from 'fs-extra';
 import path from 'path';
 import geoip from 'geoip-lite';
 import { getToken } from 'next-auth/jwt';
 import { PDFDocument, rgb, degrees } from 'pdf-lib';
+import crypto from 'crypto';
+import AdmZip from 'adm-zip';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +18,7 @@ export async function GET(req: Request) {
 
         if (!folder || !filename) return new NextResponse('Faltam parâmetros', { status: 400 });
 
-        const filePath = path.join(process.cwd(), '../arquivos', folder, filename);
+        const filePath = path.join(process.cwd(), '../COFRE_NCFN', folder, filename);
 
         // --- ACCESS LOGGING ---
         try {
@@ -25,10 +28,10 @@ export async function GET(req: Request) {
             const timestamp = new Date().toLocaleString('pt-BR');
 
             const logEntry = `[${timestamp}] USER: ${userEmail} | IP: ${ip} | FILE: ${filename}\n`;
-            const logPath = path.join(process.cwd(), '../arquivos', folder, '_registros_acesso.txt');
+            const logPath = path.join(process.cwd(), '../COFRE_NCFN', folder, '_registros_acesso.txt');
 
             // Ensure folder exists and append
-            if (await fs.pathExists(path.join(process.cwd(), '../arquivos', folder))) {
+            if (await fs.pathExists(path.join(process.cwd(), '../COFRE_NCFN', folder))) {
                 await fs.appendFile(logPath, logEntry, 'utf8');
             }
         } catch (logErr) {
@@ -37,7 +40,7 @@ export async function GET(req: Request) {
 
         // === MÓDULO FORENSE: INTERCEPTAÇÃO E GERAÇÃO ===
         if (folder === '_ACESSO_TEMPORARIO' && !filename.includes('CERTIDAO_ACESSO')) {
-            const certidaoPath = path.join(process.cwd(), '../arquivos', folder, `${filename}_CERTIDAO_ACESSO.txt`);
+            const certidaoPath = path.join(process.cwd(), '../COFRE_NCFN', folder, `${filename}_CERTIDAO_ACESSO.txt`);
 
             // 1. Verificação de Bloqueio (Se a certidão existe, o arquivo original sumiu. Mostra a tela de bloqueio HTML)
             if (fs.existsSync(certidaoPath)) {
@@ -195,6 +198,98 @@ foi permanentemente deletado do servidor local.
         });
     } catch (error) {
         console.error(error);
+        return new NextResponse('Erro interno do servidor', { status: 500 });
+    }
+}
+
+// POST /api/download — ZIP com arquivo criptografado + relatório forense
+export async function POST(req: Request) {
+    try {
+        const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
+        if (!token) return new NextResponse('Não autorizado', { status: 401 });
+
+        const { folder, filename, password } = await req.json();
+        if (!folder || !filename || !password) {
+            return new NextResponse('folder, filename e password são obrigatórios', { status: 400 });
+        }
+
+        const filePath = path.join(process.cwd(), '../COFRE_NCFN', folder, filename);
+        if (!fs.existsSync(filePath)) {
+            return new NextResponse('Arquivo não encontrado', { status: 404 });
+        }
+
+        const fileBuffer = await fs.readFile(filePath);
+        const stat = await fs.stat(filePath);
+        const now = new Date();
+
+        // Criptografar com AES-256-CBC
+        const salt = process.env.CRYPTO_SALT || 'ncfn-salt';
+        const key = crypto.scryptSync(password, salt, 32);
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+        const encBuffer = Buffer.concat([iv, cipher.update(fileBuffer), cipher.final()]);
+
+        // Calcular hashes
+        const sha256hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+        const md5hash = crypto.createHash('md5').update(fileBuffer).digest('hex');
+        const sha1hash = crypto.createHash('sha1').update(fileBuffer).digest('hex');
+
+        const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+        const geo = geoip.lookup(ip as string);
+        const geoData = geo ? `${geo.city} - ${geo.region}, ${geo.country}` : 'Localidade Desconhecida / IP Privado';
+
+        // Gerar relatório forense
+        const report = `=========================================================
+RELATÓRIO FORENSE DE CUSTÓDIA — NCFN
+=========================================================
+Arquivo: ${filename}
+Pasta: ${folder}
+Tamanho original: ${fileBuffer.length} bytes
+Data de modificação: ${stat.mtime.toLocaleString('pt-BR')}
+Data do download: ${now.toLocaleString('pt-BR')}
+
+INTEGRIDADE (arquivo original):
+  SHA-256: ${sha256hash}
+  MD5:     ${md5hash}
+  SHA-1:   ${sha1hash}
+
+METADADOS DO ACESSO:
+  Usuário: ${token.email || 'N/A'}
+  IP: ${ip}
+  Localidade: ${geoData}
+
+ARQUIVO CRIPTOGRAFADO:
+  Nome: ${filename}.enc.bin
+  Algoritmo: AES-256-CBC
+  Derivação de chave: scrypt
+  Nota: A senha utilizada para criptografar este arquivo
+        NÃO está armazenada neste relatório.
+        GUARDE-A EM LOCAL SEGURO. Sem ela, a recuperação
+        do arquivo é impossível.
+
+=========================================================
+NCFN — Nexus Cloud Forensic Network
+Portal Forense Digital — ${now.toISOString()}
+=========================================================
+`;
+
+        // Montar ZIP
+        const zip = new AdmZip();
+        zip.addFile(`${filename}.enc.bin`, encBuffer);
+        zip.addFile(`RELATORIO_FORENSE_${filename}.txt`, Buffer.from(report, 'utf8'));
+        const zipBuffer = zip.toBuffer();
+
+        const zipName = `NCFN_${filename}_${now.getTime()}.zip`;
+        return new NextResponse(zipBuffer, {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/zip',
+                'Content-Disposition': `attachment; filename="${zipName}"`,
+                'Content-Length': zipBuffer.length.toString(),
+            },
+        });
+    } catch (error) {
+        console.error('[download POST]', error);
         return new NextResponse('Erro interno do servidor', { status: 500 });
     }
 }

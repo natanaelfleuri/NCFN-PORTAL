@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, CheckCircle, ChevronDown, ChevronRight, Clock, Download, FileSearch, Loader2, Play, Shield, XCircle } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle, ChevronDown, ChevronRight, Clock, Download, FileSearch, Folder, Loader2, Play, Shield, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
 type LogEntry = { id: number; msg: string; type: 'log' | 'error' | 'progress' };
@@ -19,6 +19,7 @@ function fmtDate(iso: string) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function AuditoriaSansaoPage() {
+    const [selectedFolder, setSelectedFolder] = useState<string>('');
     const [running, setRunning]       = useState(false);
     const [logs, setLogs]             = useState<LogEntry[]>([]);
     const [progress, setProgress]     = useState<{ i: number; total: number; file: string; protocol: string } | null>(null);
@@ -88,6 +89,8 @@ export default function AuditoriaSansaoPage() {
         try {
             const res = await fetch('/api/admin/auditoria-sansao', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder: selectedFolder || null }),
                 signal: abort.signal,
             });
 
@@ -171,6 +174,18 @@ export default function AuditoriaSansaoPage() {
 
             {/* ── Trigger card ─────────────────────────────────────────── */}
             <div className="glass-panel rounded-2xl border border-[#bc13fe]/20 p-6 space-y-4">
+                {/* Explanatory text */}
+                <div className="flex items-start gap-3 p-3 bg-[#bc13fe]/5 border border-[#bc13fe]/15 rounded-xl text-xs text-gray-400">
+                    <Shield className="w-4 h-4 text-[#bc13fe] flex-shrink-0 mt-0.5" />
+                    <div>
+                        <p className="font-bold text-white mb-1">Como funciona o Perito Sansão</p>
+                        Percorre os arquivos de custódia e aplica 6 protocolos forenses (Web, Áudio/Vídeo, Texto, Binário, Imagem, Banco de Dados).
+                        Cada arquivo é analisado pelo Ollama e um relatório unificado é gerado em{" "}
+                        <code className="text-[#bc13fe]">COFRE_NCFN/RELATORIOS/</code>.
+                        Selecione uma pasta para auditar apenas ela, ou deixe em branco para varrer todo o cofre.
+                    </div>
+                </div>
+
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="space-y-1">
                         <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -191,6 +206,40 @@ export default function AuditoriaSansaoPage() {
                             ? <><Loader2 className="w-4 h-4 animate-spin" /> Auditando...</>
                             : <><Play className="w-4 h-4" /> Iniciar Auditoria</>}
                     </button>
+                </div>
+
+                {/* Folder selector */}
+                <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                        <Folder className="w-3.5 h-3.5 text-[#bc13fe]" />
+                        Pasta alvo (opcional)
+                    </label>
+                    <select
+                        value={selectedFolder}
+                        onChange={e => setSelectedFolder(e.target.value)}
+                        disabled={running}
+                        className="w-full bg-black/50 border border-gray-800 text-white rounded-xl p-3 text-xs font-mono focus:outline-none focus:border-[#bc13fe]/60 disabled:opacity-50"
+                    >
+                        <option value="">— Todas as pastas (cofre completo) —</option>
+                        <option value="0_NCFN-ULTRASECRETOS">0_NCFN-ULTRASECRETOS</option>
+                        <option value="1_NCFN-PROVAS-SENSÍVEIS">1_NCFN-PROVAS-SENSÍVEIS</option>
+                        <option value="2_NCFN-ELEMENTOS-DE-PROVA">2_NCFN-ELEMENTOS-DE-PROVA</option>
+                        <option value="3_NCFN-DOCUMENTOS-GERENTE">3_NCFN-DOCUMENTOS-GERENTE</option>
+                        <option value="4_NCFN-PROCESSOS-PROCEDIMENTOS-CONTRATOS">4_NCFN-PROCESSOS-PROCEDIMENTOS-CONTRATOS</option>
+                        <option value="5_NCFN-GOVERNOS-EMPRESAS">5_NCFN-GOVERNOS-EMPRESAS</option>
+                        <option value="6_NCFN-FORNECIDOS_sem_registro_de_coleta">6_NCFN-FORNECIDOS_sem_registro_de_coleta</option>
+                        <option value="7_NCFN-CAPTURAS-WEB_OSINT">7_NCFN-CAPTURAS-WEB_OSINT</option>
+                        <option value="8_NCFN-VIDEOS">8_NCFN-VIDEOS</option>
+                        <option value="9_NCFN-PERFIS-CRIMINAIS_SUSPEITOS_CRIMINOSOS">9_NCFN-PERFIS-CRIMINAIS_SUSPEITOS_CRIMINOSOS</option>
+                        <option value="10_NCFN-ÁUDIO">10_NCFN-ÁUDIO</option>
+                        <option value="11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS">11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS</option>
+                        <option value="12_NCFN-METADADOS-LIMPOS">12_NCFN-METADADOS-LIMPOS</option>
+                    </select>
+                    {selectedFolder && (
+                        <p className="text-[10px] font-mono text-[#bc13fe]/60">
+                            Varredura restrita a: <span className="text-[#bc13fe]">{selectedFolder}</span>
+                        </p>
+                    )}
                 </div>
 
                 {/* progress bar */}

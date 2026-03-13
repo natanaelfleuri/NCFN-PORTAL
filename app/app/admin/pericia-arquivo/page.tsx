@@ -6,6 +6,7 @@ import {
   MapPin, User, Monitor, Calendar, AlertTriangle, CheckCircle2,
   ChevronDown, ChevronRight, Folder, FolderOpen, Copy, FileText
 } from "lucide-react";
+import AIModelSelector from "@/app/components/AIModelSelector";
 
 interface VaultFile {
   name: string;
@@ -128,13 +129,18 @@ function PericiaArquivoInner() {
     <div className="min-h-screen p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-black text-white tracking-tighter flex items-center gap-3">
-          <FileSearch size={32} className="text-[#00f3ff]" />
-          Perícia Técnica de Arquivos
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Análise forense automatizada: extração completa de metadados via ExifTool · trilogia de hashes SHA-256 / SHA-1 / MD5 · detecção de achados relevantes · laudo técnico com integridade certificada
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-black text-white tracking-tighter flex items-center gap-3">
+              <FileSearch size={32} className="text-[#00f3ff]" />
+              Perícia Técnica de Arquivos
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Análise forense automatizada: extração completa de metadados via ExifTool · trilogia de hashes SHA-256 / SHA-1 / MD5 · detecção de achados relevantes · laudo técnico com integridade certificada
+            </p>
+          </div>
+          <AIModelSelector />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

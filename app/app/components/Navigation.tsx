@@ -107,8 +107,22 @@ export default function Navigation() {
                 <div className="px-3 py-2 border-b border-white/5">
                   <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[#bc13fe]/60">Módulos Admin</span>
                 </div>
-                <div className="py-1.5 grid grid-cols-2 gap-0.5 px-1.5 pb-1.5">
-                  {ADMIN_LINKS.map(link => (
+                <div className="py-1.5 px-1.5 pb-1.5 space-y-0.5">
+                  {/* Hub Central — full-width highlight */}
+                  <Link
+                    href="/admin"
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all w-full mb-1 ${
+                      isActive('/admin', true)
+                        ? 'bg-[#00f3ff]/20 text-[#00f3ff] border border-[#00f3ff]/40 shadow-[0_0_15px_rgba(0,243,255,0.2)]'
+                        : 'bg-[#00f3ff]/8 text-[#00f3ff] border border-[#00f3ff]/20 hover:bg-[#00f3ff]/15 hover:shadow-[0_0_12px_rgba(0,243,255,0.15)]'
+                    }`}
+                  >
+                    <Home className="w-4 h-4 flex-shrink-0 text-[#00f3ff]" />
+                    Hub Central
+                    <span className="ml-auto text-[8px] font-mono opacity-60">⌘ ADMIN</span>
+                  </Link>
+                  <div className="grid grid-cols-2 gap-0.5">
+                  {ADMIN_LINKS.slice(1).map(link => (
                     <Link
                       key={link.href}
                       href={link.href}
@@ -122,6 +136,7 @@ export default function Navigation() {
                       {link.label}
                     </Link>
                   ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -179,7 +194,7 @@ export default function Navigation() {
             onClick={() => setIsOpen(false)}
           />
           {/* Drawer */}
-          <div className="fixed right-0 top-0 h-full w-[300px] z-[150] bg-[#030310]/98 backdrop-blur-xl border-l border-[#bc13fe]/20 shadow-[-20px_0_60px_rgba(0,0,0,0.8)] flex flex-col lg:hidden">
+          <div className="fixed right-0 top-0 h-full w-full sm:w-[340px] z-[150] bg-[#030310]/98 backdrop-blur-xl border-l border-[#bc13fe]/20 shadow-[-20px_0_60px_rgba(0,0,0,0.8)] flex flex-col lg:hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-5 border-b border-white/5">
               <div>
@@ -252,17 +267,18 @@ function MobileLink({ href, icon: Icon, label, active, color }: {
   return (
     <Link
       href={href}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+      className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-all min-h-[48px] ${
         active
-          ? 'text-white bg-white/10 border border-white/10'
+          ? 'text-white bg-white/10 border-l-2 border-white/60 pl-2.5'
           : 'text-gray-400 hover:text-white hover:bg-white/5'
       }`}
+      style={active ? { borderLeftColor: color } : {}}
     >
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}12`, border: `1px solid ${color}30` }}>
-        <Icon className="w-4 h-4" style={{ color: active ? color : undefined }} />
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${color}15`, border: `1px solid ${color}35` }}>
+        <Icon className="w-4 h-4" style={{ color: active ? color : 'rgb(156,163,175)' }} />
       </div>
-      {label}
-      {active && <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: color }} />}
+      <span className="flex-1">{label}</span>
+      {active && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />}
     </Link>
   );
 }

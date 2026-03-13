@@ -28,6 +28,10 @@ export default function AdminFolderView({ params }: { params: { folder: string }
     const [hashModal, setHashModal] = useState<{ filename: string, hashResult: string } | null>(null);
     const [cryptoPassword, setCryptoPassword] = useState('');
     const [cryptoLoading, setCryptoLoading] = useState(false);
+    const [downloadModal, setDownloadModal] = useState<string | null>(null);
+    const [downloadPassword, setDownloadPassword] = useState('');
+    const [downloadLoading, setDownloadLoading] = useState(false);
+    const [encReceiptModal, setEncReceiptModal] = useState<{ filename: string; password: string } | null>(null);
     // toastMessage replaced by react-hot-toast
     const [isDragging, setIsDragging] = useState(false);
     const [is2FAOpen, setIs2FAOpen] = useState(false);
@@ -136,8 +140,13 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                 body: formData,
             });
             if (res.ok) {
-                showToast('Sucesso no Upload!');
+                const data = await res.json();
                 fetchFiles();
+                if (data.encPassword) {
+                    setEncReceiptModal({ filename: file.name, password: data.encPassword });
+                } else {
+                    showToast('Sucesso no Upload!');
+                }
             }
         } catch (err) {
             console.error(err);
@@ -164,20 +173,31 @@ export default function AdminFolderView({ params }: { params: { folder: string }
 
             try {
                 const res = await fetch('/api/upload', { method: 'POST', body: formData });
-                return res.ok;
+                if (res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    return { ok: true, password: data.encPassword, name: file.name };
+                }
+                return null;
             } catch (err) {
                 console.error(`Erro ao subir ${file.name}:`, err);
-                return false;
+                return null;
             }
         });
 
         const results = await Promise.all(uploadPromises);
-        const successCount = results.filter(Boolean).length;
+        const successful = results.filter(r => r !== null) as Array<{ ok: boolean; password?: string; name: string }>;
+        const successCount = successful.filter(r => r.ok).length;
 
         setUploading(false);
         if (successCount > 0) {
-            showToast(`${successCount} Ativo(s) sincronizado(s) via DropZone!`);
             fetchFiles();
+            // Show first enc password if any
+            const withPass = successful.find(r => r.ok && r.password);
+            if (withPass) {
+                setEncReceiptModal({ filename: withPass.name, password: withPass.password! });
+            } else {
+                showToast(`${successCount} Ativo(s) sincronizado(s) via DropZone!`);
+            }
         }
     };
 
@@ -247,7 +267,37 @@ export default function AdminFolderView({ params }: { params: { folder: string }
     };
 
     const handleDownload = (filename: string) => {
-        window.location.href = `/api/download?folder=${encodeURIComponent(folderName)}&filename=${encodeURIComponent(filename)}`;
+        setDownloadPassword('');
+        setDownloadModal(filename);
+    };
+
+    const handleDownloadSubmit = async () => {
+        if (!downloadModal || !downloadPassword) return;
+        setDownloadLoading(true);
+        const tid = toast.loading('Gerando ZIP criptografado...', {
+            style: { background: '#0a0020', border: '1px solid rgba(0,243,255,0.4)', color: '#fff' },
+        });
+        try {
+            const res = await fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folder: folderName, filename: downloadModal, password: downloadPassword }),
+            });
+            if (!res.ok) { toast.error('Erro ao gerar ZIP.', { id: tid }); return; }
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = res.headers.get('content-disposition')?.match(/filename="(.+)"/)?.[1] || `NCFN_${downloadModal}.zip`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            toast.success('ZIP forense baixado!', { id: tid, style: { background: '#001a0a', border: '1px solid rgba(0,243,255,0.4)', color: '#fff' } });
+            setDownloadModal(null);
+            setDownloadPassword('');
+        } catch {
+            toast.error('Falha ao baixar.', { id: tid });
+        } finally {
+            setDownloadLoading(false);
+        }
     };
 
     const handleBundleDownload = async (filename: string) => {
@@ -542,15 +592,7 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                                                 </button>
                                             )}
 
-                                            {!isSystemFile && (
-                                                <button
-                                                    onClick={() => setCryptoModal({ filename: file.filename, action: file.filename.endsWith('.enc') ? 'decrypt' : 'encrypt' })}
-                                                    className={`shrink-0 p-2 rounded-lg transition border ${file.filename.endsWith('.enc') ? 'bg-orange-500/20 text-orange-500 border-orange-500/50 hover:bg-orange-500/40' : 'bg-gray-800 text-gray-400 border border-gray-700 hover:border-orange-500/30'}`}
-                                                    title={file.filename.endsWith('.enc') ? 'Destrancar' : 'Criptografar'}
-                                                >
-                                                    {file.filename.endsWith('.enc') ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                                                </button>
-                                            )}
+                                            {/* Botão Encriptar removido — upload já gera .enc.bin automaticamente */}
 
                                             <div className="flex-grow"></div>
 
@@ -736,6 +778,103 @@ export default function AdminFolderView({ params }: { params: { folder: string }
                     filename={aiTarget}
                     onClose={() => setAiTarget(null)}
                 />
+            )}
+
+            {/* Modal — Senha para Download ZIP Criptografado */}
+            {downloadModal && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm" onClick={() => !downloadLoading && setDownloadModal(null)}>
+                    <div className="bg-[#06070a] border border-[#00f3ff]/30 rounded-2xl p-6 w-full max-w-md shadow-[0_0_60px_rgba(0,243,255,0.15)]" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl bg-[#00f3ff]/10 border border-[#00f3ff]/20 flex items-center justify-center">
+                                <Download className="w-5 h-5 text-[#00f3ff]" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-white">Download Seguro</h3>
+                                <p className="text-[10px] text-gray-500 font-mono truncate max-w-[260px]">{downloadModal}</p>
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-amber-950/20 border border-amber-700/20 rounded-xl mb-5 text-xs text-amber-300/80 flex items-start gap-2">
+                            <span className="mt-0.5">⚠️</span>
+                            <div>
+                                O arquivo será baixado em formato <strong className="text-amber-200">ZIP</strong> contendo a cópia criptografada (<code>.enc.bin</code>) e o relatório forense.
+                                <br /><br />
+                                <strong className="text-white">GUARDE A SENHA SOB 7 CHAVES.</strong> Sem ela não será possível recuperar o arquivo criptografado.
+                            </div>
+                        </div>
+
+                        <label className="block text-[10px] text-gray-500 mb-1.5 uppercase tracking-widest font-bold">Senha de Criptografia</label>
+                        <input
+                            type="password"
+                            value={downloadPassword}
+                            onChange={e => setDownloadPassword(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleDownloadSubmit()}
+                            placeholder="Insira uma senha forte..."
+                            autoFocus
+                            className="w-full bg-black/60 border border-gray-700 text-white rounded-xl px-4 py-3 mb-5 focus:outline-none focus:border-[#00f3ff]/60 font-mono text-sm transition"
+                        />
+
+                        <div className="flex gap-3">
+                            <button onClick={() => setDownloadModal(null)} disabled={downloadLoading} className="flex-1 py-3 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 transition text-sm">Cancelar</button>
+                            <button onClick={handleDownloadSubmit} disabled={!downloadPassword || downloadLoading} className="flex-1 py-3 bg-[#00f3ff]/15 text-[#00f3ff] border border-[#00f3ff]/40 rounded-xl hover:bg-[#00f3ff]/25 transition font-black text-sm disabled:opacity-40">
+                                {downloadLoading ? 'Gerando ZIP...' : 'Baixar ZIP'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal — Recibo de Criptografia (mostrado após upload) */}
+            {encReceiptModal && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/95 backdrop-blur-sm">
+                    <div className="bg-[#06070a] border border-emerald-500/30 rounded-2xl p-6 w-full max-w-md shadow-[0_0_60px_rgba(52,211,153,0.15)]">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                <Lock className="w-5 h-5 text-emerald-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-white">Upload Concluído — Arquivo Criptografado</h3>
+                                <p className="text-[10px] text-gray-500 font-mono truncate max-w-[260px]">{encReceiptModal.filename}</p>
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-red-950/30 border border-red-700/30 rounded-xl mb-4 text-xs text-red-300/90 flex items-start gap-2">
+                            <span className="mt-0.5 text-base">🔐</span>
+                            <div>
+                                <strong className="text-red-200 text-sm block mb-1">SALVE ESTA SENHA IMEDIATAMENTE!</strong>
+                                O arquivo foi criptografado com AES-256. A senha abaixo <strong>não está armazenada no servidor</strong>.
+                                Sem ela, a recuperação é <strong>IMPOSSÍVEL</strong>.
+                            </div>
+                        </div>
+
+                        <div className="relative group mb-5">
+                            <label className="block text-[10px] text-gray-500 mb-1.5 uppercase tracking-widest font-bold">Senha de Criptografia</label>
+                            <div className="flex gap-2">
+                                <code className="flex-1 bg-black/70 border border-emerald-500/30 text-emerald-300 rounded-xl px-4 py-3 font-mono text-sm break-all">
+                                    {encReceiptModal.password}
+                                </code>
+                                <button
+                                    onClick={() => { navigator.clipboard.writeText(encReceiptModal.password); showToast('Senha copiada!'); }}
+                                    className="px-3 py-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-xl hover:bg-emerald-500/25 transition"
+                                    title="Copiar senha"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <p className="text-[10px] text-gray-600 font-mono mb-4">
+                            Arquivo criptografado salvo como: <span className="text-gray-400">{encReceiptModal.filename}.enc.bin</span>
+                        </p>
+
+                        <button
+                            onClick={() => setEncReceiptModal(null)}
+                            className="w-full py-3 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-xl hover:bg-emerald-500/25 transition font-black text-sm"
+                        >
+                            Confirmei — Guardei a Senha
+                        </button>
+                    </div>
+                </div>
             )}
 
         </div>

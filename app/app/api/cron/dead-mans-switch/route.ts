@@ -45,12 +45,12 @@ export async function GET(req: NextRequest) {
                     await prisma.sharedLink.deleteMany({});
 
                     // Creates a lockdown file indicator at project root that layout/middleware can check
-                    await fs.writeFile(path.join(process.cwd(), '../arquivos/_SYSTEM_LOCKOUT'), `SISTEMA TRAVADO EM: ${new Date().toISOString()}\nProtocolo NCFN Dead Man's Switch Ativado (Cron).\n`, 'utf8');
+                    await fs.writeFile(path.join(process.cwd(), '../COFRE_NCFN/_SYSTEM_LOCKOUT'), `SISTEMA TRAVADO EM: ${new Date().toISOString()}\nProtocolo NCFN Dead Man's Switch Ativado (Cron).\n`, 'utf8');
 
                     // Reset admin's switch to prevent infinite loops (or keep it and wait for them to manually login to delete the lockdown file)
                 } else if (admin.deadManTriggerAction === 'DELETE_ALL') {
                     // Wipe everything
-                    const storageRoot = path.join(process.cwd(), '../arquivos');
+                    const storageRoot = path.join(process.cwd(), '../COFRE_NCFN');
 
                     if (await fs.pathExists(storageRoot)) {
                         // Read all folders and destroy

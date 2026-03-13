@@ -12,6 +12,7 @@ import ToastProvider from './components/ToastProvider'
 import ServiceWorkerRegister from './components/ServiceWorkerRegister'
 import HashBackground from './components/HashBackground'
 import VpsMonitor from './components/VpsMonitor'
+import BottomNav from './components/BottomNav'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
@@ -73,11 +74,12 @@ export default function RootLayout({
                 <Navigation />
               </header>
 
-              <main className="w-full max-w-6xl p-4 flex-grow relative z-10">
+              <main className="w-full max-w-6xl p-4 pb-20 lg:pb-4 flex-grow relative z-10">
                 <PolicyGuard>
                   {children}
                 </PolicyGuard>
               </main>
+              <BottomNav />
 
               <footer className="w-full text-center py-8 text-gray-500 text-[10px] sm:text-xs border-t border-white/5 mt-12 bg-black/40 relative z-10">
                 <div className="flex flex-col items-center gap-2">
