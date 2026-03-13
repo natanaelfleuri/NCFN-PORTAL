@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal
+  namespace: ncfn
+  labels:
+    app: portal
+    project: ncfn-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: portal
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: portal
+    spec:
+      # Permite acesso ao Docker socket (OSINT via docker run)
+      volumes:
+        - name: ncfn-db
+          persistentVolumeClaim:
+            claimName: ncfn-db-pvc
+        - name: ncfn-cofre
+          persistentVolumeClaim:
+            claimName: ncfn-cofre-pvc
+        - name: ncfn-arquivos
+          persistentVolumeClaim:
+            claimName: ncfn-arquivos-pvc
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+
+      containers:
+        - name: portal
+          image: ncfn/portal:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+
+          envFrom:
+            - secretRef:
+                name: ncfn-env
+
+          volumeMounts:
+            - name: ncfn-db
+              mountPath: /app/prisma
+            - name: ncfn-cofre
+              mountPath: /COFRE_NCFN
+            - name: ncfn-arquivos
+              mountPath: /arquivos
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 800m
+              memory: 2Gi
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 5
+
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+
+          # Usuário portal (UID 1001) definido no Dockerfile
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+
+      restartPolicy: Always

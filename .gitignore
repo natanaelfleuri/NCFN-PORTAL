@@ -60,6 +60,9 @@ script_nav.py
 # Cloudflare credentials
 cloudflared/credentials.json
 
+# k8s secrets (gerado a partir do .env — nunca commitar)
+k8s/secrets.yaml
+
 # Screenshots e documentos locais
 *.png
 *.jpg

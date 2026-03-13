@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: caddy-config
+  namespace: ncfn
+  labels:
+    project: ncfn-portal
+data:
+  Caddyfile: |
+    (security_headers) {
+        header {
+            Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+            X-Frame-Options "SAMEORIGIN"
+            X-Content-Type-Options "nosniff"
+            Referrer-Policy "strict-origin-when-cross-origin"
+            Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+            X-XSS-Protection "1; mode=block"
+            Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://lh3.googleusercontent.com; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self';"
+            -Server
+            -X-Powered-By
+        }
+    }
+
+    ncfn.net {
+        import security_headers
+
+        @block_db path *.db *.db-shm *.db-wal
+        respond @block_db 403
+
+        @block_config path *.env .env* docker-compose* Dockerfile*
+        respond @block_config 403
+
+        @block_git path /.git/* /.gitignore
+        respond @block_git 403
+
+        @block_scanners path *.php /wp-* /phpmyadmin* /xmlrpc.php
+        respond @block_scanners 404
+
+        @block_ua header User-Agent *sqlmap* *nikto* *nmap* *masscan* *zgrab* *curl/7.* *python-requests*
+        respond @block_ua 403
+
+        reverse_proxy portal-svc.ncfn.svc.cluster.local:3000 {
+            health_uri /api/health
+            health_interval 30s
+            health_timeout 10s
+
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host {host}
+
+            transport http {
+                read_timeout 120s
+                write_timeout 120s
+            }
+        }
+
+        log {
+            output stdout
+            format json
+            level INFO
+        }
+
+        tls {
+            protocols tls1.2 tls1.3
+        }
+    }
+
+    www.ncfn.net {
+        redir https://ncfn.net{uri} permanent
+    }

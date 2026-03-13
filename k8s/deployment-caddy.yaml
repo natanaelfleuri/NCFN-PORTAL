@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caddy
+  namespace: ncfn
+  labels:
+    app: caddy
+    project: ncfn-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: caddy
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: caddy
+    spec:
+      # hostNetwork necessário para Caddy escutar nas portas 80/443 do node
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: caddy-config
+        - name: caddy-data
+          persistentVolumeClaim:
+            claimName: ncfn-caddy-data-pvc
+        - name: caddy-config-vol
+          persistentVolumeClaim:
+            claimName: ncfn-caddy-config-pvc
+
+      containers:
+        - name: caddy
+          image: caddy:2-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              hostPort: 80
+              protocol: TCP
+            - containerPort: 443
+              hostPort: 443
+              protocol: TCP
+            - containerPort: 443
+              hostPort: 443
+              protocol: UDP
+
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-config-vol
+              mountPath: /config
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          livenessProbe:
+            tcpSocket:
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 30
+
+      restartPolicy: Always

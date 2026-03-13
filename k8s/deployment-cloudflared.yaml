@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: ncfn
+  labels:
+    app: cloudflared
+    project: ncfn-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      volumes:
+        - name: tunnel-credentials
+          secret:
+            secretName: ncfn-cf-tunnel
+
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --config
+            - /etc/cloudflared/config.yml
+            - run
+
+          volumeMounts:
+            - name: tunnel-credentials
+              mountPath: /etc/cloudflared
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          livenessProbe:
+            exec:
+              command:
+                - cloudflared
+                - tunnel
+                - info
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 5
+
+      restartPolicy: Always

@@ -1,0 +1,154 @@
+# ═══════════════════════════════════════════════════════════════
+# Portal NCFN — PersistentVolumes + PersistentVolumeClaims
+# Todos hostPath (single-node k3s)
+# ═══════════════════════════════════════════════════════════════
+
+# ── 1. SQLite Database ──────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ncfn-db-pv
+  labels:
+    project: ncfn-portal
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /root/docker/portal_ncfn/data/db
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ncfn-db-pvc
+  namespace: ncfn
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+  volumeName: ncfn-db-pv
+---
+# ── 2. Vault Forense (COFRE_NCFN) ──────────────────────────────
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ncfn-cofre-pv
+  labels:
+    project: ncfn-portal
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /root/docker/portal_ncfn/COFRE_NCFN
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ncfn-cofre-pvc
+  namespace: ncfn
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 50Gi
+  volumeName: ncfn-cofre-pv
+---
+# ── 3. Arquivos de upload ───────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ncfn-arquivos-pv
+  labels:
+    project: ncfn-portal
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /root/docker/portal_ncfn/arquivos
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ncfn-arquivos-pvc
+  namespace: ncfn
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+  volumeName: ncfn-arquivos-pv
+---
+# ── 4. Caddy TLS data ───────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ncfn-caddy-data-pv
+  labels:
+    project: ncfn-portal
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /root/docker/portal_ncfn/data/caddy
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ncfn-caddy-data-pvc
+  namespace: ncfn
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: ncfn-caddy-data-pv
+---
+# ── 5. Caddy config ─────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ncfn-caddy-config-pv
+  labels:
+    project: ncfn-portal
+spec:
+  capacity:
+    storage: 256Mi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /root/docker/portal_ncfn/data/caddy-config
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ncfn-caddy-config-pvc
+  namespace: ncfn
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 256Mi
+  volumeName: ncfn-caddy-config-pv
