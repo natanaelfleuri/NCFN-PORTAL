@@ -40,7 +40,7 @@
     "recharts": "^3.8.0",
     "remark-gfm": "^4.0.1",
     "@simplewebauthn/server": "^8.3.5",
-    "@builder.io/sdk-react": "^3.2.4"
+    "@builder.io/sdk-react": "^5.2.0"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.5",
