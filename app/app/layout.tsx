@@ -32,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" style={{ background: '#03030b' }}>
       <body>
         <AuthProvider>
           <ServiceWorkerRegister />

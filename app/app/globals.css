@@ -23,7 +23,6 @@
       linear-gradient(rgba(0, 243, 255, 0.025) 1px, transparent 1px),
       linear-gradient(90deg, rgba(0, 243, 255, 0.025) 1px, transparent 1px);
     background-size: auto, auto, 40px 40px, 40px 40px;
-    background-attachment: fixed;
     font-family: 'Inter', sans-serif;
   }
 }
