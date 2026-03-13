@@ -50,8 +50,8 @@ export async function GET(req: Request) {
   const vaultDir = path.join(process.cwd(), '../COFRE_NCFN');
   const fullPath = path.join(vaultDir, filePath);
 
-  // Ensure resolved path is still inside vaultDir
-  if (!fullPath.startsWith(vaultDir)) {
+  // Ensure resolved path is still inside vaultDir (include sep to prevent prefix-match bypass)
+  if (!fullPath.startsWith(vaultDir + path.sep) && fullPath !== vaultDir) {
     return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
   }
 

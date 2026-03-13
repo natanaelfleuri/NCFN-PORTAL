@@ -11,8 +11,7 @@ import { readAIConfig, callAI } from '@/lib/aiService';
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 const ARQUIVOS_BASE  = path.resolve(process.cwd(), '../COFRE_NCFN');
-const COFRE_BASE     = path.join(ARQUIVOS_BASE, 'COFRE_NCFN');
-const PROMPTS_DIR    = path.join(COFRE_BASE, 'COMANDOS - PERITO SANSÃO');
+const PROMPTS_DIR    = path.join(ARQUIVOS_BASE, 'COMANDOS - PERITO SANSÃO');
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   || 'http://host.docker.internal:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'mistral';

@@ -18,7 +18,11 @@ export async function GET(req: Request) {
 
         if (!folder || !filename) return new NextResponse('Faltam parâmetros', { status: 400 });
 
-        const filePath = path.join(process.cwd(), '../COFRE_NCFN', folder, filename);
+        const rootPath = path.join(process.cwd(), '../COFRE_NCFN');
+        const filePath = path.resolve(rootPath, folder, filename);
+        if (!filePath.startsWith(rootPath + path.sep)) {
+            return new NextResponse('Caminho inválido', { status: 403 });
+        }
 
         // --- ACCESS LOGGING ---
         try {
@@ -28,10 +32,10 @@ export async function GET(req: Request) {
             const timestamp = new Date().toLocaleString('pt-BR');
 
             const logEntry = `[${timestamp}] USER: ${userEmail} | IP: ${ip} | FILE: ${filename}\n`;
-            const logPath = path.join(process.cwd(), '../COFRE_NCFN', folder, '_registros_acesso.txt');
+            const logPath = path.join(rootPath, folder, '_registros_acesso.txt');
 
             // Ensure folder exists and append
-            if (await fs.pathExists(path.join(process.cwd(), '../COFRE_NCFN', folder))) {
+            if (await fs.pathExists(path.join(rootPath, folder))) {
                 await fs.appendFile(logPath, logEntry, 'utf8');
             }
         } catch (logErr) {
@@ -40,7 +44,7 @@ export async function GET(req: Request) {
 
         // === MÓDULO FORENSE: INTERCEPTAÇÃO E GERAÇÃO ===
         if (folder === '_ACESSO_TEMPORARIO' && !filename.includes('CERTIDAO_ACESSO')) {
-            const certidaoPath = path.join(process.cwd(), '../COFRE_NCFN', folder, `${filename}_CERTIDAO_ACESSO.txt`);
+            const certidaoPath = path.join(rootPath, folder, `${filename}_CERTIDAO_ACESSO.txt`);
 
             // 1. Verificação de Bloqueio (Se a certidão existe, o arquivo original sumiu. Mostra a tela de bloqueio HTML)
             if (fs.existsSync(certidaoPath)) {
@@ -213,7 +217,11 @@ export async function POST(req: Request) {
             return new NextResponse('folder, filename e password são obrigatórios', { status: 400 });
         }
 
-        const filePath = path.join(process.cwd(), '../COFRE_NCFN', folder, filename);
+        const rootPath2 = path.join(process.cwd(), '../COFRE_NCFN');
+        const filePath = path.resolve(rootPath2, folder, filename);
+        if (!filePath.startsWith(rootPath2 + path.sep)) {
+            return new NextResponse('Caminho inválido', { status: 403 });
+        }
         if (!fs.existsSync(filePath)) {
             return new NextResponse('Arquivo não encontrado', { status: 404 });
         }

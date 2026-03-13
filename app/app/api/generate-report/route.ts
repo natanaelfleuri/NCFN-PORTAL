@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
-const VAULT_DIR = path.resolve(process.env.VAULT_DIR || '/data/ncfn-vault');
+const VAULT_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 
 export async function GET(req: NextRequest) {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
@@ -95,7 +95,9 @@ export async function GET(req: NextRequest) {
             const hashLogPath = path.join(folderPath, '_hashes_vps.txt');
             if (fs.existsSync(hashLogPath)) {
                 const logContent = fs.readFileSync(hashLogPath, 'utf-8');
-                const match = logContent.match(new RegExp(`${filename}.*?([a-f0-9]{64})`, 'i'));
+                // Format: "HASH | filename\n" (see api/files/route.ts)
+                const escapedName = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const match = logContent.match(new RegExp(`([a-f0-9]{64}) \\| ${escapedName}`, 'im'));
                 if (match) hash = match[1];
             }
 

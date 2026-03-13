@@ -51,8 +51,12 @@ export async function POST(req: Request) {
 
         // Caminho da pasta que está mapeada fisicamente
         const rootPath = path.join(process.cwd(), '../COFRE_NCFN');
-        const folderPath = path.join(rootPath, folder);
-        const filePath = path.join(folderPath, file.name);
+        const folderPath = path.resolve(rootPath, folder);
+        if (!folderPath.startsWith(rootPath + path.sep) && folderPath !== rootPath) {
+            return NextResponse.json({ error: 'Caminho de pasta inválido' }, { status: 403 });
+        }
+        const safeFilename = path.basename(file.name);
+        const filePath = path.join(folderPath, safeFilename);
 
         await fs.ensureDir(folderPath); // Garante que a pasta exista
         await fs.writeFile(filePath, buffer);
@@ -72,7 +76,7 @@ export async function POST(req: Request) {
         const reportContent = `=========================================================
 RELATÓRIO DE RECEPÇÃO FORENSE — NCFN
 =========================================================
-Arquivo: ${file.name}
+Arquivo: ${safeFilename}
 Pasta: ${folder}
 Tamanho: ${file.size} bytes
 Upload em: ${new Date().toLocaleString('pt-BR')}
@@ -82,7 +86,7 @@ INTEGRIDADE:
   SHA-256: ${sha256hash}
   MD5:     ${md5hash}
 
-CÓPIA AES GERADA: ${file.name}.enc.bin
+CÓPIA AES GERADA: ${safeFilename}.enc.bin
   Algoritmo: AES-256-CBC (scrypt key derivation)
   SENHA: ${autoPassword}
 
@@ -102,9 +106,9 @@ CÓPIA AES GERADA: ${file.name}.enc.bin
         });
 
         await prisma.fileStatus.upsert({
-            where: { folder_filename: { folder, filename: file.name } },
+            where: { folder_filename: { folder, filename: safeFilename } },
             update: { ownerId: dbUser.id, size: file.size },
-            create: { folder, filename: file.name, isPublic: false, ownerId: dbUser.id, size: file.size }
+            create: { folder, filename: safeFilename, isPublic: false, ownerId: dbUser.id, size: file.size }
         });
 
         // Ping do Administrador (Alimenta e Reseta a bomba do Dead Man Switch)
@@ -114,15 +118,15 @@ CÓPIA AES GERADA: ${file.name}.enc.bin
 
         // Dispara Hash + RFC3161 Timestamp em background
         const baseUrl = req.headers.get('origin') || `http://${req.headers.get('host') || 'localhost:3000'}`;
-        fetch(`${baseUrl}/api/hash?folder=${encodeURIComponent(folder)}&filename=${encodeURIComponent(file.name)}`)
+        fetch(`${baseUrl}/api/hash?folder=${encodeURIComponent(folder)}&filename=${encodeURIComponent(safeFilename)}`)
             .catch(err => console.error("Erro no Auto-Hash Background:", err));
         fetch(`${baseUrl}/api/timestamp`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ hash: fileHash, filename: file.name, folder }),
+            body: JSON.stringify({ hash: fileHash, filename: safeFilename, folder }),
         }).catch(err => console.error("Erro no Auto-Timestamp Background:", err));
 
-        return NextResponse.json({ success: true, filename: file.name, encPassword: autoPassword });
+        return NextResponse.json({ success: true, filename: safeFilename, encPassword: autoPassword });
     } catch (error) {
         console.error("Erro de upload:", error);
         return NextResponse.json({ error: 'Erro de processamento no upload' }, { status: 500 });
