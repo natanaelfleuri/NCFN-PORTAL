@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { fetchOneEntry, isPreviewing } from "@builder.io/sdk-react/server";
+import { fetchOneEntry, isPreviewing } from "@builder.io/sdk-react";
 import { notFound } from "next/navigation";
 import { BUILDER_API_KEY } from "@/lib/builder";
 import BuilderSection from "@/app/components/BuilderSection";

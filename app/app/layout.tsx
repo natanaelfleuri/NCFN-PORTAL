@@ -33,7 +33,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" style={{ background: '#03030b' }}>
-      <body>
+      <body style={{ background: '#03030b' }}>
         <AuthProvider>
           <ServiceWorkerRegister />
           <ToastProvider />

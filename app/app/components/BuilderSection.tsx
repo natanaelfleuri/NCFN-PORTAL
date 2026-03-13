@@ -1,6 +1,7 @@
 "use client";
-import { RenderBuilderContent } from "@builder.io/sdk-react";
+import { Content } from "@builder.io/sdk-react";
 import { BUILDER_API_KEY } from "@/lib/builder";
+import { BUILDER_CUSTOM_COMPONENTS } from "@/app/lib/builder-components";
 
 interface BuilderSectionProps {
   model: string;
@@ -9,10 +10,11 @@ interface BuilderSectionProps {
 
 export default function BuilderSection({ model, content }: BuilderSectionProps) {
   return (
-    <RenderBuilderContent
+    <Content
       model={model}
       content={content}
       apiKey={BUILDER_API_KEY}
+      customComponents={BUILDER_CUSTOM_COMPONENTS}
     />
   );
 }

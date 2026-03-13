@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html class="dark"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Michroma&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00f3ff",
+                        "background-light": "#f0f9fa",
+                        "background-dark": "#02080a",
+                    },
+                    fontFamily: {
+                        "display": ["Michroma", "sans-serif"],
+                        "mono": ["Space Mono", "monospace"]
+                    },
+                    borderRadius: {"DEFAULT": "0px", "lg": "2px", "xl": "4px", "full": "9999px"},
+                    animation: {
+                        'vertical-scroll': 'vertical-scroll 40s linear infinite',
+                        'vertical-scroll-delayed': 'vertical-scroll 35s linear infinite -15s',
+                        'vertical-scroll-fast': 'vertical-scroll 20s linear infinite -5s',
+                        'orbit-slow': 'spin 60s linear infinite',
+                        'orbit-med': 'spin 40s linear infinite reverse',
+                        'orbit-fast': 'spin 20s linear infinite',
+                        'pulse-glow': 'pulse-glow 4s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        'vertical-scroll': {
+                            '0%': { transform: 'translateY(0)' },
+                            '100%': { transform: 'translateY(-50%)' },
+                        },
+                        'pulse-glow': {
+                            '0%, 100%': { opacity: '0.4', transform: 'scale(1)' },
+                            '50%': { opacity: '0.8', transform: 'scale(1.1)' },
+                        }
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .glass-morphism {
+            background: rgba(2, 8, 10, 0.92);
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 50px rgba(0, 243, 255, 0.1);
+        }
+        .scanline-heavy {
+            background: linear-gradient(to bottom, transparent 50%, rgba(0, 243, 255, 0.03) 50%);
+            background-size: 100% 4px;
+        }
+        .cyan-glow {
+            filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.6));
+        }
+        .outer-glow-box {
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.3), inset 0 0 20px rgba(0, 243, 255, 0.05);
+        }
+        .data-stream-column {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            letter-spacing: 0.5em;
+        }
+        .schematic-bg {
+            background-image: 
+                radial-gradient(circle at 2px 2px, rgba(0, 243, 255, 0.05) 1px, transparent 0),
+                linear-gradient(rgba(0, 243, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.02) 1px, transparent 1px);
+            background-size: 40px 40px, 100px 100px, 100px 100px;
+        }
+        .circuit-line {
+            position: absolute;
+            background: rgba(0, 243, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-background-dark font-display text-slate-100 min-h-screen overflow-hidden selection:bg-primary/30">
+<div class="fixed inset-0 z-0 flex justify-between px-6 opacity-[0.12] pointer-events-none overflow-hidden select-none">
+<div class="flex flex-col animate-vertical-scroll whitespace-nowrap font-mono text-[10px] text-primary/80">
+<div class="data-stream-column py-4">0192837465 5647382910 8829304185 1029384756 9483726150</div>
+<div class="data-stream-column py-4">0192837465 5647382910 8829304185 1029384756 9483726150</div>
+</div>
+<div class="flex flex-col animate-vertical-scroll-delayed whitespace-nowrap font-mono text-[10px] text-primary/80">
+<div class="data-stream-column py-4">7736251409 3827164550 5928374610 2930418578 8473625190</div>
+<div class="data-stream-column py-4">7736251409 3827164550 5928374610 2930418578 8473625190</div>
+</div>
+<div class="hidden md:flex flex-col animate-vertical-scroll-fast whitespace-nowrap font-mono text-[10px] text-primary/80">
+<div class="data-stream-column py-4">1029384756 9483726150 0192837465 5647382910 8829304185</div>
+<div class="data-stream-column py-4">1029384756 9483726150 0192837465 5647382910 8829304185</div>
+</div>
+<div class="hidden lg:flex flex-col animate-vertical-scroll whitespace-nowrap font-mono text-[10px] text-primary/80">
+<div class="data-stream-column py-4">5928374610 2930418578 7736251409 3827164550 8473625190</div>
+<div class="data-stream-column py-4">5928374610 2930418578 7736251409 3827164550 8473625190</div>
+</div>
+<div class="hidden xl:flex flex-col animate-vertical-scroll-delayed whitespace-nowrap font-mono text-[10px] text-primary/80">
+<div class="data-stream-column py-4">8473625190 1029384756 9483726150 0192837465 5647382910</div>
+<div class="data-stream-column py-4">8473625190 1029384756 9483726150 0192837465 5647382910</div>
+</div>
+<div class="hidden xl:flex flex-col animate-vertical-scroll-fast whitespace-nowrap font-mono text-[10px] text-primary/80">
+<div class="data-stream-column py-4">2930418578 7736251409 3827164550 5928374610 8473625190</div>
+<div class="data-stream-column py-4">2930418578 7736251409 3827164550 5928374610 8473625190</div>
+</div>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+<div class="glass-morphism relative w-full max-w-5xl overflow-hidden outer-glow-box schematic-bg">
+<div class="circuit-line top-20 left-0 w-full h-[1px]"></div>
+<div class="circuit-line top-0 left-24 w-[1px] h-full"></div>
+<div class="circuit-line bottom-40 right-0 w-full h-[1px]"></div>
+<div class="relative z-10 px-10 pt-10 pb-8 border-b border-primary/30 bg-primary/5">
+<div class="flex justify-between items-end">
+<div>
+<div class="flex items-center gap-3 mb-1">
+<div class="w-2 h-2 bg-primary animate-pulse"></div>
+<span class="text-[10px] tracking-[0.5em] text-primary/60 uppercase">System Authorization Protocol</span>
+</div>
+<h1 class="text-4xl font-bold tracking-tighter text-white uppercase cyan-glow leading-tight">
+                        DESCRIPTOGRAFIA<br/>DE DADOS NÍVEL 7
+                    </h1>
+<div class="flex gap-8 mt-6 text-primary/70 text-[10px] tracking-widest uppercase">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">database</span>
+                            OBJETIVO: SOBERANIA_CORE_v3
+                        </span>
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xs">terminal</span>
+                            NODE: NCFN-HUB-PRIME
+                        </span>
+</div>
+</div>
+<div class="border-2 border-primary/40 p-4 bg-background-dark/50">
+<span class="material-symbols-outlined text-primary text-4xl cyan-glow">security</span>
+</div>
+</div>
+</div>
+<div class="flex">
+<div class="flex-1 flex flex-col relative">
+<div class="flex-1 p-16 flex items-center justify-center relative min-h-[460px] scanline-heavy">
+<div class="relative w-96 h-96 flex items-center justify-center">
+<div class="absolute inset-0 border border-primary/10 rounded-full"></div>
+<div class="absolute -inset-8 border border-primary/5 rounded-full scale-110"></div>
+<div class="absolute inset-0 border-2 border-t-primary/60 border-r-transparent border-b-primary/60 border-l-transparent rounded-full animate-orbit-slow"></div>
+<div class="absolute inset-8 border-2 border-l-primary/40 border-t-transparent border-r-primary/40 border-b-transparent rounded-full animate-orbit-med"></div>
+<div class="absolute inset-16 border border-dashed border-primary/30 rounded-full animate-orbit-fast"></div>
+<div class="absolute w-full h-[1px] bg-primary/20"></div>
+<div class="absolute h-full w-[1px] bg-primary/20"></div>
+<div class="relative z-10 flex flex-col items-center justify-center bg-background-dark/90 rounded-full w-48 h-48 border-2 border-primary/80 shadow-[0_0_80px_rgba(0,243,255,0.3)]">
+<div class="absolute inset-0 bg-primary/10 rounded-full animate-pulse-glow"></div>
+<span class="material-symbols-outlined text-7xl text-white cyan-glow relative z-10">lock_open</span>
+<div class="mt-4 flex flex-col items-center relative z-10">
+<span class="text-[8px] font-bold text-primary tracking-[0.4em] uppercase">Status</span>
+<span class="text-[10px] font-mono text-primary/80 tracking-widest">DECRYPT_SYNC</span>
+</div>
+</div>
+<div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-primary shadow-[0_0_10px_#00f3ff]"></div>
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-primary shadow-[0_0_10px_#00f3ff]"></div>
+</div>
+</div>
+<div class="px-10 py-8 border-t border-primary/20 bg-black/40">
+<div class="font-mono text-[10px] text-primary/70 leading-relaxed h-32 overflow-hidden space-y-1">
+<div class="flex gap-3"><span class="text-primary font-bold">[SYS]</span> Initializing bypass sequence... OK</div>
+<div class="flex gap-3"><span class="text-primary font-bold">[MEM]</span> Buffer allocation at 0x00FF82: COMPLETE</div>
+<div class="flex gap-3"><span class="text-primary font-bold">[ALG]</span> Priming RSA-8192 high-entropy keys...</div>
+<div class="flex gap-3"><span class="text-primary font-bold">[KEY]</span> Validation successful. Injecting payload into segment 7.</div>
+<div class="flex gap-3"><span class="text-primary font-bold">[PRC]</span> Layer 4/12: Processing cipher block 920-X...</div>
+<div class="flex gap-3"><span class="text-primary animate-pulse">_</span></div>
+</div>
+</div>
+</div>
+<div class="w-40 bg-primary/5 border-l border-primary/20 flex flex-col items-center py-12 px-6 relative schematic-bg">
+<div class="text-center mb-10 relative z-10">
+<div class="text-[10px] text-primary/60 font-bold tracking-[0.3em] uppercase mb-2">Progress</div>
+<div class="text-5xl font-bold text-white tabular-nums cyan-glow">74</div>
+<div class="text-[10px] text-primary/80 mt-1">%</div>
+</div>
+<div class="flex-1 w-10 bg-black/60 border-x border-primary/30 p-1.5 flex flex-col-reverse gap-1.5 relative z-10 outer-glow-box">
+<div class="h-[7%] bg-primary cyan-glow shadow-[0_0_15px_#00f3ff]"></div>
+<div class="h-[7%] bg-primary cyan-glow shadow-[0_0_15px_#00f3ff]"></div>
+<div class="h-[7%] bg-primary cyan-glow shadow-[0_0_15px_#00f3ff]"></div>
+<div class="h-[7%] bg-primary cyan-glow shadow-[0_0_15px_#00f3ff]"></div>
+<div class="h-[7%] bg-primary cyan-glow shadow-[0_0_15px_#00f3ff]"></div>
+<div class="h-[7%] bg-primary cyan-glow shadow-[0_0_15px_#00f3ff]"></div>
+<div class="h-[7%] bg-primary cyan-glow shadow-[0_0_15px_#00f3ff]"></div>
+<div class="h-[7%] bg-primary/90 cyan-glow"></div>
+<div class="h-[7%] bg-primary/40"></div>
+<div class="flex-1 flex flex-col gap-1.5 justify-end">
+<div class="h-[7%] border border-primary/10"></div>
+<div class="h-[7%] border border-primary/10"></div>
+<div class="h-[7%] border border-primary/10"></div>
+</div>
+</div>
+<div class="mt-12 rotate-180 [writing-mode:vertical-lr] text-[8px] text-primary/40 font-mono tracking-[0.5em] uppercase">
+                    QUANTUM_SECURE_STREAMING_NODE_7
+                </div>
+<div class="mt-auto pt-8 flex flex-col items-center gap-3 relative z-10">
+<div class="w-3 h-3 bg-primary rounded-none animate-pulse shadow-[0_0_15px_#00f3ff]"></div>
+<p class="text-[8px] text-primary font-bold text-center leading-tight tracking-widest uppercase opacity-70">Extracting<br/>AES-256 Blocks</p>
+</div>
+</div>
+</div>
+<div class="p-10 flex gap-6 bg-background-dark/80 border-t border-primary/30 relative z-20">
+<button class="flex-1 flex items-center justify-center gap-3 px-8 py-5 border border-red-500/40 text-red-500 hover:bg-red-500/10 text-[11px] font-bold uppercase tracking-[0.3em] transition-all hover:scale-[1.02]">
+<span class="material-symbols-outlined text-sm">cancel</span> ABORTAR PROCESSO
+            </button>
+<button class="flex-1 flex items-center justify-center gap-3 px-8 py-5 bg-primary/5 text-primary/20 border border-primary/10 text-[11px] font-bold uppercase tracking-[0.3em] cursor-not-allowed" disabled="">
+<span class="material-symbols-outlined text-sm">shield</span> CONFIRMAR ACESSO
+            </button>
+</div>
+<div class="absolute top-0 left-0 w-12 h-12 border-t-2 border-l-2 border-primary cyan-glow z-30"></div>
+<div class="absolute top-0 right-0 w-12 h-12 border-t-2 border-r-2 border-primary cyan-glow z-30"></div>
+<div class="absolute bottom-0 left-0 w-12 h-12 border-b-2 border-l-2 border-primary cyan-glow z-30"></div>
+<div class="absolute bottom-0 right-0 w-12 h-12 border-b-2 border-r-2 border-primary cyan-glow z-30"></div>
+</div>
+</div>
+
+</body></html>

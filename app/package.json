@@ -59,5 +59,8 @@
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "isolated-vm": "4.7.2"
   }
 }

@@ -29,7 +29,7 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: sh -c "apk add --no-cache exiftool file 2>/dev/null || true && chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
+    command: sh -c "apk add --no-cache exiftool file python3 make g++ 2>/dev/null || true && chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
     restart: unless-stopped
 
   caddy:
