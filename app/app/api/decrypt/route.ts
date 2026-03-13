@@ -26,7 +26,7 @@ export async function POST(req: Request) {
             return new NextResponse('Dados ou Senha incompletos', { status: 400 });
         }
 
-        const filePath = path.join(process.cwd(), '../arquivos', folder, filename);
+        const filePath = path.join(process.cwd(), '../COFRE_NCFN', folder, filename);
 
         if (!fs.existsSync(filePath)) {
             return new NextResponse('Arquivo alvo não encontrado', { status: 404 });

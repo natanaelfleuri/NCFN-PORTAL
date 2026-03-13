@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search, ShieldAlert, Loader2, FileSearch, Hash, HardDrive,
   MapPin, User, Monitor, Calendar, AlertTriangle, CheckCircle2,
@@ -32,15 +33,20 @@ interface Laudo {
 }
 
 const FOLDER_LABELS: Record<string, string> = {
-  '01_OPERACIONAL':       '01 · Operacional',
-  '02_INTELIGENCIA':      '02 · Inteligência',
-  '03_ALVOS':             '03 · Alvos',
-  '04_FINANCEIRO':        '04 · Financeiro',
-  '05_LOGS_ACESSO':       '05 · Logs de Acesso',
-  '06_CRIPTOGRAFIA':      '06 · Criptografia',
-  '07_VAZAMENTOS':        '07 · Vazamentos',
-  '08_PERICIAS':          '08 · Perícias',
-  '09_BURN_IMMUTABILITY': '09 · Burn / Imutabilidade',
+  '0_NCFN-ULTRASECRETOS':                      '0 · Ultrasecretos',
+  '1_NCFN-PROVAS-SENSÍVEIS':                   '1 · Provas Sensíveis',
+  '2_NCFN-ELEMENTOS-DE-PROVA':                 '2 · Elementos de Prova',
+  '3_NCFN-DOCUMENTOS-GERENTE':                 '3 · Documentos Gerente',
+  '4_NCFN-PROCESSOS-PROCEDIMENTOS-CONTRATOS':  '4 · Processos / Contratos',
+  '5_NCFN-GOVERNOS-EMPRESAS':                  '5 · Governos / Empresas',
+  '6_NCFN-FORNECIDOS_sem_registro_de_coleta':  '6 · Fornecidos s/ Registro',
+  '7_NCFN-CAPTURAS-WEB_OSINT':                 '7 · Capturas Web / OSINT',
+  '8_NCFN-VIDEOS':                             '8 · Vídeos',
+  '9_NCFN-PERFIS-CRIMINAIS_SUSPEITOS_CRIMINOSOS': '9 · Perfis Criminais',
+  '10_NCFN-ÁUDIO':                             '10 · Áudio',
+  '11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS':   '11 · Compartilhamento c/ Terceiros',
+  '12_NCFN-METADADOS-LIMPOS':                  '12 · Metadados Limpos',
+  '100_BURN_IMMUTABILITY':                     '100 · Burn / Imutabilidade',
 };
 
 function formatBytes(b: number) {
@@ -63,7 +69,8 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function PericiaArquivoPage() {
+function PericiaArquivoInner() {
+  const searchParams = useSearchParams();
   const [folders, setFolders] = useState<Record<string, VaultFolder>>({});
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
   const [selectedPath, setSelectedPath] = useState("");
@@ -75,9 +82,18 @@ export default function PericiaArquivoPage() {
   useEffect(() => {
     fetch('/api/vault/browse')
       .then(r => r.json())
-      .then(d => setFolders(d))
+      .then(d => {
+        setFolders(d);
+        // Pré-selecionar arquivo via query params (vindo do /vault)
+        const folder = searchParams?.get('folder');
+        const file = searchParams?.get('file');
+        if (folder && file) {
+          setSelectedPath(`${folder}/${file}`);
+          setOpenFolders(new Set([folder]));
+        }
+      })
       .catch(() => {});
-  }, []);
+  }, [searchParams]);
 
   const runPericia = async () => {
     if (!selectedPath) return;
@@ -301,5 +317,13 @@ export default function PericiaArquivoPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PericiaArquivoPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#06070a] flex items-center justify-center text-gray-500 text-sm">Carregando...</div>}>
+      <PericiaArquivoInner />
+    </Suspense>
   );
 }

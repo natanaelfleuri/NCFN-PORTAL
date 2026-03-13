@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Folder, FolderOpen, FileText, ShieldAlert, Key, Flame, Lock, Unlock,
   Image as ImageIcon, FileVideo, FileAudio, File, Eye, Download,
-  ChevronDown, ChevronRight, Hash, Clock, HardDrive, X, ZoomIn
+  ChevronDown, ChevronRight, Hash, Clock, HardDrive, X, ZoomIn,
+  FileSearch, Shield, AlertTriangle, Menu
 } from "lucide-react";
 
 interface VaultFile {
@@ -23,15 +25,20 @@ interface VaultFolder {
 }
 
 const FOLDER_LABELS: Record<string, string> = {
-  '01_OPERACIONAL':       '01 · Operacional',
-  '02_INTELIGENCIA':      '02 · Inteligência',
-  '03_ALVOS':             '03 · Alvos',
-  '04_FINANCEIRO':        '04 · Financeiro',
-  '05_LOGS_ACESSO':       '05 · Logs de Acesso',
-  '06_CRIPTOGRAFIA':      '06 · Criptografia',
-  '07_VAZAMENTOS':        '07 · Vazamentos',
-  '08_PERICIAS':          '08 · Perícias',
-  '09_BURN_IMMUTABILITY': '09 · Burn / Imutabilidade',
+  '0_NCFN-ULTRASECRETOS':                      '0 · Ultrasecretos',
+  '1_NCFN-PROVAS-SENSÍVEIS':                   '1 · Provas Sensíveis',
+  '2_NCFN-ELEMENTOS-DE-PROVA':                 '2 · Elementos de Prova',
+  '3_NCFN-DOCUMENTOS-GERENTE':                 '3 · Documentos Gerente',
+  '4_NCFN-PROCESSOS-PROCEDIMENTOS-CONTRATOS':  '4 · Processos / Contratos',
+  '5_NCFN-GOVERNOS-EMPRESAS':                  '5 · Governos / Empresas',
+  '6_NCFN-FORNECIDOS_sem_registro_de_coleta':  '6 · Fornecidos s/ Registro',
+  '7_NCFN-CAPTURAS-WEB_OSINT':                 '7 · Capturas Web / OSINT',
+  '8_NCFN-VIDEOS':                             '8 · Vídeos',
+  '9_NCFN-PERFIS-CRIMINAIS_SUSPEITOS_CRIMINOSOS': '9 · Perfis Criminais',
+  '10_NCFN-ÁUDIO':                             '10 · Áudio',
+  '11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS':   '11 · Compartilhamento c/ Terceiros',
+  '12_NCFN-METADADOS-LIMPOS':                  '12 · Metadados Limpos',
+  '100_BURN_IMMUTABILITY':                     '100 · Burn / Imutabilidade',
 };
 
 function formatBytes(bytes: number) {
@@ -52,11 +59,13 @@ function FileTypeIcon({ type, size = 16 }: { type: string; size?: number }) {
 }
 
 export default function VaultPage() {
+  const router = useRouter();
   const [folders, setFolders] = useState<Record<string, VaultFolder>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(['01_OPERACIONAL']));
+  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(['0_NCFN-ULTRASECRETOS']));
   const [selected, setSelected] = useState<VaultFile | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [textContent, setTextContent] = useState("");
   const [textLoading, setTextLoading] = useState(false);
   const [lightbox, setLightbox] = useState(false);
@@ -194,8 +203,21 @@ export default function VaultPage() {
         </div>
       )}
 
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Mobile hamburger button */}
+      <button
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-black/80 border border-white/10 rounded-xl"
+        onClick={() => setSidebarOpen(v => !v)}
+      >
+        <Menu size={18} className="text-[#00f3ff]" />
+      </button>
+
       {/* Sidebar */}
-      <div className="w-72 border-r border-white/10 flex flex-col glass-panel rounded-r-2xl my-2 ml-2 overflow-hidden">
+      <div className={`fixed lg:relative z-40 lg:z-auto h-full transition-transform duration-300 w-72 border-r border-white/10 flex flex-col glass-panel rounded-r-2xl my-2 ml-2 overflow-hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Header */}
         <div className="p-4 border-b border-white/10 flex-shrink-0">
           <h2 className="text-lg font-bold text-[#00f3ff] flex items-center gap-2 drop-shadow-[0_0_8px_rgba(0,243,255,0.5)]">
@@ -287,7 +309,7 @@ export default function VaultPage() {
 
                 {/* Actions */}
                 <div className="flex flex-col gap-2 flex-shrink-0">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <a
                       href={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
                       download={selected.name}
@@ -295,6 +317,25 @@ export default function VaultPage() {
                     >
                       <Download size={12} /> Baixar
                     </a>
+                    <a
+                      href={`/api/download-bundle?folder=${encodeURIComponent(selected.path.split('/')[0])}&filename=${encodeURIComponent(selected.name)}`}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-purple-900/30 hover:bg-purple-800/40 text-purple-400 rounded-lg text-xs transition-all border border-purple-700/30"
+                      title="Baixa ZIP com original + cópia AES-256 + relatório forense PDF"
+                    >
+                      <Shield size={12} /> Custódia Local
+                    </a>
+                    <button
+                      onClick={() => {
+                        const parts = selected.path.split('/');
+                        const folder = parts[0];
+                        const file = parts.slice(1).join('/');
+                        router.push(`/admin/pericia-arquivo?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(file)}`);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-cyan-900/30 hover:bg-cyan-800/40 text-cyan-400 rounded-lg text-xs transition-all border border-cyan-700/30"
+                      title="Abre análise forense completa deste arquivo"
+                    >
+                      <FileSearch size={12} /> Perícia
+                    </button>
                     {selected.type === 'image' && (
                       <button
                         onClick={() => setLightbox(true)}
@@ -303,7 +344,7 @@ export default function VaultPage() {
                         <ZoomIn size={12} /> Ampliar
                       </button>
                     )}
-                    {selected.path.startsWith('09_') && (
+                    {selected.path.startsWith('100_BURN') && (
                       <button
                         onClick={createBurnToken}
                         className="flex items-center gap-1 px-3 py-1.5 bg-orange-900/30 hover:bg-orange-800/40 text-orange-400 rounded-lg text-xs transition-all border border-orange-700/30"
@@ -353,6 +394,24 @@ export default function VaultPage() {
                   </button>
                 </div>
               )}
+
+              {/* Caixa de proteções aplicadas */}
+              <div className="mt-3 p-3 bg-black/30 border border-white/5 rounded-lg text-[10px] font-mono text-gray-500 space-y-1">
+                <div className="flex items-center gap-2 text-gray-400 font-semibold text-xs mb-2">
+                  <Shield size={12} className="text-[#00f3ff]" /> Proteções Aplicadas ao Arquivo
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  <span className="text-gray-600">Custódia:</span><span className="text-emerald-400">Protocolo NCFN v1.0</span>
+                  <span className="text-gray-600">Hash:</span><span>SHA-256 · MD5 · SHA-1</span>
+                  <span className="text-gray-600">Criptografia:</span><span>AES-256-CBC disponível</span>
+                  <span className="text-gray-600">Burn Copy:</span><span>100_BURN_IMMUTABILITY</span>
+                  <span className="text-gray-600">Relatório:</span><span>PDF forense gerado no bundle</span>
+                </div>
+                <div className="mt-2 pt-2 border-t border-white/5 flex items-start gap-1.5 text-yellow-600">
+                  <AlertTriangle size={10} className="flex-shrink-0 mt-0.5" />
+                  <span>Após o download, salve o arquivo ZIP em disco externo (pendrive) e mantenha cópia de segurança para futura auditoria. Não altere o nome do arquivo.</span>
+                </div>
+              </div>
             </div>
 
             {/* Preview area */}
@@ -448,7 +507,7 @@ export default function VaultPage() {
             <ShieldAlert size={72} className="text-[#00f3ff]/20" />
             <h2 className="text-xl font-bold text-white/30">Vault Forense NCFN</h2>
             <p className="text-gray-600 text-sm max-w-sm">
-              Selecione uma categoria e um ativo forense para visualização segura em ambiente isolado com controle SHA-256.
+              Selecione, ao lado, uma categoria e um ativo forense para visualização segura em ambiente isolado com controle SHA-256.
             </p>
             <div className="grid grid-cols-3 gap-3 mt-4 max-w-lg w-full">
               {Object.entries(folders).map(([key, f]) => (

@@ -9,10 +9,11 @@ import AdmZip from 'adm-zip';
 
 export const dynamic = 'force-dynamic';
 
-const VAULT_DIR = '/arquivos';
+const VAULT_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 
 function sanitizePath(folder: string, filename: string): string {
-  const safeFolder = folder.replace(/\.\./g, '').replace(/[^a-zA-Z0-9_\-]/g, '');
+  // Preserva acentos e espaços — necessário para nomes de pasta do COFRE_NCFN
+  const safeFolder = folder.replace(/\.\./g, '').replace(/[^a-zA-Z0-9_\- ÁÉÍÓÚÀÂÊÔÃÕÜÇ]/gi, '');
   const safeFile = path.basename(filename);
   return path.join(VAULT_DIR, safeFolder, safeFile);
 }
@@ -206,6 +207,17 @@ export async function GET(req: NextRequest) {
         `[BUNDLE] ${now.toISOString()} | ${token.email} | IP: ${ip} | ${filename} | sha256=${sha256}\n`
       );
     } catch {}
+
+    // Burn copy — salva cópia AES imutável em 100_BURN_IMMUTABILITY (acumulativa)
+    try {
+      const { mkdirSync, writeFileSync } = await import('fs');
+      const burnDir = path.join(VAULT_DIR, '100_BURN_IMMUTABILITY');
+      mkdirSync(burnDir, { recursive: true });
+      writeFileSync(path.join(burnDir, `${now.getTime()}_${filename}.enc.bin`), encBuffer);
+      appendFileSync(path.join(burnDir, '_registros_burn.txt'),
+        `[BURN] ${now.toISOString()} | ${token.email} | IP: ${ip} | ${filename} | sha256_enc=${encSha256}\n`
+      );
+    } catch {} // falha silenciosa — não bloquear o download
 
     const zipName = `bundle_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}_${now.getTime()}.zip`;
 

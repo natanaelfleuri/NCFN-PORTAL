@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, Save, Eye, EyeOff, Search, Trash2, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type TreeNode = {
     name: string;
@@ -282,11 +284,10 @@ export default function CofrePage() {
                             </div>
                         ) : preview ? (
                             <div className="flex-1 overflow-y-auto p-6">
-                                <div
-                                    className="max-w-3xl mx-auto text-sm text-gray-300 leading-relaxed whitespace-pre-wrap font-mono"
-                                    style={{ tabSize: 4 }}
-                                >
-                                    {content || <span className="text-gray-600 italic">Arquivo vazio.</span>}
+                                <div className="max-w-3xl mx-auto prose prose-invert prose-p:text-gray-300 prose-headings:text-white prose-code:text-cyan-300 prose-pre:bg-black/40 prose-a:text-cyan-400 max-w-none">
+                                    {content
+                                        ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                                        : <span className="text-gray-600 italic">Arquivo vazio.</span>}
                                 </div>
                             </div>
                         ) : (

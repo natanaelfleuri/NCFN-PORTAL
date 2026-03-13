@@ -196,3 +196,23 @@
 @media print {
   canvas, .scanline, .scanline-overlay { display: none !important; }
 }
+
+/* ─── Fire glow animation ────────────────────────────────────────────────────*/
+@keyframes fire-glow {
+  0%, 100% {
+    text-shadow: 0 0 8px #ff6600, 0 0 20px #ff3300, 0 0 40px #cc2200;
+    color: #ff6600;
+  }
+  33% {
+    text-shadow: 0 0 12px #ffaa00, 0 0 30px #ff6600, 0 0 60px #ff3300;
+    color: #ffcc00;
+  }
+  66% {
+    text-shadow: 0 0 10px #ff4400, 0 0 24px #ff2200, 0 0 50px #aa1100;
+    color: #ff5500;
+  }
+}
+.animate-fire-glow {
+  animation: fire-glow 2s ease-in-out infinite;
+  display: inline-block;
+}

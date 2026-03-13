@@ -79,8 +79,8 @@ export default function MasterHub() {
         {/* Hero Section */}
         <motion.div variants={itemVariants} className="space-y-6">
           <h1 className="text-6xl sm:text-8xl lg:text-9xl font-black italic tracking-tighter leading-[0.9] text-white select-none">
-            <span className="block opacity-20 text-4xl sm:text-6xl mb-2 font-mono not-italic uppercase tracking-widest">Nexus Cyber</span>
-            NCFN <span className="text-cyber-blue glitch-text" data-text="PORTAL">PORTAL</span>
+            <span className="animate-fire-glow block text-4xl sm:text-6xl mb-2 font-mono not-italic uppercase tracking-widest">Nexus Cyber</span>
+            NCFN <span className="text-cyber-blue glitch-text text-4xl sm:text-5xl lg:text-6xl" data-text="FORENSE NETWORK">FORENSE NETWORK</span>
           </h1>
           <p className="text-gray-400 max-w-3xl mx-auto text-sm sm:text-base lg:text-lg font-medium leading-relaxed tracking-wide opacity-80 uppercase">
             Plataforma de Custódia Forense Certificada · Criptografia AES-256 · Cadeia de Evidências ISO/IEC-27037
@@ -106,7 +106,7 @@ export default function MasterHub() {
           <Link href="/vault" className="group h-full">
             <div className="premium-card h-full p-10 flex flex-col items-start text-left border-l-cyber-purple shadow-[0_0_50px_rgba(188,19,254,0.02)] transition-all group-hover:shadow-[0_0_50px_rgba(188,19,254,0.08)]">
               <div className="w-14 h-14 rounded-2xl bg-cyber-purple/5 border border-cyber-purple/20 flex items-center justify-center mb-8 group-hover:bg-cyber-purple/10 transition-colors">
-                <Shield className="w-7 h-7 text-cyber-purple" />
+                <Lock className="w-7 h-7 text-cyber-purple" />
               </div>
               <h3 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tight">Vault Forense</h3>
               <p className="text-xs text-gray-500 mb-8 leading-relaxed font-medium">Cofre digital de alta segurança com imutabilidade criptográfica garantida. Cada arquivo custodiado recebe carimbo temporal RFC 3161, assinatura SHA-256 e log de acesso juridicamente válido — preservação de provas técnicas em padrão pericial avançado.</p>
