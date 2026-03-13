@@ -55,7 +55,15 @@ RUN apk add --no-cache \
     openssl \
     ca-certificates \
     wget \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
     && rm -rf /var/cache/apk/*
+
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 WORKDIR /app
 
