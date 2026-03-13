@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    images: {
+        domains: ['cdn.builder.io'],
+    },
     experimental: {
         instrumentationHook: true,
         serverComponentsExternalPackages: ['geoip-lite'],
