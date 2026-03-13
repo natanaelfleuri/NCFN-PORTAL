@@ -78,6 +78,8 @@ services:
       - SMTP_PASS=${SMTP_PASS}
       - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
       - CHROMA_URL=${CHROMA_URL:-http://chromadb:8000}
+      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-ncfn.net}
+      - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-NCFN Portal}
 
     extra_hosts:
       - "host.docker.internal:host-gateway"

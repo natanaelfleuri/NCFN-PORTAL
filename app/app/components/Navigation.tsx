@@ -60,18 +60,18 @@ export default function Navigation() {
     exact ? pathname === href : pathname?.startsWith(href);
 
   return (
-    <div className="relative flex items-center">
-      {/* ─── Hamburger (mobile) ─── */}
+    <div className="relative flex items-center gap-1">
+      {/* ─── Hamburger (small mobile only) ─── */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden p-2.5 text-gray-300 hover:text-white transition-all bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 hover:border-[#bc13fe]/40 focus:outline-none"
+        className="md:hidden p-2.5 text-gray-300 hover:text-white transition-all bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 hover:border-[#bc13fe]/40 focus:outline-none"
         aria-label="Menu"
       >
         {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
-      {/* ─── Desktop Navigation ─── */}
-      <nav className="hidden lg:flex items-center gap-1">
+      {/* ─── Desktop Navigation (md+) ─── */}
+      <nav className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar">
         {/* Main links */}
         <Link href="/vault" className={isActive('/vault', true)
           ? `${linkBase} text-white bg-white/10 border border-white/20`
@@ -190,11 +190,11 @@ export default function Navigation() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-[140] bg-black/70 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[140] bg-black/70 backdrop-blur-sm md:hidden"
             onClick={() => setIsOpen(false)}
           />
           {/* Drawer */}
-          <div className="fixed right-0 top-0 h-full w-full sm:w-[340px] z-[150] bg-[#030310]/98 backdrop-blur-xl border-l border-[#bc13fe]/20 shadow-[-20px_0_60px_rgba(0,0,0,0.8)] flex flex-col lg:hidden">
+          <div className="fixed right-0 top-0 h-full w-full sm:w-[340px] z-[150] bg-[#030310]/98 backdrop-blur-xl border-l border-[#bc13fe]/20 shadow-[-20px_0_60px_rgba(0,0,0,0.8)] flex flex-col md:hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-5 border-b border-white/5">
               <div>
@@ -252,7 +252,7 @@ export default function Navigation() {
                   Entrar
                 </Link>
               )}
-              <p className="text-[9px] text-gray-700 font-mono text-center uppercase tracking-widest">Nexus Cloud Forensic Network v2.0</p>
+              <p className="text-[9px] text-gray-700 font-mono text-center uppercase tracking-widest">Nexus Cloud Forensic Network v4.0</p>
             </div>
           </div>
         </>

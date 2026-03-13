@@ -74,7 +74,7 @@ export default function RootLayout({
                 <Navigation />
               </header>
 
-              <main className="w-full max-w-6xl p-4 pb-20 lg:pb-4 flex-grow relative z-10">
+              <main className="w-full max-w-6xl p-4 pb-20 md:pb-4 flex-grow relative z-10">
                 <PolicyGuard>
                   {children}
                 </PolicyGuard>

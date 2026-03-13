@@ -78,7 +78,8 @@ model User {
   sessions             Session[]
   aiConfig             UserAiConfig?
   files                FileStatus[]
-  trashItems           TrashItem[] @relation(name: "UserTrashItems")
+  trashItems           TrashItem[]          @relation(name: "UserTrashItems")
+  webAuthnCredentials  WebAuthnCredential[]
 }
 
 model UserAiConfig {
@@ -240,6 +241,28 @@ model CanaryFile {
   createdAt       DateTime  @default(now())
 
   @@unique([folder, filename])
+}
+
+model WebAuthnCredential {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique
+  publicKey    String
+  counter      Int       @default(0)
+  transports   String?
+  deviceName   String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+}
+
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  challenge String
+  expiresAt DateTime
+
+  @@index([userId])
 }
 
 model WebCapture {
