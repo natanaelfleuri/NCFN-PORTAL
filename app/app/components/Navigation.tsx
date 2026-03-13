@@ -179,7 +179,7 @@ export default function Navigation() {
 
         {session ? (
           <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={() => signOut({ callbackUrl: '/login?logout=1' })}
             className={`${linkBase} text-gray-500 hover:text-red-400 hover:bg-red-500/5 border border-transparent hover:border-red-500/20`}
             title={session.user?.email || ''}
           >
@@ -248,7 +248,7 @@ export default function Navigation() {
               {session && <QuotaBar />}
               {session ? (
                 <button
-                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  onClick={() => signOut({ callbackUrl: '/login?logout=1' })}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-red-400 bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 transition"
                 >
                   <LogOut className="w-4 h-4" /> Sair da Conta

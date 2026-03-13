@@ -157,8 +157,8 @@ async function callAnthropic(prompt: string, systemPrompt?: string, config?: AIC
 }
 
 async function callGoogle(prompt: string, systemPrompt?: string, config?: AIConfig): Promise<string> {
-  const apiKey = config?.apiKey || process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) throw new Error('Google AI API key não configurada. Configure em IA Config.');
+  const apiKey = config?.apiKey || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('Google AI API key não configurada. Configure em IA Config (GOOGLE_AI_API_KEY ou GEMINI_API_KEY).');
   const model = config?.model || 'gemini-2.0-flash';
   const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
 

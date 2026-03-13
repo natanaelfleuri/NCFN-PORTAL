@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
       select: {
         role: true,
         planType: true,
-        createdAt: true,
+        lastSeenAt: true,
         uploadedFilesCount: true,
         totalBytesUsed: true,
         proAccessUntil: true,
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     proAccessUntil: dbUser?.proAccessUntil || null,
     uploadedFilesCount: dbUser?.uploadedFilesCount || 0,
     totalBytesUsed: dbUser?.totalBytesUsed || 0,
-    joinedAt: dbUser?.createdAt || null,
+    joinedAt: dbUser?.lastSeenAt || null,
     ip,
     isLocal,
     location,

@@ -79,8 +79,8 @@ export default function MasterHub() {
         {/* Hero Section */}
         <motion.div variants={itemVariants} className="space-y-6">
           <h1 className="text-6xl sm:text-8xl lg:text-9xl font-black italic tracking-tighter leading-[0.9] text-white select-none">
-            <span className="animate-fire-glow block text-4xl sm:text-6xl mb-2 font-mono not-italic uppercase tracking-widest">Nexus Cyber</span>
-            NCFN <span className="text-cyber-blue glitch-text text-4xl sm:text-5xl lg:text-6xl" data-text="FORENSE NETWORK">FORENSE NETWORK</span>
+            <span className="animate-fire-glow block text-4xl sm:text-6xl mb-2 font-mono not-italic uppercase tracking-[0.15em]">Nexus Cyber</span>
+            <span className="text-cyber-blue glitch-text text-4xl sm:text-5xl lg:text-6xl opacity-70" data-text="FORENSIC NETWORK">FORENSIC NETWORK</span>
           </h1>
           <p className="text-gray-400 max-w-3xl mx-auto text-sm sm:text-base lg:text-lg font-medium leading-relaxed tracking-wide opacity-80 uppercase">
             Plataforma de Custódia Forense Certificada · Criptografia AES-256 · Cadeia de Evidências ISO/IEC-27037

@@ -1,10 +1,8 @@
 import type { NextAuthOptions, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { verifyCfJwt } from "@/lib/cfAccess";
-
-const prisma = new PrismaClient();
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL!;
 
 type AppJWT = JWT & {
@@ -19,6 +17,25 @@ type AppJWT = JWT & {
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   providers: [
+    CredentialsProvider({
+      id: "admin-passphrase",
+      name: "Admin Passphrase",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        passphrase: { label: "Passphrase", type: "password" },
+      },
+      async authorize(credentials) {
+        const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE;
+        if (!ADMIN_PASSPHRASE) return null;
+        if (
+          credentials?.email === ADMIN_EMAIL &&
+          credentials?.passphrase === ADMIN_PASSPHRASE
+        ) {
+          return { id: credentials.email, email: credentials.email, name: credentials.email };
+        }
+        return null;
+      },
+    }),
     CredentialsProvider({
       id: "cloudflare-access",
       name: "Cloudflare Access",

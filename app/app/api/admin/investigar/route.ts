@@ -6,6 +6,7 @@ import { exec } from "child_process";
 import { createHash } from "crypto";
 import { promisify } from "util";
 import { sendForensicReport } from "@/lib/mailer";
+import { callAI } from "@/lib/aiService";
 
 export const dynamic = "force-dynamic";
 const execAsync = promisify(exec);
@@ -34,21 +35,10 @@ function buildDockerCommand(tool: string, target: string): string {
   }
 }
 
-// ─── Formatação IA via Ollama ─────────────────────────────────────────────────
+// ─── Formatação IA (via aiService unificado) ──────────────────────────────────
 async function formatWithAI(rawOutput: string, target: string, tool: string): Promise<string> {
-  let model = process.env.OLLAMA_MODEL || "llama3";
-  let ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-  let geminiKey = process.env.GEMINI_API_KEY;
-
-  try {
-    const adminUser = await prisma.user.findFirst({ where: { role: 'admin' }, include: { aiConfig: true } });
-    if (adminUser?.aiConfig?.geminiKey) geminiKey = adminUser.aiConfig.geminiKey;
-  } catch (e) {
-    // Continua com defaults de env
-  }
-
-  const prompt = `Você é um perito forense digital da Polícia Federal.  
-Analise o output bruto abaixo da ferramenta "${tool}" executada contra o alvo "${target}".  
+  const prompt = `Você é um perito forense digital da Polícia Federal.
+Analise o output bruto abaixo da ferramenta "${tool}" executada contra o alvo "${target}".
 Produza um "Relatório de Materialidade Preliminar" em português, estruturado assim:
 
 ## 1. IDENTIFICAÇÃO DO ALVO
@@ -62,32 +52,10 @@ Seja objetivo, técnico e formal. Não invente dados que não estejam no output.
 OUTPUT BRUTO:
 ${rawOutput.slice(0, 3000)}`;
 
-  // Se for modelo Gemini, usar a API oficial do Google se possível, 
-  // caso contrário tenta via Ollama se estiver configurado lá.
-  if (model.includes("gemini") && geminiKey) {
-     // Lógica simplificada: tentamos via Ollama primeiro (muitos usam proxy Ollama para Gemini)
-     // Mas aqui poderíamos implementar o fetch direto para Google AI
-  }
-
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 35000);
-
-    const res = await fetch(`${ollamaUrl}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, prompt, stream: false }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (!res.ok) throw new Error("Ollama indisponível");
-
-    const data = await res.json();
-    return data.response || "IA não retornou análise.";
-  } catch {
-    return `⚠️ Análise IA indisponível (Ollama offline ou timeout).\n\nOutput bruto disponível acima para análise manual.`;
+    return await callAI(prompt);
+  } catch (e: any) {
+    return `⚠️ Análise IA indisponível: ${e?.message || 'erro desconhecido'}.\n\nOutput bruto disponível acima para análise manual.`;
   }
 }
 

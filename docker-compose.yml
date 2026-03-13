@@ -25,11 +25,13 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - CRON_SECRET=${CRON_SECRET}
       - MASTER_UNLOCK_KEY=${MASTER_UNLOCK_KEY}
+      - PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+      - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
     env_file:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: sh -c "apk add --no-cache exiftool file python3 make g++ 2>/dev/null || true && chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
+    command: sh -c "apk add --no-cache exiftool file python3 make g++ chromium nss freetype harfbuzz ca-certificates ttf-freefont 2>/dev/null || true && chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
     restart: unless-stopped
 
   caddy:

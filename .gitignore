@@ -56,3 +56,11 @@ arquivos/
 ncfn-sync.sh
 rebuild-dev.sh
 script_nav.py
+
+# Cloudflare credentials
+cloudflared/credentials.json
+
+# Screenshots e documentos locais
+*.png
+*.jpg
+DESCRIPTO/

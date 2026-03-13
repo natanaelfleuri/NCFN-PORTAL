@@ -17,9 +17,14 @@ function LoginContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const error = searchParams?.get('error');
+    const isLogout = searchParams?.get('logout') === '1';
 
     const [phase, setPhase] = useState<'checking' | 'signing' | 'error' | 'no_token'>('checking');
     const [errorMsg, setErrorMsg] = useState('');
+    const [showPassForm, setShowPassForm] = useState(false);
+    const [passEmail, setPassEmail] = useState('');
+    const [passphrase, setPassphrase] = useState('');
+    const [passLoading, setPassLoading] = useState(false);
 
     // Redirecionar se já autenticado
     useEffect(() => {
@@ -31,6 +36,12 @@ function LoginContent() {
     // Tentar auto sign-in via CF Access JWT
     useEffect(() => {
         if (status !== 'unauthenticated') return;
+
+        // If user just logged out, skip CF auto-signin to break the redirect loop
+        if (isLogout) {
+            setPhase('no_token');
+            return;
+        }
 
         async function tryCfSignIn() {
             // 1. Tentar ler CF_Authorization do cookie
@@ -67,6 +78,30 @@ function LoginContent() {
         tryCfSignIn();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status]);
+
+    async function handlePassphraseLogin(e: React.FormEvent) {
+        e.preventDefault();
+        setPassLoading(true);
+        try {
+            const result = await signIn('admin-passphrase', {
+                email: passEmail,
+                passphrase,
+                redirect: false,
+                callbackUrl: '/admin',
+            });
+            if (result?.ok) {
+                router.push('/admin');
+            } else {
+                setErrorMsg('Credenciais inválidas.');
+                setPhase('error');
+            }
+        } catch (e: any) {
+            setErrorMsg(e?.message ?? 'Erro inesperado.');
+            setPhase('error');
+        } finally {
+            setPassLoading(false);
+        }
+    }
 
     if (status === 'loading' || status === 'authenticated') {
         return (
@@ -120,7 +155,7 @@ function LoginContent() {
 
                 {phase === 'no_token' && (
                     <>
-                        <p className="text-gray-400 mb-8 text-sm leading-relaxed">
+                        <p className="text-gray-400 mb-6 text-sm leading-relaxed">
                             Autenticação via Cloudflare Access requerida.<br />
                             <span className="text-[10px] text-gray-600 font-mono">
                                 Um código OTP será enviado ao seu email autorizado.
@@ -128,21 +163,58 @@ function LoginContent() {
                         </p>
                         <a
                             href={`${CF_ACCESS_URL}/`}
-                            className="w-full py-4 flex items-center justify-center gap-3 rounded-xl font-bold text-white text-lg transition-all"
+                            className="w-full py-4 flex items-center justify-center gap-3 rounded-xl font-bold text-white text-lg transition-all mb-4"
                             style={{
                                 background: 'linear-gradient(135deg, rgba(188,19,254,0.2), rgba(188,19,254,0.05))',
                                 border: '1px solid rgba(188, 19, 254, 0.5)',
                                 boxShadow: '0 0 20px rgba(188, 19, 254, 0.2)',
                             }}
                         >
-                            {/* Cloudflare icon */}
                             <svg className="w-6 h-6" viewBox="0 0 100 100" fill="none">
                                 <path d="M68.4 55.6c.5-1.7.3-3.3-.5-4.5-.7-1.1-1.9-1.8-3.4-2l-.4-.1-28.3-.1c-.3 0-.6-.2-.7-.4-.1-.3 0-.6.2-.8l.3-.3 28.2-.1c3.3-.2 6.9-2.9 8.2-6.1.1-.3.3-.7.4-1-.8-9.1-8.5-16.2-17.9-16.2-8 0-14.9 5.2-17.4 12.4-1.6-1.1-3.6-1.8-5.7-1.8-5.3 0-9.6 4.3-9.6 9.6 0 .6.1 1.2.2 1.7C17.2 47.5 13 52.3 13 58c0 6.1 4.9 11 11 11h43.5c4.8 0 8.8-3.4 9.5-8-4.1-1.2-8-3.8-8.6-5.4z" fill="#F6821F"/>
                                 <path d="M74.6 44c-.5 0-1 0-1.5.1l-.8.1-.3-.8c-1.8-5-6.5-8.6-12.1-8.6-2.1 0-4.1.5-5.8 1.5l-1.2.7-.4-1.3C50.2 28.3 43.9 24 36.6 24c-11.4 0-20.6 9.3-20.6 20.6 0 1.1.1 2.2.3 3.3l.3 1.6-1.6.1C10 50.3 6 54.7 6 60c0 5.5 4.5 10 10 10h58.6c5.2 0 9.4-4.2 9.4-9.4 0-4.9-3.7-8.9-8.4-9.4l-1 .8z" fill="#FBAD41"/>
                             </svg>
                             Autenticar com Cloudflare
                         </a>
-                        <p className="mt-6 text-gray-600 text-xs font-mono">
+
+                        {/* Fallback: admin passphrase */}
+                        <div className="mt-2">
+                            <button
+                                onClick={() => setShowPassForm(!showPassForm)}
+                                className="text-[10px] text-gray-700 hover:text-gray-500 font-mono uppercase tracking-widest transition-colors"
+                            >
+                                {showPassForm ? '— ocultar acesso direto' : '+ acesso direto (admin)'}
+                            </button>
+                            {showPassForm && (
+                                <form onSubmit={handlePassphraseLogin} className="mt-4 space-y-3 text-left">
+                                    <input
+                                        type="email"
+                                        placeholder="Email"
+                                        value={passEmail}
+                                        onChange={e => setPassEmail(e.target.value)}
+                                        required
+                                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#bc13fe]/50"
+                                    />
+                                    <input
+                                        type="password"
+                                        placeholder="Passphrase"
+                                        value={passphrase}
+                                        onChange={e => setPassphrase(e.target.value)}
+                                        required
+                                        className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#bc13fe]/50"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={passLoading}
+                                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50"
+                                        style={{ background: 'rgba(188,19,254,0.15)', border: '1px solid rgba(188,19,254,0.4)' }}
+                                    >
+                                        {passLoading ? 'Verificando...' : 'Entrar'}
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                        <p className="mt-4 text-gray-600 text-xs font-mono">
                             Acesso restrito · OTP por email · TLS 1.3 Ativo
                         </p>
                     </>
@@ -156,7 +228,7 @@ function LoginContent() {
                         </div>
                         <button
                             onClick={() => { setPhase('checking'); window.location.reload(); }}
-                            className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all"
+                            className="w-full py-3 rounded-xl font-bold text-white text-sm transition-all mb-4"
                             style={{
                                 background: 'rgba(188,19,254,0.1)',
                                 border: '1px solid rgba(188, 19, 254, 0.4)',
@@ -164,6 +236,24 @@ function LoginContent() {
                         >
                             Tentar novamente
                         </button>
+                        {/* Fallback passphrase on error too */}
+                        <div>
+                            <button
+                                onClick={() => setShowPassForm(!showPassForm)}
+                                className="text-[10px] text-gray-700 hover:text-gray-500 font-mono uppercase tracking-widest transition-colors"
+                            >
+                                {showPassForm ? '— ocultar acesso direto' : '+ acesso direto (admin)'}
+                            </button>
+                            {showPassForm && (
+                                <form onSubmit={handlePassphraseLogin} className="mt-4 space-y-3 text-left">
+                                    <input type="email" placeholder="Email" value={passEmail} onChange={e => setPassEmail(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#bc13fe]/50" />
+                                    <input type="password" placeholder="Passphrase" value={passphrase} onChange={e => setPassphrase(e.target.value)} required className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-[#bc13fe]/50" />
+                                    <button type="submit" disabled={passLoading} className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(188,19,254,0.15)', border: '1px solid rgba(188,19,254,0.4)' }}>
+                                        {passLoading ? 'Verificando...' : 'Entrar'}
+                                    </button>
+                                </form>
+                            )}
+                        </div>
                     </>
                 )}
             </div>
