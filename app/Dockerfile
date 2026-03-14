@@ -60,6 +60,7 @@ RUN apk add --no-cache \
     freetype \
     harfbuzz \
     ttf-freefont \
+    docker-cli \
     && rm -rf /var/cache/apk/*
 
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser

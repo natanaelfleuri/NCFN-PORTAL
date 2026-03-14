@@ -22,6 +22,9 @@ spec:
         app: portal
     spec:
       # Permite acesso ao Docker socket (OSINT via docker run)
+      securityContext:
+        supplementalGroups: [989]  # docker GID na VPS
+
       volumes:
         - name: ncfn-db
           persistentVolumeClaim:
