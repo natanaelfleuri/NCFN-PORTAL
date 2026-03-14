@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Search, RefreshCw, Terminal, Shield,
   Copy, Check, Clock, Hash, ChevronDown, ChevronUp,
+  Power, PowerOff, Loader2,
 } from "lucide-react";
 
 const TOOLS = [
@@ -44,6 +45,67 @@ export default function InvestigarPage() {
   const [copied, setCopied] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
 
+  // Tool status
+  const [toolReady, setToolReady] = useState<boolean | null>(null);
+  const [toolBuilding, setToolBuilding] = useState(false);
+  const [toolMsg, setToolMsg] = useState("");
+
+  const checkToolStatus = async () => {
+    try {
+      const res = await fetch("/api/admin/investigar/status");
+      const data = await res.json();
+      setToolReady(data.ready);
+    } catch {
+      setToolReady(false);
+    }
+  };
+
+  const toggleTool = async () => {
+    if (toolReady) {
+      // Desligar — remove imagem
+      setToolBuilding(true);
+      setToolMsg("Removendo imagem...");
+      try {
+        await fetch("/api/admin/investigar/status", { method: "DELETE" });
+        setToolReady(false);
+        setToolMsg("Ferramenta desligada.");
+      } catch {
+        setToolMsg("Erro ao desligar.");
+      } finally {
+        setToolBuilding(false);
+        setTimeout(() => setToolMsg(""), 3000);
+      }
+    } else {
+      // Ligar — build imagem
+      setToolBuilding(true);
+      setToolMsg("Build iniciado (~2 min). Aguarde...");
+      try {
+        await fetch("/api/admin/investigar/status", { method: "POST" });
+        // Poll até ficar pronto
+        const poll = setInterval(async () => {
+          const res = await fetch("/api/admin/investigar/status");
+          const data = await res.json();
+          if (data.ready) {
+            setToolReady(true);
+            setToolBuilding(false);
+            setToolMsg("Ferramentas prontas!");
+            clearInterval(poll);
+            setTimeout(() => setToolMsg(""), 3000);
+          }
+        }, 10000);
+        // Timeout após 5 min
+        setTimeout(() => {
+          clearInterval(poll);
+          setToolBuilding(false);
+          setToolMsg("Build demorou demais. Verifique a VPS.");
+        }, 300000);
+      } catch {
+        setToolBuilding(false);
+        setToolMsg("Erro ao iniciar build.");
+      }
+    }
+  };
+
   const loadHistory = async () => {
     try {
       const res = await fetch("/api/admin/investigar");
@@ -56,7 +118,10 @@ export default function InvestigarPage() {
     }
   };
 
-  useEffect(() => { loadHistory(); }, []);
+  useEffect(() => {
+    loadHistory();
+    checkToolStatus();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +168,40 @@ export default function InvestigarPage() {
           <Shield className="w-5 h-5 text-purple-400" />
           <h1 className="text-lg font-bold text-white">Investigação OSINT</h1>
           <span className="text-xs text-gray-600 font-mono ml-2">Sherlock · theHarvester · Nmap</span>
+
+          {/* LIGAR/DESLIGAR FERRAMENTA */}
+          <div className="ml-auto flex items-center gap-2">
+            {toolMsg && (
+              <span className="text-xs font-mono text-yellow-400">{toolMsg}</span>
+            )}
+            <button
+              onClick={toggleTool}
+              disabled={toolBuilding || toolReady === null}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg border text-xs font-bold transition-all disabled:opacity-50 ${
+                toolReady
+                  ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-red-950/40 hover:border-red-500/40 hover:text-red-400"
+                  : "bg-red-950/40 border-red-500/40 text-red-400 hover:bg-emerald-950/40 hover:border-emerald-500/40 hover:text-emerald-400"
+              }`}
+            >
+              {toolBuilding
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Aguarde...</>
+                : toolReady
+                  ? <><Power className="w-3.5 h-3.5" /> FERRAMENTA ATIVA</>
+                  : <><PowerOff className="w-3.5 h-3.5" /> LIGAR FERRAMENTA</>
+              }
+            </button>
+            <button onClick={checkToolStatus} className="text-gray-600 hover:text-cyan-400 transition-colors">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
+
+        {/* Aviso se não pronto */}
+        {toolReady === false && !toolBuilding && (
+          <div className="mb-4 px-4 py-3 bg-yellow-950/30 border border-yellow-700/40 rounded-lg text-yellow-400 text-sm">
+            ⚠️ Imagem <code className="font-mono">ncfn-osint-cli</code> não encontrada. Clique em <strong>LIGAR FERRAMENTA</strong> para construir (~2 min).
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-black/40 border border-gray-800 rounded-xl p-5 mb-6">
@@ -128,7 +226,7 @@ export default function InvestigarPage() {
             </select>
             <button
               type="submit"
-              disabled={loading || !target.trim()}
+              disabled={loading || !target.trim() || !toolReady}
               className="inline-flex items-center gap-2 px-6 py-2.5 bg-cyan-950/50 border border-cyan-500/40 rounded-lg text-cyan-400 font-bold text-sm hover:bg-cyan-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               {loading
@@ -156,7 +254,6 @@ export default function InvestigarPage() {
         {/* Result */}
         {result && (
           <div className="space-y-4 mb-8">
-            {/* Meta */}
             <div className="bg-black/40 border border-gray-800 rounded-xl p-4 flex flex-wrap gap-4 text-xs font-mono">
               <span className="text-gray-500">Alvo: <span className="text-cyan-300">{result.target}</span></span>
               <span className="text-gray-500">Ferramenta: <span className="text-purple-300">{result.tool}</span></span>
@@ -175,7 +272,6 @@ export default function InvestigarPage() {
               </button>
             </div>
 
-            {/* AI Report */}
             <div className="bg-black/40 border border-purple-900/40 rounded-xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Terminal className="w-4 h-4 text-purple-400" />
@@ -186,7 +282,6 @@ export default function InvestigarPage() {
               </div>
             </div>
 
-            {/* Raw output (collapsible) */}
             <div className="bg-black/40 border border-gray-800 rounded-xl overflow-hidden">
               <button
                 onClick={() => setShowRaw(!showRaw)}
