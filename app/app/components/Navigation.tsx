@@ -84,17 +84,18 @@ export default function Navigation() {
         {/* Admin Dropdown */}
         {isAdmin_role && (
           <div ref={adminRef} className="relative">
-            <button
-              onClick={() => setAdminOpen(!adminOpen)}
-              className={`${linkBase} gap-1.5 ${isAdminRoute
-                ? 'text-[#bc13fe] bg-[#bc13fe]/10 border border-[#bc13fe]/30'
-                : 'text-gray-400 hover:text-[#bc13fe] hover:bg-[#bc13fe]/5 border border-transparent hover:border-[#bc13fe]/20'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" />
-              Admin
-              <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${adminOpen ? 'rotate-180' : ''}`} />
-            </button>
+            <div className={`${linkBase} gap-1.5 ${isAdminRoute
+              ? 'text-[#bc13fe] bg-[#bc13fe]/10 border border-[#bc13fe]/30'
+              : 'text-gray-400 hover:text-[#bc13fe] hover:bg-[#bc13fe]/5 border border-transparent hover:border-[#bc13fe]/20'
+            }`}>
+              <Link href="/admin" className="flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5" />
+                Admin
+              </Link>
+              <button onClick={() => setAdminOpen(!adminOpen)} className="ml-0.5">
+                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${adminOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
 
             {adminOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-black/95 backdrop-blur-xl border border-[#bc13fe]/20 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_30px_rgba(188,19,254,0.1)] overflow-hidden z-[200]">

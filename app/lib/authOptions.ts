@@ -65,8 +65,8 @@ export const authOptions: NextAuthOptions = {
       if (email === ADMIN_EMAIL) {
         await prisma.user.upsert({
           where: { email },
-          update: { lastSeenAt: new Date() },
-          create: { email, lastSeenAt: new Date() },
+          update: { lastSeenAt: new Date(), role: "admin" },
+          create: { email, lastSeenAt: new Date(), role: "admin" },
         });
         return true;
       }
