@@ -21,7 +21,7 @@ function LoginContent() {
 
     const [phase, setPhase] = useState<'checking' | 'signing' | 'error' | 'no_token'>('checking');
     const [errorMsg, setErrorMsg] = useState('');
-    const [showPassForm, setShowPassForm] = useState(false);
+    const [showPassForm, setShowPassForm] = useState(true);
     const [passEmail, setPassEmail] = useState('');
     const [passphrase, setPassphrase] = useState('');
     const [passLoading, setPassLoading] = useState(false);
