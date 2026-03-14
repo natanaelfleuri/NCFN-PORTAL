@@ -265,6 +265,28 @@ model WebAuthnChallenge {
   @@index([userId])
 }
 
+model OsintSection {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  icon      String   @default("BookOpen")
+  content   String   // markdown content
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OsintInvestigation {
+  id          String   @id @default(cuid())
+  filename    String
+  size        Int
+  sha256      String
+  storedPath  String
+  notes       String?
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+}
+
 model WebCapture {
   id              String   @id @default(cuid())
   url             String
