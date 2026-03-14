@@ -62,16 +62,13 @@ function LoginContent() {
                 });
 
                 if (result?.error) {
-                    setErrorMsg(result.error === 'unauthorized'
-                        ? 'Email não autorizado no portal NCFN.'
-                        : 'Falha na verificação do token Cloudflare.');
-                    setPhase('error');
+                    // CF Access falhou — cai para login por passphrase silenciosamente
+                    setPhase('no_token');
                 } else if (result?.ok) {
                     router.push('/admin');
                 }
             } catch (e: any) {
-                setErrorMsg(e?.message ?? 'Erro inesperado.');
-                setPhase('error');
+                setPhase('no_token');
             }
         }
 
