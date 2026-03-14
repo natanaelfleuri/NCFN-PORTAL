@@ -21,11 +21,6 @@ spec:
       labels:
         app: cloudflared
     spec:
-      volumes:
-        - name: tunnel-credentials
-          secret:
-            secretName: ncfn-cf-tunnel
-
       containers:
         - name: cloudflared
           image: cloudflare/cloudflared:latest
@@ -33,14 +28,15 @@ spec:
           args:
             - tunnel
             - --no-autoupdate
-            - --config
-            - /etc/cloudflared/config.yml
             - run
-
-          volumeMounts:
-            - name: tunnel-credentials
-              mountPath: /etc/cloudflared
-              readOnly: true
+            - --token
+            - $(CF_TUNNEL_TOKEN)
+          env:
+            - name: CF_TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ncfn-cf-token
+                  key: token
 
           resources:
             requests:
@@ -49,15 +45,5 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
-
-          livenessProbe:
-            exec:
-              command:
-                - cloudflared
-                - tunnel
-                - info
-            initialDelaySeconds: 30
-            periodSeconds: 60
-            failureThreshold: 5
 
       restartPolicy: Always
