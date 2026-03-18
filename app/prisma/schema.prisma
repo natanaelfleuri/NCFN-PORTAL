@@ -312,3 +312,39 @@ model WebCapture {
   errorMessage    String?
   createdAt       DateTime @default(now())
 }
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  actionType     String   @default("AFERICAO_CRUZADA")
+  providedHash   String
+  calculatedHash String
+  isMatch        Boolean
+  ipAddress      String?
+  userAgent      String?
+  userId         String?
+  createdAt      DateTime @default(now())
+}
+
+model PurgeLog {
+  id                String   @id @default(cuid())
+  fileName          String
+  originalHash      String
+  originalFolder    String
+  deletionDate      DateTime @default(now())
+  managerId         String
+  justification     String?
+  destructionMethod String   @default("STANDARD_DELETE")
+  createdAt         DateTime @default(now())
+}
+
+model DeadMansSwitch {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  isActive        Boolean  @default(false)
+  latencyDays     Int      @default(7)
+  terminalAction  String   @default("LOCKDOWN")
+  emergencyEmails String?
+  lastCheckIn     DateTime @default(now())
+  lastCheckInIp   String?
+  updatedAt       DateTime @updatedAt
+}
