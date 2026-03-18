@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   Bot, Cpu, Zap, Shield, Plus, Trash2, ToggleLeft, ToggleRight,
   RefreshCw, CheckCircle, XCircle, Play, Download, AlertTriangle,
-  Terminal, Tag, BookOpen, Loader2, ArrowLeft, Key, Globe, Star, Save
+  Terminal, Tag, BookOpen, Loader2, ArrowLeft, Key, Globe, Star, Save,
+  HelpCircle, X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -157,6 +158,7 @@ export default function IaConfigPage() {
   const [seedLoading, setSeedLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   // ── AI Model Selection ───────────────────────────────────────────────────
   const [savedAI, setSavedAI] = useState<SavedAIModel>({ provider: 'ollama', model: 'mistral', hasApiKey: false });
@@ -312,11 +314,89 @@ export default function IaConfigPage() {
             <p className="text-[10px] text-gray-500 font-mono tracking-widest uppercase mt-1">Sytem Forensic OSINT Configuration</p>
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-3">
-             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-             <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Active Core Services</span>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Active Core Services</span>
+          </div>
+          <button
+            onClick={() => setShowHelp(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 border border-gray-700 text-gray-400 rounded-lg text-xs font-bold hover:text-white hover:border-gray-500 transition"
+          >
+            <HelpCircle className="w-3.5 h-3.5" /> Explicar Funcionalidades
+          </button>
         </div>
       </div>
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="max-w-2xl w-full bg-gray-950 border border-[#bc13fe]/30 rounded-2xl p-6 space-y-5 shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-[#bc13fe]" /> Guia de Funcionalidades
+              </h2>
+              <button onClick={() => setShowHelp(false)} className="text-gray-600 hover:text-white transition">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs text-gray-400 leading-relaxed">
+              <div className="p-3 bg-[#bc13fe]/10 border border-[#bc13fe]/20 rounded-lg">
+                <h3 className="text-[#bc13fe] font-bold mb-1">IA Local vs API Externa</h3>
+                <p>IAs locais (Ollama) garantem <strong className="text-white">100% de privacidade</strong> — nenhum dado sai da sua máquina. APIs (OpenAI/Gemini) oferecem maior poder de processamento, mas requerem anonimização dos dados antes do envio.</p>
+              </div>
+
+              <div className="p-3 bg-gray-900 border border-gray-800 rounded-lg">
+                <h3 className="text-gray-300 font-bold mb-1">Custo de Requisição</h3>
+                <p>O <em>Orçamento Mensal</em> protege o usuário de cobranças surpresas ao travar requisições para APIs externas (OpenAI/Anthropic) quando o limite financeiro é atingido. Configure um valor conservador e aumente conforme necessário.</p>
+              </div>
+
+              <div className="p-3 bg-gray-900 border border-gray-800 rounded-lg">
+                <h3 className="text-gray-300 font-bold mb-2">Modelos Recomendados</h3>
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="border-b border-gray-800 text-gray-500">
+                      <th className="text-left pb-2">Modelo</th>
+                      <th className="text-left pb-2">RAM</th>
+                      <th className="text-left pb-2">Uso ideal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="space-y-1">
+                    <tr className="border-b border-gray-900">
+                      <td className="py-1.5 text-green-400 font-mono">Mistral 7B</td>
+                      <td className="py-1.5 text-gray-400">4 GB</td>
+                      <td className="py-1.5 text-gray-500">Rápido, ideal para extração de metadados simples</td>
+                    </tr>
+                    <tr className="border-b border-gray-900">
+                      <td className="py-1.5 text-blue-400 font-mono">Llama 3 8B</td>
+                      <td className="py-1.5 text-gray-400">8 GB</td>
+                      <td className="py-1.5 text-gray-500">Equilibrado, excelente para análise de contexto e OCR</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 text-purple-400 font-mono">Gemma 2B</td>
+                      <td className="py-1.5 text-gray-400">2 GB</td>
+                      <td className="py-1.5 text-gray-500">Ultra-leve para sistemas com poucos recursos</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 bg-gray-900 border border-gray-800 rounded-lg">
+                <h3 className="text-gray-300 font-bold mb-1">Keywords Jurídicas</h3>
+                <p>Palavras-chave monitoradas disparam análise automática de IA quando encontradas em documentos ou capturas. Associe cada keyword a uma referência legal (Art. X CP) para rastreabilidade.</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowHelp(false)}
+              className="w-full py-2.5 bg-[#bc13fe]/15 border border-[#bc13fe]/30 text-[#bc13fe] rounded-xl text-xs font-bold hover:bg-[#bc13fe]/25 transition uppercase tracking-widest"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* AI Strategy & Budget */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -367,7 +447,7 @@ export default function IaConfigPage() {
           <Link href="/admin/investigar" className="bg-[#bc13fe]/10 border border-[#bc13fe]/30 text-[#bc13fe] text-[10px] font-bold px-3 py-2 rounded-lg hover:bg-[#bc13fe]/20 transition text-center uppercase tracking-widest">
             Acessar Protocolo
           </Link>
-          <span className="text-[10px] text-gray-500 uppercase tracking-widest text-center mt-1">OpenClaw 360º</span>
+          <span className="text-[10px] text-gray-500 uppercase tracking-widest text-center mt-1">OLLAMA</span>
         </div>
       </div>
 
@@ -450,6 +530,21 @@ export default function IaConfigPage() {
             </div>
           );
         })()}
+
+        {/* Sandboxing Forense alert */}
+        <div className="p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl">
+          <div className="flex items-start gap-2">
+            <Shield className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-purple-200/80 leading-relaxed">
+              <strong className="text-purple-300">Aviso de Comportamento — Sandboxing Forense:</strong>{' '}
+              O modelo selecionado atuará sob este protocolo estrito. Independentemente da IA escolhida
+              (OpenAI, Gemini ou Local), ela será instruída em nível de sistema a ignorar vieses criativos
+              e focar estritamente na extração de fatos, metadados e conformidade com a{' '}
+              <span className="text-purple-400 font-mono">ISO 27037</span>.
+              Respostas são filtradas para evitar alucinações técnicas.
+            </div>
+          </div>
+        </div>
 
         {modelMsg && (
           <div className={`px-4 py-3 rounded-xl text-xs font-mono border ${modelMsg.includes('Erro') ? 'border-red-500/40 bg-red-500/10 text-red-400' : 'border-green-500/40 bg-green-500/10 text-green-400'}`}>
@@ -549,7 +644,12 @@ export default function IaConfigPage() {
             {pullOutput}
           </pre>
         )}
-        <p className="text-[10px] text-gray-600">Recomendado: <span className="text-gray-400 font-mono">mistral:7b</span> (4.1GB) — melhor custo/benefício para 8GB RAM</p>
+        <p className="text-[11px] text-gray-600 leading-relaxed">
+          Esta ferramenta permite a gestão direta do seu servidor local via Ollama. Ao digitar o nome do modelo
+          e clicar em <span className="text-gray-400">[Pull]</span>, o sistema realiza o download no seu hardware.
+          Isso garante <strong className="text-gray-400">total privacidade</strong>, pois os dados da perícia não sairão da sua máquina.
+        </p>
+        <p className="text-[10px] text-gray-700">Recomendado: <span className="text-gray-500 font-mono">mistral:7b</span> (4.1GB) — melhor custo/benefício para 8GB RAM</p>
       </div>
 
       {/* Test Prompt */}

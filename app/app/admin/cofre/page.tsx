@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, Save, Eye, EyeOff, Search, Trash2, X, ChevronsDown, ChevronsUp } from 'lucide-react';
+import { BookOpen, ChevronRight, ChevronDown, File, Folder, FolderOpen, Eye, EyeOff, Search, X, ChevronsDown, ChevronsUp, Shield, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -107,9 +107,7 @@ export default function CofrePage() {
     const [content, setContent] = useState('');
     const [savedContent, setSavedContent] = useState('');
     const [loadingFile, setLoadingFile] = useState(false);
-    const [saving, setSaving] = useState(false);
     const [preview, setPreview] = useState(false);
-    const [deleting, setDeleting] = useState(false);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -144,68 +142,6 @@ export default function CofrePage() {
         }
     }, []);
 
-    // ── save ───────────────────────────────────────────────────────────────
-    const handleSave = useCallback(async () => {
-        if (!selectedNode || saving) return;
-        setSaving(true);
-        try {
-            const res = await fetch('/api/vault', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: selectedNode.path, content }),
-            });
-            if (res.ok) setSavedContent(content);
-        } finally {
-            setSaving(false);
-        }
-    }, [selectedNode, content, saving]);
-
-    // ── Ctrl+S ─────────────────────────────────────────────────────────────
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault();
-                handleSave();
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [handleSave]);
-
-    // ── delete note ────────────────────────────────────────────────────────
-    const handleDeleteNote = async () => {
-        if (!selectedNode) return;
-        if (!confirm(`Excluir "${selectedNode.name}" permanentemente?`)) return;
-        setDeleting(true);
-        try {
-            const res = await fetch(`/api/vault?path=${encodeURIComponent(selectedNode.path)}`, {
-                method: 'DELETE',
-            });
-            if (res.ok) {
-                setSelectedNode(null);
-                setContent('');
-                setSavedContent('');
-                await loadTree();
-            }
-        } finally {
-            setDeleting(false);
-        }
-    };
-
-    // ── new note ───────────────────────────────────────────────────────────
-    const handleNewNote = async () => {
-        const name = prompt('Nome da nova nota (sem extensão):');
-        if (!name) return;
-        const notePath = `${name.trim()}.md`;
-        await fetch('/api/vault', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: notePath, content: '' }),
-        });
-        await loadTree();
-    };
-
-    const isDirty = content !== savedContent;
     const filteredTree = filterTree(tree, search);
 
     return (
@@ -216,8 +152,8 @@ export default function CofrePage() {
                 {/* header */}
                 <div className="flex items-center justify-between px-3 py-3 border-b border-white/5">
                     <div className="flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-[#8b5cf6]" />
-                        <span className="text-xs font-bold text-white/80 uppercase tracking-wider">Cofre NCFN</span>
+                        <Lock className="w-4 h-4 text-[#8b5cf6]" />
+                        <span className="text-xs font-bold text-white/80 uppercase tracking-wider">Dados e Informações</span>
                     </div>
                     <div className="flex items-center gap-1">
                         <button
@@ -233,13 +169,6 @@ export default function CofrePage() {
                             className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#8b5cf6]/20 transition-colors"
                         >
                             <ChevronsUp className="w-3.5 h-3.5 text-[#8b5cf6]" />
-                        </button>
-                        <button
-                            onClick={handleNewNote}
-                            title="Nova nota"
-                            className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-[#8b5cf6]/20 transition-colors"
-                        >
-                            <Plus className="w-3.5 h-3.5 text-[#8b5cf6]" />
                         </button>
                     </div>
                 </div>
@@ -289,11 +218,9 @@ export default function CofrePage() {
                             <div className="flex items-center gap-2 min-w-0">
                                 <File className="w-4 h-4 text-[#8b5cf6] flex-shrink-0" />
                                 <span className="text-sm font-semibold text-white/90 truncate">{selectedNode.name}</span>
-                                {isDirty && (
-                                    <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase tracking-wider">
-                                        modificado
-                                    </span>
-                                )}
+                                <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#8b5cf6]/10 text-[#8b5cf6] border border-[#8b5cf6]/30 uppercase tracking-wider flex items-center gap-1">
+                                    <Lock className="w-2.5 h-2.5" /> somente leitura
+                                </span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
@@ -305,23 +232,7 @@ export default function CofrePage() {
                                     }`}
                                 >
                                     {preview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                    {preview ? 'Editar' : 'Preview'}
-                                </button>
-                                <button
-                                    onClick={handleSave}
-                                    disabled={!isDirty || saving}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border bg-emerald-500/20 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    <Save className="w-3.5 h-3.5" />
-                                    {saving ? 'Salvando...' : 'Salvar'}
-                                </button>
-                                <button
-                                    onClick={handleDeleteNote}
-                                    disabled={deleting}
-                                    title="Excluir nota"
-                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    {preview ? 'Raw' : 'Preview'}
                                 </button>
                             </div>
                         </div>
@@ -332,41 +243,49 @@ export default function CofrePage() {
                                 <div className="w-6 h-6 border-2 border-[#8b5cf6]/40 border-t-[#8b5cf6] rounded-full animate-spin" />
                             </div>
                         ) : preview ? (
-                            <div className="flex-1 overflow-y-auto p-6">
-                                <div className="max-w-3xl mx-auto prose prose-invert prose-p:text-gray-300 prose-headings:text-white prose-code:text-cyan-300 prose-pre:bg-black/40 prose-a:text-cyan-400 max-w-none">
+                            <div className="flex-1 overflow-y-auto p-6 relative">
+                                {/* Watermark */}
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center rotate-[-30deg] select-none">
+                                    <span className="text-5xl font-black text-white/5 uppercase tracking-widest whitespace-nowrap">
+                                        AUDITORIA — SOMENTE LEITURA
+                                    </span>
+                                </div>
+                                <div className="relative max-w-3xl mx-auto prose prose-invert prose-p:text-gray-300 prose-headings:text-white prose-code:text-cyan-300 prose-pre:bg-black/40 prose-a:text-cyan-400 max-w-none">
                                     {content
                                         ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
                                         : <span className="text-gray-600 italic">Arquivo vazio.</span>}
                                 </div>
                             </div>
                         ) : (
-                            <textarea
-                                ref={textareaRef}
-                                value={content}
-                                onChange={e => setContent(e.target.value)}
-                                spellCheck={false}
-                                className="flex-1 bg-transparent text-sm text-gray-200 font-mono p-6 outline-none resize-none leading-relaxed"
-                                style={{ tabSize: 4 }}
-                                placeholder="Arquivo vazio. Comece a escrever..."
-                            />
+                            <div className="relative flex-1 overflow-hidden">
+                                {/* Watermark */}
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center rotate-[-30deg] select-none z-10">
+                                    <span className="text-4xl font-black text-white/[0.04] uppercase tracking-widest whitespace-nowrap">
+                                        AUDITORIA — SOMENTE LEITURA
+                                    </span>
+                                </div>
+                                <textarea
+                                    ref={textareaRef}
+                                    value={content}
+                                    readOnly
+                                    spellCheck={false}
+                                    className="absolute inset-0 w-full h-full bg-transparent text-sm text-gray-200 font-mono p-6 outline-none resize-none leading-relaxed cursor-default select-text"
+                                    style={{ tabSize: 4 }}
+                                    placeholder="Arquivo vazio."
+                                />
+                            </div>
                         )}
                     </>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">
                         <div className="w-16 h-16 rounded-2xl bg-[#8b5cf6]/10 border border-[#8b5cf6]/20 flex items-center justify-center">
-                            <BookOpen className="w-8 h-8 text-[#8b5cf6]/60" />
+                            <Shield className="w-8 h-8 text-[#8b5cf6]/60" />
                         </div>
                         <div>
-                            <p className="text-white/60 font-semibold text-sm">Nenhuma nota selecionada</p>
+                            <p className="text-white/60 font-semibold text-sm">Nenhum arquivo selecionado</p>
                             <p className="text-gray-600 text-xs mt-1">Selecione um arquivo <code>.md</code> ou <code>.txt</code> na barra lateral</p>
+                            <p className="text-[#8b5cf6]/50 text-[10px] mt-2 font-mono uppercase tracking-widest">Auditoria · Somente Leitura</p>
                         </div>
-                        <button
-                            onClick={handleNewNote}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#8b5cf6]/15 border border-[#8b5cf6]/30 text-[#8b5cf6] text-sm font-semibold hover:bg-[#8b5cf6]/25 transition-colors"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Nova nota
-                        </button>
                     </div>
                 )}
             </div>

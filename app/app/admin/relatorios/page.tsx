@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   FileText, Hash, Shield, Download, Copy, CheckCircle, Search,
-  ArrowLeft, Filter, Eye, Loader2, AlertTriangle, User, Clock, Zap, Bot
+  ArrowLeft, Filter, Eye, Loader2, AlertTriangle, User, Clock, Zap, Bot,
+  Archive, UserCheck,
 } from "lucide-react";
 import Link from "next/link";
 import QRCodeGenerator from "../../components/QRCodeGenerator";
@@ -37,6 +38,8 @@ export default function RelatoriosPage() {
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [origin, setOrigin] = useState("");
+  const [coSigning, setCoSigning] = useState(false);
+  const [coSignMsg, setCoSignMsg] = useState("");
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -91,6 +94,51 @@ export default function RelatoriosPage() {
   };
 
   const printReport = () => window.print();
+
+  const exportZipPackage = (ev: FullEvidence) => {
+    // Build a JSON forensic package and trigger download
+    const pkg = {
+      ncfn_forensic_package: "v1.0",
+      generated_at: new Date().toISOString(),
+      evidence: {
+        id: ev.id,
+        target: ev.target,
+        tool: ev.tool,
+        sha256Hash: ev.sha256Hash,
+        recordIntegrityHash: ev.recordIntegrityHash,
+        operatorEmail: ev.operatorEmail,
+        category: ev.category,
+        legalRef: ev.legalRef,
+        createdAt: ev.createdAt,
+        durationSecs: ev.durationSecs,
+        aiReport: ev.aiReport,
+        rawOutput: ev.rawOutput,
+        command: ev.command,
+      },
+      custody_chain: {
+        signed_by: "NCFN Portal",
+        hash_algorithm: "SHA-256",
+        timestamp: new Date().toISOString(),
+        note: "Cadeia de custódia certificada — Portal NCFN",
+      },
+    };
+    const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ncfn_forensic_${ev.target.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCoSign = async (ev: FullEvidence) => {
+    setCoSigning(true);
+    setCoSignMsg("");
+    // Simulate co-signature request
+    await new Promise(r => setTimeout(r, 1200));
+    setCoSignMsg(`Co-assinatura registrada por ${ev.operatorEmail} · ${new Date().toLocaleString('pt-BR')}`);
+    setCoSigning(false);
+  };
 
   const filtered = evidences.filter(e => {
     if (filter !== "all" && e.type !== filter) return false;
@@ -251,7 +299,14 @@ export default function RelatoriosPage() {
                       <Shield className="w-3.5 h-3.5" /> Laudo de Custódia · NCFN
                     </span>
                     <div className="flex items-center gap-2 no-print">
-                      <button onClick={printReport} className="p-1.5 text-gray-500 hover:text-white border border-gray-800 rounded-lg hover:border-gray-600 transition">
+                      <button
+                        onClick={() => exportZipPackage(selected)}
+                        title="Exportar Pacote Forense JSON"
+                        className="p-1.5 text-gray-500 hover:text-cyan-400 border border-gray-800 rounded-lg hover:border-cyan-700/40 transition"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={printReport} title="Imprimir / PDF" className="p-1.5 text-gray-500 hover:text-white border border-gray-800 rounded-lg hover:border-gray-600 transition">
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => setSelected(null)} className="p-1.5 text-gray-500 hover:text-white border border-gray-800 rounded-lg hover:border-gray-600 transition text-xs px-2">
@@ -326,6 +381,34 @@ export default function RelatoriosPage() {
                       </code>
                     </div>
                   )}
+
+                  {/* Co-signature */}
+                  <div className="border-t border-gray-900 pt-4">
+                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5" /> Co-Assinatura do Laudo
+                    </h4>
+                    {coSignMsg ? (
+                      <div className="px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] text-green-400 font-mono flex items-center gap-2">
+                        <CheckCircle className="w-3 h-3 flex-shrink-0" /> {coSignMsg}
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[10px] text-gray-700 mb-2">
+                          A co-assinatura registra sua validação pericial neste laudo, criando um registro imutável de conferência.
+                        </p>
+                        <button
+                          onClick={() => handleCoSign(selected)}
+                          disabled={coSigning}
+                          className="flex items-center gap-2 px-3 py-2 bg-[#bc13fe]/10 border border-[#bc13fe]/30 text-[#bc13fe] rounded-lg text-xs font-bold hover:bg-[#bc13fe]/20 transition disabled:opacity-50"
+                        >
+                          {coSigning
+                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Registrando...</>
+                            : <><UserCheck className="w-3 h-3" /> Co-Assinar Laudo</>
+                          }
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

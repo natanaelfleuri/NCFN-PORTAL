@@ -1,13 +1,56 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, KeyRound, Upload, Download, Shield, Unlock,
   AlertTriangle, CheckCircle, RefreshCw, FileText, Eye, EyeOff,
+  Mail, Hash,
 } from "lucide-react";
 
-type Status = 'idle' | 'loading-key' | 'decrypting' | 'success' | 'error';
+type Status = 'idle' | 'decrypting' | 'success' | 'error';
+
+// Hex background rain characters
+const HEX_CHARS = "0123456789ABCDEF";
+const HEX_COLS = 32;
+
+function HexBackground() {
+  const [columns, setColumns] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Generate initial columns
+    const initial = Array.from({ length: HEX_COLS }, () =>
+      Array.from({ length: 20 }, () => HEX_CHARS[Math.floor(Math.random() * 16)]).join(" ")
+    );
+    setColumns(initial);
+
+    const interval = setInterval(() => {
+      setColumns(prev => prev.map(col => {
+        const chars = col.split(" ");
+        // shift down and add new char at top
+        chars.pop();
+        chars.unshift(HEX_CHARS[Math.floor(Math.random() * 16)]);
+        return chars.join(" ");
+      }));
+    }, 120);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none z-0 select-none">
+      <div className="flex gap-3 opacity-[0.04] font-mono text-[10px] text-orange-300 leading-5 h-full">
+        {columns.map((col, i) => (
+          <div key={i} className="flex flex-col gap-0">
+            {col.split(" ").map((ch, j) => (
+              <span key={j}>{ch}</span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function DescriptarPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,7 +59,9 @@ export default function DescriptarPage() {
   const [status, setStatus] = useState<Status>('idle');
   const [statusMsg, setStatusMsg] = useState("");
   const [resultName, setResultName] = useState("");
+  const [resultHash, setResultHash] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [showMailTooltip, setShowMailTooltip] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (f: File) => {
@@ -24,6 +69,7 @@ export default function DescriptarPage() {
     setStatus('idle');
     setStatusMsg("");
     setResultName("");
+    setResultHash("");
   };
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -33,19 +79,10 @@ export default function DescriptarPage() {
     if (f) handleFile(f);
   }, []);
 
-  const loadMasterKey = async () => {
-    setStatus('loading-key');
-    try {
-      const res = await fetch('/api/descriptar/master-key');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao buscar chave mestra');
-      setPassword(data.key || '');
-      setStatus('idle');
-      setStatusMsg("Chave mestra carregada.");
-    } catch (err: any) {
-      setStatus('error');
-      setStatusMsg(err.message);
-    }
+  const computeSHA256 = async (buf: ArrayBuffer): Promise<string> => {
+    const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+    const hashArr = Array.from(new Uint8Array(hashBuf));
+    return hashArr.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
   const decrypt = async () => {
@@ -57,21 +94,16 @@ export default function DescriptarPage() {
 
     setStatus('decrypting');
     setStatusMsg("Derivando chave e desencriptando...");
+    setResultHash("");
 
     try {
-      // Ler arquivo como ArrayBuffer
       const arrayBuf = await file.arrayBuffer();
       const allBytes = new Uint8Array(arrayBuf);
 
-      // Formato gerado pelo Portal: IV (16 bytes) + dados cifrados
       const iv = allBytes.slice(0, 16);
       const cipherData = allBytes.slice(16);
 
-      // Derivar chave via PBKDF2 (compatível com scrypt do Node usando salt do .env via servidor)
-      // Para arquivos do Portal NCFN, usamos a rota /api/decrypt no servidor
-      // Para arquivos legados (HTML antigo), usamos WebCrypto diretamente
-
-      // Estratégia: tentar via servidor primeiro (Portal NCFN), depois WebCrypto legado
+      // Tentar via servidor primeiro
       const formData = new FormData();
       formData.append('file', file);
       formData.append('password', password);
@@ -83,20 +115,25 @@ export default function DescriptarPage() {
 
       if (serverRes.ok) {
         const blob = await serverRes.blob();
+        const decBuf = await blob.arrayBuffer();
+        const hash = await computeSHA256(decBuf);
+
         const originalName = file.name.replace(/\.enc(\.bin)?$/, '');
-        const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(new Blob([decBuf]));
         const a = document.createElement('a');
         a.href = url;
         a.download = originalName;
         a.click();
         URL.revokeObjectURL(url);
+
         setResultName(originalName);
+        setResultHash(hash);
         setStatus('success');
         setStatusMsg(`Arquivo desencriptado: ${originalName}`);
         return;
       }
 
-      // Fallback: decriptação legada via WebCrypto (salt fixo do HTML antigo)
+      // Fallback: WebCrypto legado
       const enc = new TextEncoder();
       const keyMaterial = await crypto.subtle.importKey(
         'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
@@ -115,6 +152,7 @@ export default function DescriptarPage() {
         cipherData
       );
 
+      const hash = await computeSHA256(decrypted);
       const originalName = file.name.replace(/\.enc(\.bin)?$/, '');
       const blob = new Blob([decrypted]);
       const url = URL.createObjectURL(blob);
@@ -123,7 +161,9 @@ export default function DescriptarPage() {
       a.download = originalName;
       a.click();
       URL.revokeObjectURL(url);
+
       setResultName(originalName);
+      setResultHash(hash);
       setStatus('success');
       setStatusMsg(`Arquivo desencriptado (modo legado): ${originalName}`);
 
@@ -137,8 +177,10 @@ export default function DescriptarPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#06070a] text-gray-300 p-4 md:p-6">
-      <div className="max-w-2xl mx-auto">
+    <div className="relative min-h-screen bg-[#06070a] text-gray-300 p-4 md:p-6">
+      <HexBackground />
+
+      <div className="relative z-10 max-w-2xl mx-auto">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
@@ -150,14 +192,15 @@ export default function DescriptarPage() {
           <span className="text-xs text-gray-600 ml-2 font-mono">Modo de Resgate AES-256</span>
         </div>
 
-        <div className="bg-black/40 border border-orange-900/30 rounded-xl p-6 space-y-6">
+        <div className="bg-black/60 border border-orange-900/30 rounded-xl p-6 space-y-6 backdrop-blur-sm">
 
           {/* Info */}
           <div className="flex items-start gap-3 p-3 bg-orange-950/20 border border-orange-700/20 rounded-lg text-xs text-orange-300/70">
             <Shield className="w-4 h-4 flex-shrink-0 mt-0.5 text-orange-400" />
             <div>
               Decriptação local — arquivos processados no servidor com a chave do Portal NCFN.
-              Use a <strong>Chave Mestra</strong> para emergências ou auditoria.
+              Para recuperação de emergência com <strong>Chave Mestra</strong>, contacte o administrador
+              pelo canal de comunicação seguro.
             </div>
           </div>
 
@@ -219,17 +262,37 @@ export default function DescriptarPage() {
                   {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
-              <button
-                onClick={loadMasterKey}
-                disabled={status === 'loading-key'}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-orange-950/40 border border-orange-700/40 rounded-lg text-orange-400 text-xs font-bold hover:bg-orange-900/30 disabled:opacity-50 transition-all whitespace-nowrap"
-                title="Carrega a chave mestra NCFN do servidor"
-              >
-                {status === 'loading-key'
-                  ? <RefreshCw size={12} className="animate-spin" />
-                  : <KeyRound size={12} />
-                } Chave Mestra
-              </button>
+
+              {/* Chave Mestra → mailto flow */}
+              <div className="relative">
+                <a
+                  href="mailto:ncfn@ncfn.net?subject=Solicita%C3%A7%C3%A3o%20de%20Chave%20Mestra%20NCFN&body=Solicito%20a%20Chave%20Mestra%20para%20decripta%C3%A7%C3%A3o%20de%20emerg%C3%AAncia.%0A%0AMotivo%3A%20"
+                  onMouseEnter={() => setShowMailTooltip(true)}
+                  onMouseLeave={() => setShowMailTooltip(false)}
+                  onFocus={() => setShowMailTooltip(true)}
+                  onBlur={() => setShowMailTooltip(false)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-orange-950/40 border border-orange-700/40 rounded-lg text-orange-400 text-xs font-bold hover:bg-orange-900/30 transition-all whitespace-nowrap"
+                  title="Solicitar Chave Mestra por email seguro"
+                >
+                  <Mail size={12} /> Chave Mestra
+                </a>
+
+                {showMailTooltip && (
+                  <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-gray-950 border border-orange-700/50 rounded-lg text-[10px] text-orange-200/80 font-mono z-50 shadow-xl">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={10} className="text-orange-400 flex-shrink-0 mt-0.5" />
+                      <span>
+                        A Chave Mestra é gerada off-line e nunca armazenada no servidor.
+                        Esta ação abrirá seu cliente de email seguro para solicitar ao administrador NCFN.
+                        Use apenas em casos de emergência forense.
+                      </span>
+                    </div>
+                    <div className="mt-1.5 pt-1.5 border-t border-orange-900/40 text-orange-400/60">
+                      → ncfn@ncfn.net
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -264,11 +327,29 @@ export default function DescriptarPage() {
             </div>
           )}
 
+          {/* Success: SHA-256 verification */}
           {status === 'success' && resultName && (
-            <div className="p-3 bg-emerald-950/20 border border-emerald-700/20 rounded-lg text-xs text-gray-500">
-              <span className="text-emerald-400 font-bold">Download iniciado:</span> {resultName}
-              <br />
-              Arquivo decriptado salvo na pasta de Downloads do seu navegador.
+            <div className="p-4 bg-emerald-950/20 border border-emerald-700/20 rounded-lg space-y-3">
+              <div className="flex items-center gap-2 text-xs text-emerald-400 font-bold">
+                <Download size={13} />
+                Download iniciado: <span className="text-white">{resultName}</span>
+              </div>
+
+              {resultHash && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-mono uppercase tracking-wider">
+                    <Hash size={10} /> SHA-256 do arquivo decriptado
+                  </div>
+                  <div className="bg-black/60 border border-gray-800 rounded p-2.5">
+                    <code className="text-[10px] text-emerald-300/80 font-mono break-all leading-relaxed">
+                      {resultHash}
+                    </code>
+                  </div>
+                  <p className="text-[10px] text-gray-600 font-mono">
+                    Verifique este hash contra o registro de custódia original para confirmar integridade.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

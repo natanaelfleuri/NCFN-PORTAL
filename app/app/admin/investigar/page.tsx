@@ -8,7 +8,8 @@ import {
   ArrowLeft, BookOpen, Server, GitBranch, LayoutDashboard,
   Crosshair, Plus, Pencil, Trash2, X, Save, Upload,
   FileArchive, RefreshCw, Check, Hash, Clock, ExternalLink,
-  ChevronRight, Shield, Loader2, AlertTriangle,
+  ChevronRight, Shield, Loader2, AlertTriangle, HelpCircle,
+  CheckCircle2, Hourglass, Zap,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -399,6 +400,17 @@ export default function InvestigarPage() {
   // Admin modals
   const [editModal, setEditModal] = useState<{ open: boolean; section?: Section }>({ open: false });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Upload progress stages
+  const [uploadStage, setUploadStage] = useState(-1);
+  const UPLOAD_STAGES = [
+    'Descompactando e validando ZIP...',
+    'Calculando hashes individuais (SHA-256)...',
+    'Extraindo metadados / OCR...',
+    'Correlacionando dados OSINT...',
+    'Gerando PDF de relatório...',
+  ];
 
   const loadSections = useCallback(async () => {
     setLoading(true);
@@ -443,6 +455,16 @@ export default function InvestigarPage() {
     }
     setUploading(true);
     setUploadMsg(null);
+    setUploadStage(0);
+
+    // Simulate upload stages
+    const stageInterval = setInterval(() => {
+      setUploadStage(prev => {
+        if (prev >= UPLOAD_STAGES.length - 1) { clearInterval(stageInterval); return prev; }
+        return prev + 1;
+      });
+    }, 2500);
+
     const form = new FormData();
     form.append("file", file);
     if (notes.trim()) form.append("notes", notes.trim());
@@ -461,6 +483,7 @@ export default function InvestigarPage() {
       setUploadMsg({ text: e.message, ok: false });
     } finally {
       setUploading(false);
+      setUploadStage(-1);
     }
   };
 
@@ -511,6 +534,12 @@ export default function InvestigarPage() {
           <span className="text-[10px] font-mono text-[#bc13fe]/40 uppercase tracking-widest ml-1 hidden sm:block">
             Ferramentas · Fluxogramas · Investigações
           </span>
+          <button
+            onClick={() => setShowHelp(true)}
+            className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-1.5 rounded-xl transition-all"
+          >
+            <HelpCircle size={13} /> Como usar
+          </button>
         </div>
 
         {/* ═══════════════════════════════════════════════════════
@@ -534,9 +563,9 @@ export default function InvestigarPage() {
                 <p className="text-gray-300 font-semibold text-[11px] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" /> Como funciona
                 </p>
-                <p>Faça o upload de um arquivo <code className="text-[#00f3ff] font-mono bg-[#00f3ff]/10 px-1 rounded">.zip</code> contendo evidências coletadas fora do portal (prints, logs, relatórios, capturas de tela, arquivos OSINT externos).</p>
+                <p>Faça o upload de um arquivo <code className="text-[#00f3ff] font-mono bg-[#00f3ff]/10 px-1 rounded">.zip</code> contendo evidências coletadas fora do portal. <strong className="text-white">O arquivo passará pelo tratamento forense e será enviado para a PASTA 07_NCFN_CAPTURAS-WEB_OSINT.</strong></p>
                 <p>O sistema calcula automaticamente o <strong className="text-white">SHA-256</strong> do arquivo, garantindo a integridade da cadeia de custódia — em conformidade com a <strong className="text-white">RFC 3227</strong>.</p>
-                <p>Futuramente, os arquivos serão processados por IA para extração automática de evidências e geração de laudos.</p>
+                <p className="text-[#bc13fe]/80">O <strong className="text-[#bc13fe]">Perito Sansão</strong> será acionado automaticamente para gerar o relatório contendo todos os dados pertinentes. O relatório pode demorar até 1 hora e ficará disponível juntamente com o arquivo na pasta 07.</p>
                 <p className="text-yellow-400/70">Tamanho máximo: <strong className="text-yellow-400">500 MB</strong> por arquivo.</p>
               </div>
 
@@ -572,6 +601,32 @@ export default function InvestigarPage() {
                 }
               </button>
 
+              {/* Upload progress stages */}
+              {uploading && uploadStage >= 0 && (
+                <div className="bg-black/40 border border-[#00f3ff]/20 rounded-xl p-4 space-y-2">
+                  {UPLOAD_STAGES.map((stage, i) => {
+                    const done = uploadStage > i;
+                    const active = uploadStage === i;
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                          done ? 'bg-green-500/20 border border-green-500' :
+                          active ? 'bg-[#00f3ff]/20 border border-[#00f3ff] shadow-[0_0_6px_rgba(0,243,255,0.4)]' :
+                          'bg-gray-900 border border-gray-700'
+                        }`}>
+                          {done ? <CheckCircle2 size={8} className="text-green-400" /> :
+                           active ? <Loader2 size={8} className="text-[#00f3ff] animate-spin" /> :
+                           <span className="text-[7px] text-gray-600">{i+1}</span>}
+                        </div>
+                        <p className={`text-[10px] font-mono transition-colors ${
+                          done ? 'text-green-400' : active ? 'text-[#00f3ff]' : 'text-gray-700'
+                        }`}>{stage}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {uploadMsg && (
                 <div className={`flex items-center gap-2 text-xs px-4 py-2.5 rounded-lg border ${
                   uploadMsg.ok
@@ -587,7 +642,7 @@ export default function InvestigarPage() {
             {/* Right — investigations list */}
             <div className="bg-black/20 border border-white/5 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 border-b border-white/5 flex items-center gap-2">
-                <span className="text-xs font-mono text-gray-500 uppercase tracking-wider">Arquivos carregados</span>
+                <span className="text-xs font-mono text-gray-500 uppercase tracking-wider">Histórico de Investigações Carregadas</span>
                 <span className="ml-auto text-xs bg-[#00f3ff]/10 text-[#00f3ff] px-2 py-0.5 rounded-full font-mono">
                   {investigations.length}
                 </span>
@@ -608,12 +663,21 @@ export default function InvestigarPage() {
                           <FileArchive className="w-3.5 h-3.5 text-[#00f3ff]/60 flex-shrink-0" />
                           <span className="text-xs text-white font-medium truncate">{inv.filename}</span>
                         </div>
-                        <button
-                          onClick={() => handleDeleteInvestigation(inv.id)}
-                          className="opacity-0 group-hover:opacity-100 text-gray-700 hover:text-red-400 transition-all flex-shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {/* Status badge based on age */}
+                          {(() => {
+                            const ageMin = (Date.now() - new Date(inv.createdAt).getTime()) / 60000;
+                            if (ageMin < 2) return <span className="text-[9px] font-mono bg-yellow-900/30 text-yellow-400 border border-yellow-700/30 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Hourglass size={7} /> PENDENTE</span>;
+                            if (ageMin < 65) return <span className="text-[9px] font-mono bg-blue-900/30 text-blue-400 border border-blue-700/30 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Zap size={7} /> PROCESSANDO</span>;
+                            return <span className="text-[9px] font-mono bg-green-900/30 text-green-400 border border-green-700/30 px-1.5 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={7} /> CONCLUÍDO</span>;
+                          })()}
+                          <button
+                            onClick={() => handleDeleteInvestigation(inv.id)}
+                            className="opacity-0 group-hover:opacity-100 text-gray-700 hover:text-red-400 transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-5">
                         <span className="text-[10px] text-gray-600 font-mono">{fmtBytes(inv.size)}</span>
@@ -735,6 +799,33 @@ export default function InvestigarPage() {
           onSave={handleSaveSection}
           onClose={() => setEditModal({ open: false })}
         />
+      )}
+
+      {/* ── Help Modal ── */}
+      {showHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#06070a] border border-[#bc13fe]/30 rounded-2xl p-8 max-w-lg w-full shadow-2xl space-y-5 relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#bc13fe]/10 rounded-xl border border-[#bc13fe]/30">
+                <HelpCircle className="w-5 h-5 text-[#bc13fe]" />
+              </div>
+              <h2 className="font-black text-white text-base uppercase tracking-widest">Como usar esta página</h2>
+            </div>
+            <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
+              <p><strong className="text-white">1. Upload de Investigação:</strong> Envie um arquivo <code className="text-[#00f3ff] font-mono bg-[#00f3ff]/10 px-1 rounded">.zip</code> com evidências coletadas fora do portal (prints, logs, capturas, relatórios OSINT).</p>
+              <p><strong className="text-white">2. Tratamento Forense Automático:</strong> O Perito Sansão será acionado para processar os arquivos internos: extração de Magic Bytes, OCR, metadados ExifTool e correlação de URLs/CPFs/e-mails.</p>
+              <p><strong className="text-white">3. Destino:</strong> O arquivo ZIP e o relatório gerado ficam disponíveis na pasta <code className="text-yellow-400 font-mono bg-yellow-900/20 px-1 rounded">07_NCFN_CAPTURAS-WEB_OSINT</code>. O relatório pode demorar até 1 hora.</p>
+              <div className="bg-black/40 border border-[#00f3ff]/20 rounded-xl p-4 font-mono text-xs text-[#00f3ff]/70 space-y-0.5">
+                <p>Descompactando → Validando Hashes → Extraindo Metadados/OCR</p>
+                <p>→ Correlacionando → Gerando PDF de Relatório</p>
+              </div>
+              <p><strong className="text-white">4. Base de Conhecimento:</strong> Edite e mantenha fluxogramas, guias e metodologias OSINT em formato Markdown com suporte a diagramas Mermaid.</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Delete confirmation ── */}
