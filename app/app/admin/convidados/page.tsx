@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   UserPlus, Trash2, Users, CheckCircle, XCircle, Shield,
   Copy, Link2, Clock, Star, AlertTriangle, RefreshCw,
-  ArrowLeft, Lock, Share2, Key,
+  ArrowLeft, Lock, Share2, Key, HelpCircle, X,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -37,6 +37,7 @@ export default function ConvidadosPage() {
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [pendingInvites, setPendingInvites] = useState<{ email: string; token: string; type: InviteType; level: AccessLevel; createdAt: string }[]>([]);
+  const [showHelp, setShowHelp] = useState(false);
 
   const fetchGuests = async () => {
     const res = await fetch('/api/admin/guests');
@@ -135,9 +136,15 @@ export default function ConvidadosPage() {
             <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Sistema de Convites & Referrals</p>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-lg">
-          <div className="w-2 h-2 rounded-full bg-[#bc13fe] animate-pulse" />
-          <span className="text-[10px] text-gray-400 font-mono">{activeGuests.length} ATIVOS</span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setShowHelp(true)}
+            className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all">
+            <HelpCircle size={14} /> Como funciona
+          </button>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-lg">
+            <div className="w-2 h-2 rounded-full bg-[#bc13fe] animate-pulse" />
+            <span className="text-[10px] text-gray-400 font-mono">{activeGuests.length} ATIVOS</span>
+          </div>
         </div>
       </div>
 
@@ -379,6 +386,28 @@ export default function ConvidadosPage() {
           </div>
         )}
       </div>
+
+      {showHelp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+              <X size={18} />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                <HelpCircle className="w-5 h-5 text-blue-400" />
+              </div>
+              <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
+            </div>
+            <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
+              <p>Este módulo gerencia o <strong className="text-white">acesso temporário de convidados</strong> ao portal NCFN.</p>
+              <p>Existem dois tipos de convite: <strong className="text-white">Referral Premium</strong> (convidado cria conta própria sem acesso ao Vault) e <strong className="text-white">Acesso ao Cofre</strong> (acesso read-only controlado às pastas autorizadas).</p>
+              <p>Os tokens gerados são <strong className="text-white">válidos por 72 horas</strong> e devem ser compartilhados via canal seguro. Todas as ações do convidado são registradas nos logs de auditoria.</p>
+              <p>O acesso pode ser <strong className="text-white">revogado a qualquer momento</strong> clicando no ícone de exclusão ao lado do convidado na lista.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Link sharing section */}
       <div className="bg-black/40 border border-gray-800 rounded-xl p-5 space-y-3">

@@ -27,6 +27,77 @@
   }
 }
 
+/* ── COFRE: linha vermelha percorrendo a borda ── */
+.cofre-border-scan {
+  position: relative;
+  overflow: hidden;
+}
+
+.cofre-border-scan::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--angle, 0deg),
+    transparent 0deg,
+    transparent 240deg,
+    #ef4444 260deg,
+    #ff6b6b 270deg,
+    #ef4444 280deg,
+    transparent 300deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: cofre-scan 3s linear infinite;
+  animation-play-state: paused;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cofre-border-scan:hover::before {
+  animation-play-state: running;
+}
+
+.cofre-border-scan::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse 60px 20px at var(--glow-x, 50%) var(--glow-y, 0%), rgba(239,68,68,0.18) 0%, transparent 70%);
+  animation: cofre-glow-pos 3s linear infinite;
+  animation-play-state: paused;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cofre-border-scan:hover::after {
+  animation-play-state: running;
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes cofre-scan {
+  to { --angle: 360deg; }
+}
+
+@keyframes cofre-glow-pos {
+  0%   { background: radial-gradient(ellipse 80px 30px at 50% -5%,  rgba(239,68,68,0.22) 0%, transparent 70%); }
+  25%  { background: radial-gradient(ellipse 30px 80px at 105% 50%, rgba(239,68,68,0.22) 0%, transparent 70%); }
+  50%  { background: radial-gradient(ellipse 80px 30px at 50% 105%, rgba(239,68,68,0.22) 0%, transparent 70%); }
+  75%  { background: radial-gradient(ellipse 30px 80px at -5% 50%,  rgba(239,68,68,0.22) 0%, transparent 70%); }
+  100% { background: radial-gradient(ellipse 80px 30px at 50% -5%,  rgba(239,68,68,0.22) 0%, transparent 70%); }
+}
+
 @keyframes bg-pulse {
   0% {
     background-position: 0% 0%;
@@ -214,4 +285,23 @@
 .animate-fire-glow {
   animation: fire-glow 2s ease-in-out infinite;
   display: inline-block;
+}
+
+/* ─── Module cursor blink ─────────────────────────────────────────────────── */
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* ─── Leaflet — fundo preto durante carregamento de tiles ─────────────────── */
+.leaflet-container {
+  background: #000 !important;
+}
+
+.module-cursor::after {
+  content: '_';
+  display: inline-block;
+  margin-left: 2px;
+  animation: cursor-blink 2s step-start infinite;
+  /* animation-delay: 0 — all share the same timeline, blink in sync */
 }

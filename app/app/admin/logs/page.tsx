@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import {
     Activity, Mail, Clock, Wifi, Timer, Shield, ChevronDown, ChevronRight,
     Search, Download, X, CheckCircle2, AlertTriangle, Globe, Zap,
-    Monitor, FlaskConical, Skull
+    Monitor, FlaskConical, Skull, HelpCircle
 } from 'lucide-react';
 
 type LogEntry = {
@@ -63,6 +63,7 @@ export default function GuestLogsPage() {
     const [vpnModal, setVpnModal] = useState<LogEntry | null>(null);
     const [totpInput, setTotpInput] = useState('');
     const [killingSession, setKillingSession] = useState<string | null>(null);
+    const [showHelp, setShowHelp] = useState(false);
 
     useEffect(() => {
         fetch('/api/admin/logs')
@@ -149,6 +150,10 @@ export default function GuestLogsPage() {
 
                 {/* Investigation Mode Toggle */}
                 <div className="flex items-center gap-3">
+                    <button onClick={() => setShowHelp(true)}
+                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all">
+                        <HelpCircle size={14} /> Como funciona
+                    </button>
                     <button
                         onClick={investigationMode ? undefined : activateInvestigationMode}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all ${
@@ -338,6 +343,28 @@ export default function GuestLogsPage() {
             <p className="text-center text-gray-700 text-xs">
                 Exibindo os últimos 200 acessos · Atualização em tempo real por heartbeat
             </p>
+
+            {showHelp && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
+                        <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+                            <X size={18} />
+                        </button>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                                <HelpCircle className="w-5 h-5 text-blue-400" />
+                            </div>
+                            <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
+                        </div>
+                        <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
+                            <p>Esta página exibe o <strong className="text-white">log completo de sessões</strong> de todos os usuários do portal, com dados de IP, duração, risco e fingerprint de navegador.</p>
+                            <p>Use os filtros para buscar por <strong className="text-white">e-mail ou IP</strong>, ou filtre por nível de risco (Alto, Médio, Baixo). Clique em qualquer linha para expandir detalhes da sessão.</p>
+                            <p>Acessos de <strong className="text-white">Canary Tokens</strong> são destacados em vermelho e geram alertas imediatos — indicando que um arquivo-armadilha foi acessado por terceiros não autorizados.</p>
+                            <p>Os logs são <strong className="text-white">imutáveis e criptograficamente assinados</strong>. Sessões ativas podem ser encerradas remotamente com a função Kill.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* VPN Identity Challenge Modal */}
             {vpnModal && (

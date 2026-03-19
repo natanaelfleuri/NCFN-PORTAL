@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, KeyRound, Upload, Download, Shield, Unlock,
   AlertTriangle, CheckCircle, RefreshCw, FileText, Eye, EyeOff,
-  Mail, Hash,
+  Mail, Hash, HelpCircle, X,
 } from "lucide-react";
 
 type Status = 'idle' | 'decrypting' | 'success' | 'error';
@@ -63,6 +63,7 @@ export default function DescriptarPage() {
   const [dragging, setDragging] = useState(false);
   const [showMailTooltip, setShowMailTooltip] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const handleFile = (f: File) => {
     setFile(f);
@@ -190,6 +191,10 @@ export default function DescriptarPage() {
           <KeyRound className="w-5 h-5 text-orange-400" />
           <h1 className="text-lg font-bold text-white">Descriptar Arquivo</h1>
           <span className="text-xs text-gray-600 ml-2 font-mono">Modo de Resgate AES-256</span>
+          <button onClick={() => setShowHelp(true)}
+            className="ml-auto flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all">
+            <HelpCircle size={14} /> Como funciona
+          </button>
         </div>
 
         <div className="bg-black/60 border border-orange-900/30 rounded-xl p-6 space-y-6 backdrop-blur-sm">
@@ -354,6 +359,28 @@ export default function DescriptarPage() {
           )}
         </div>
       </div>
+
+      {showHelp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+              <X size={18} />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                <HelpCircle className="w-5 h-5 text-blue-400" />
+              </div>
+              <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
+            </div>
+            <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
+              <p>Este módulo <strong className="text-white">decripta arquivos AES-256</strong> com extensão <code className="bg-gray-800 px-1 rounded">.enc</code> gerados pelo Vault Forense NCFN.</p>
+              <p>Arraste ou selecione o arquivo <code className="bg-gray-800 px-1 rounded">.enc</code> e informe a <strong className="text-white">chave de decriptação</strong> (senha usada no momento da criptografia).</p>
+              <p>O arquivo decriptado é disponibilizado para <strong className="text-white">download imediato</strong> junto com o hash SHA-256 para verificação de integridade.</p>
+              <p>O <strong className="text-white">evento de decriptação é registrado</strong> no log de auditoria. Para recuperação de emergência com Chave Mestra, contate o administrador via o canal seguro indicado.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -74,23 +74,45 @@ export async function GET(req: Request) {
     } catch { /* serve original se o PDF não for carregável */ }
   }
 
-  // Verificar e disparar alerta de canary file (async, não bloqueia resposta)
+  // Log all vault file accesses + canary detection (async, non-blocking)
   const [fileFolder, fileName] = filePath.includes('/')
     ? [filePath.substring(0, filePath.lastIndexOf('/')), filePath.substring(filePath.lastIndexOf('/') + 1)]
     : ['', filePath];
 
+  const ip = (req as any).headers?.get?.('x-forwarded-for') ||
+             (req as any).headers?.get?.('x-real-ip') || '0.0.0.0';
+
   if (fileFolder && fileName) {
+    // Log access to VaultAccessLog
+    prisma.vaultAccessLog.create({
+      data: {
+        filePath,
+        action: 'read',
+        userEmail: dbUser.email || 'unknown',
+        ip,
+        isCanary: false,
+      },
+    }).catch(() => {});
+
+    // Check and handle canary file
     prisma.canaryFile.findUnique({
       where: { folder_filename: { folder: fileFolder, filename: fileName } }
     }).then(async canary => {
       if (canary && canary.active) {
-        const ip = (req as any).headers?.get?.('x-forwarded-for') ||
-                   (req as any).headers?.get?.('x-real-ip') || '0.0.0.0';
         const newCount = canary.accessCount + 1;
         await Promise.all([
           prisma.canaryFile.update({
             where: { id: canary.id },
             data: { accessCount: newCount, lastAccessedAt: new Date() }
+          }),
+          prisma.vaultAccessLog.create({
+            data: {
+              filePath,
+              action: 'canary',
+              userEmail: dbUser.email || 'unknown',
+              ip,
+              isCanary: true,
+            },
           }),
           triggerCanaryAlert({
             filename: canary.filename,
@@ -102,7 +124,7 @@ export async function GET(req: Request) {
           }),
         ]);
       }
-    }).catch(() => {/* silently ignore canary errors */});
+    }).catch(() => {});
   }
 
   return new Response(fileBuffer, {

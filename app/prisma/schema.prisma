@@ -306,11 +306,17 @@ model WebCapture {
   hashScreenshot  String?
   hashPdf         String?
   hashHtml        String?
-  rfcTimestamp    String?
-  certidaoPdf     String?
-  status          String   @default("processing") // processing | done | error
-  errorMessage    String?
-  createdAt       DateTime @default(now())
+  rfcTimestamp     String?
+  certidaoPdf      String?
+  webCheckData     String?   // JSON: {dns,ssl,ip,tech,headers,cookies,robots,ports}
+  waybackUrl       String?   // URL salva no archive.org
+  blockchainTx     String?   // Hash submetido ao OriginStamp
+  blockchainVerify String?   // https://originstamp.com/v/{hash}
+  pingMs           Int?      // Latência em ms
+  siteStatus       Int?      // HTTP status code
+  status           String   @default("processing") // processing | done | error
+  errorMessage     String?
+  createdAt        DateTime @default(now())
 }
 
 model AuditLog {
@@ -347,4 +353,30 @@ model DeadMansSwitch {
   lastCheckIn     DateTime @default(now())
   lastCheckInIp   String?
   updatedAt       DateTime @updatedAt
+}
+
+model FileViewer {
+  id        String    @id @default(cuid())
+  folder    String
+  filename  String
+  email     String
+  expiresAt DateTime? // null = permanent; set = limited access (e.g. 48h)
+  createdAt DateTime  @default(now())
+
+  @@unique([folder, filename, email])
+  @@index([email])
+  @@index([folder, filename])
+}
+
+model VaultAccessLog {
+  id        String   @id @default(cuid())
+  filePath  String   // "folder/filename"
+  action    String   // read | download | custody | pericia | delete | trash | canary
+  userEmail String
+  ip        String?
+  isCanary  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([filePath])
+  @@index([createdAt])
 }

@@ -1,20 +1,5 @@
-// @ts-nocheck
-export const dynamic = "force-dynamic";
-import { fetchOneEntry } from "@builder.io/sdk-react";
-import { BUILDER_API_KEY } from "@/lib/builder";
-import BuilderSection from "@/app/components/BuilderSection";
-import HubPage from "@/app/components/HubPage";
+import { redirect } from 'next/navigation';
 
-export default async function HomePage() {
-  if (!BUILDER_API_KEY) return <HubPage />;
-
-  const content = await fetchOneEntry({
-    model: "page",
-    apiKey: BUILDER_API_KEY,
-    userAttributes: { urlPath: "/" },
-  }).catch(() => null);
-
-  if (content) return <BuilderSection model="page" content={content} />;
-
-  return <HubPage />;
+export default function RootPage() {
+    redirect('/home');
 }

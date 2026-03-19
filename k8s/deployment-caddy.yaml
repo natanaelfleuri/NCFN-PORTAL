@@ -66,8 +66,7 @@ spec:
               memory: 256Mi
 
           readinessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10

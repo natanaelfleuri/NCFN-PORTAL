@@ -1,11 +1,11 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { getSession } from '@/lib/auth';
 import { createHash, createCipheriv, randomBytes } from 'crypto';
-import { readFileSync, existsSync, statSync, appendFileSync } from 'fs';
+import { readFileSync, existsSync, statSync, appendFileSync, readdirSync } from 'fs';
 import path from 'path';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import AdmZip from 'adm-zip';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,126 +26,12 @@ function getIp(req: NextRequest): string {
   );
 }
 
-async function buildForensicPdf(p: {
-  filename: string; folder: string; size: number; mtime: Date;
-  sha256: string; md5: string; sha1: string;
-  operator: string; ip: string; downloadTime: Date;
-  encFilename: string; aesKey: string; aesIv: string; encSha256: string;
-}): Promise<Uint8Array> {
-  const doc = await PDFDocument.create();
-  const page = doc.addPage([595, 842]); // A4
-  const W = 595, H = 842;
-
-  const fMono = await doc.embedFont(StandardFonts.Courier);
-  const fBold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fReg  = await doc.embedFont(StandardFonts.Helvetica);
-
-  const C = { // colors
-    bg:     rgb(0.04, 0.04, 0.08),
-    band:   rgb(0.02, 0.02, 0.06),
-    purple: rgb(0.74, 0.07, 0.99),
-    cyan:   rgb(0.00, 0.95, 1.00),
-    white:  rgb(0.95, 0.95, 0.95),
-    gray:   rgb(0.55, 0.55, 0.60),
-    lgray:  rgb(0.30, 0.30, 0.35),
-    orange: rgb(1.00, 0.60, 0.00),
-    divider:rgb(0.15, 0.15, 0.20),
-  };
-
-  // Background
-  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: C.bg });
-
-  // Header band
-  page.drawRectangle({ x: 0, y: H - 75, width: W, height: 75, color: C.band });
-  page.drawLine({ start: { x: 0, y: H - 75 }, end: { x: W, y: H - 75 }, thickness: 2, color: C.purple });
-
-  page.drawText('NCFN', { x: 28, y: H - 44, size: 30, font: fBold, color: C.purple });
-  page.drawText('NEURAL COMPUTING & FUTURE NETWORKS', { x: 105, y: H - 34, size: 8, font: fBold, color: C.cyan });
-  page.drawText('RELATÓRIO FORENSE DE BUNDLE DE CUSTÓDIA DIGITAL', { x: 105, y: H - 50, size: 7, font: fReg, color: C.gray });
-  page.drawText(p.downloadTime.toISOString(), { x: W - 185, y: H - 34, size: 7, font: fMono, color: C.lgray });
-  page.drawText('Protocolo Imutável NCFN v1.0', { x: W - 185, y: H - 46, size: 6, font: fReg, color: C.lgray });
-
-  let y = H - 100;
-  const PAD = 28;
-
-  const section = (title: string, color = C.cyan) => {
-    y -= 4;
-    page.drawRectangle({ x: PAD, y: y - 4, width: W - PAD * 2, height: 20, color: rgb(0.0, 0.04, 0.07) });
-    page.drawRectangle({ x: PAD, y: y - 4, width: 3, height: 20, color });
-    page.drawText(title, { x: PAD + 10, y: y + 3, size: 8.5, font: fBold, color });
-    y -= 26;
-  };
-
-  const row = (label: string, value: string, mono = false, color = C.white) => {
-    page.drawText(`${label}`, { x: PAD + 6, y, size: 7.5, font: fBold, color: C.gray });
-    const maxW = 70;
-    const valX = PAD + 100;
-    const chunks = [];
-    let v = value;
-    while (v.length > 0) { chunks.push(v.slice(0, maxW)); v = v.slice(maxW); }
-    for (let i = 0; i < chunks.length; i++) {
-      page.drawText(chunks[i], { x: valX, y: y - i * 11, size: 7.5, font: mono ? fMono : fReg, color });
-    }
-    y -= (chunks.length * 11) + 3;
-  };
-
-  const divider = () => {
-    page.drawLine({ start: { x: PAD, y }, end: { x: W - PAD, y }, thickness: 0.5, color: C.divider });
-    y -= 8;
-  };
-
-  // ① Arquivo
-  section('① ARQUIVO ANALISADO');
-  row('Nome', p.filename);
-  row('Pasta (Vault)', p.folder);
-  row('Tamanho', `${p.size.toLocaleString('pt-BR')} bytes  (${(p.size / 1024 / 1024).toFixed(4)} MB)`);
-  row('Última Modificação', p.mtime.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
-  divider();
-
-  // ② Hashes
-  section('② IDENTIDADE CRIPTOGRÁFICA', C.cyan);
-  row('SHA-256', p.sha256, true);
-  row('MD5', p.md5, true);
-  row('SHA-1', p.sha1, true);
-  divider();
-
-  // ③ Acesso
-  section('③ REGISTRO DE ACESSO', C.orange);
-  row('Data/Hora (UTC)', p.downloadTime.toISOString());
-  row('Operador', p.operator);
-  row('Endereço IP', p.ip);
-  divider();
-
-  // ④ Cópia criptografada
-  section('④ CÓPIA CRIPTOGRAFADA  (AES-256-CBC)', C.purple);
-  row('Arquivo Gerado', p.encFilename);
-  row('SHA-256 (enc.)', p.encSha256, true);
-  row('Chave AES (hex)', p.aesKey, true, C.cyan);
-  row('IV AES (hex)', p.aesIv, true, C.cyan);
-  divider();
-
-  // ⑤ Deciframento
-  section('⑤ PROTOCOLO DE DECIFRAMENTO', C.lgray);
-  const cmd = `openssl enc -d -aes-256-cbc -K ${p.aesKey.slice(0, 32)} -iv ${p.aesIv} -in "${p.encFilename}" -out "${p.filename}"`;
-  const cmdNote = '(substitua -K pelo valor completo da Chave AES acima)';
-  for (const line of [cmd, cmdNote]) {
-    page.drawText(line, { x: PAD + 6, y, size: 6.5, font: fMono, color: C.cyan });
-    y -= 12;
-  }
-
-  // Footer
-  page.drawLine({ start: { x: PAD, y: 36 }, end: { x: W - PAD, y: 36 }, thickness: 0.5, color: C.divider });
-  page.drawText('Documento gerado automaticamente pelo Sistema NCFN — Protocolo Imutável de Custódia Digital v1.0', { x: PAD, y: 24, size: 6, font: fReg, color: C.lgray });
-  page.drawText(`SHA-256: ${p.sha256}`, { x: PAD, y: 13, size: 5.5, font: fMono, color: rgb(0.22, 0.22, 0.27) });
-
-  return doc.save();
-}
-
 export async function GET(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  if (!token?.email) {
+  const session = await getSession();
+  if (!session?.user?.email) {
     return NextResponse.json({ error: 'Autenticação necessária.' }, { status: 401 });
   }
+  const userEmail = session.user.email;
 
   const { searchParams } = new URL(req.url);
   const folder   = searchParams.get('folder')   || '';
@@ -176,50 +62,161 @@ export async function GET(req: NextRequest) {
     const aesIv     = randomBytes(16);
     const cipher    = createCipheriv('aes-256-cbc', aesKey, aesIv);
     const encBuffer = Buffer.concat([cipher.update(fileBuffer), cipher.final()]);
-    const encFile   = `${filename}.enc.bin`;
+    // Strip trailing .enc before appending .enc.bin to avoid double extension (e.g. file.enc.enc.bin)
+    const baseFilename = filename.endsWith('.enc') ? filename.slice(0, -4) : filename;
+    const encFile   = `${baseFilename}.enc.bin`;
     const encSha256 = createHash('sha256').update(encBuffer).digest('hex');
 
-    // PDF
-    const pdfBytes = await buildForensicPdf({
-      filename, folder,
-      size: stat.size,
-      mtime: new Date(stat.mtime),
-      sha256, md5, sha1,
-      operator: token.email,
-      ip, downloadTime: now,
-      encFilename: encFile,
-      aesKey: aesKey.toString('hex'),
-      aesIv: aesIv.toString('hex'),
-      encSha256,
-    });
+    // Gerar PDFs via custody-report: versão digital (dark) e versão impressão (white)
+    const baseUrl = new URL(req.url).origin;
+    const custodyHeaders = {
+      'Content-Type': 'application/json',
+      'cookie': req.headers.get('cookie') || '',
+    };
+    const custodyBody = { filePath: `${folder}/${filename}` };
 
-    // ZIP
+    let periciaPdfBytes: Buffer | null = null;
+    let periciaPrintBytes: Buffer | null = null;
+    try {
+      const [digitalRes, printRes] = await Promise.all([
+        fetch(`${baseUrl}/api/vault/custody-report`, {
+          method: 'POST', headers: custodyHeaders,
+          body: JSON.stringify(custodyBody),
+        }),
+        fetch(`${baseUrl}/api/vault/custody-report`, {
+          method: 'POST', headers: custodyHeaders,
+          body: JSON.stringify({ ...custodyBody, print: true }),
+        }),
+      ]);
+      if (digitalRes.ok) periciaPdfBytes = Buffer.from(await digitalRes.arrayBuffer());
+      if (printRes.ok)   periciaPrintBytes = Buffer.from(await printRes.arrayBuffer());
+    } catch { /* silencioso — ZIP continua sem PDFs se falhar */ }
+
+    // Compute PDF hashes for the verification manifest
+    const pdfDigitalSha256 = periciaPdfBytes
+      ? createHash('sha256').update(periciaPdfBytes).digest('hex') : null;
+    const pdfPrintSha256 = periciaPrintBytes
+      ? createHash('sha256').update(periciaPrintBytes).digest('hex') : null;
+
+    // VERIFICACAO_HASHES.txt — hash manifest for all files in the ZIP
+    const hashManifest = [
+      `NCFN — MANIFESTO DE VERIFICACAO CRIPTOGRAFICA`,
+      `Gerado em: ${now.toISOString()}`,
+      `Operador: ncfn@ncfn.net`,
+      `IP: ${ip}`,
+      ``,
+      `[1] ARQUIVO ORIGINAL (cofre)`,
+      `    Nome:    ${filename}`,
+      `    SHA-256: ${sha256}`,
+      `    MD5:     ${md5}`,
+      `    SHA-1:   ${sha1}`,
+      ``,
+      `[2] RELATORIO FORENSE DIGITAL (versao escura — tela)`,
+      `    Nome:    pericia_forense_ncfn_digital.pdf`,
+      `    SHA-256: ${pdfDigitalSha256 || 'N/A — PDF nao gerado'}`,
+      ``,
+      `[3] RELATORIO FORENSE IMPRESSAO (versao clara — papel)`,
+      `    Nome:    pericia_forense_ncfn_impressao.pdf`,
+      `    SHA-256: ${pdfPrintSha256 || 'N/A — PDF nao gerado'}`,
+      ``,
+      `COMO VERIFICAR:`,
+      `  Linux/Mac:  sha256sum <arquivo>`,
+      `  Windows:    certutil -hashfile <arquivo> SHA256`,
+      ``,
+      `Qualquer divergencia de um unico caractere invalida a integridade do arquivo.`,
+    ].join('\n');
+
+    // ── Recuperar arquivo original plaintext ──────────────────────────────
+    // Caso 1: arquivo ainda não encriptado → ele mesmo é o original
+    // Caso 2: arquivo é .enc → busca plaintext no BURN (manifesto ou scan)
+    let originalBuffer: Buffer | null = null;
+    let originalFilename: string | null = null;
+
+    if (!filename.endsWith('.enc')) {
+      // O próprio arquivo é o original
+      originalBuffer   = fileBuffer;
+      originalFilename = filename;
+    } else {
+      // Tenta manifesto primeiro, depois faz scan pelo padrão timestamp_basename
+      try {
+        const burnDir      = path.join(VAULT_DIR, '100_BURN_IMMUTABILITY');
+        const manifestPath = path.join(burnDir, '_burn_manifest.json');
+        let burnFile: string | null = null;
+
+        if (existsSync(manifestPath)) {
+          const manifest: Record<string, string> = JSON.parse(readFileSync(manifestPath, 'utf8'));
+          burnFile = manifest[`${folder}/${baseFilename}`]
+                  || manifest[`${folder}/${filename}`]
+                  || null;
+        }
+
+        // Fallback: scan por `*_${baseFilename}` no diretório BURN
+        if (!burnFile && existsSync(burnDir)) {
+          const entries = readdirSync(burnDir).filter(
+            f => f.endsWith(`_${baseFilename}`) && !f.endsWith('.enc.bin')
+          );
+          if (entries.length > 0) {
+            // Pega o mais recente (maior timestamp prefix)
+            entries.sort((a, b) => {
+              const ta = parseInt(a.split('_')[0]) || 0;
+              const tb = parseInt(b.split('_')[0]) || 0;
+              return tb - ta;
+            });
+            burnFile = entries[0];
+          }
+        }
+
+        if (burnFile) {
+          const burnPath = path.join(burnDir, burnFile);
+          if (existsSync(burnPath)) {
+            originalBuffer   = readFileSync(burnPath);
+            originalFilename = baseFilename;
+          }
+        }
+      } catch {}
+    }
+
+    // ZIP: arquivo(s) + PDFs + hash manifest
     const zip = new AdmZip();
-    zip.addFile(filename, fileBuffer);
-    zip.addFile(encFile, encBuffer);
-    zip.addFile('relatorio_forense_ncfn.pdf', Buffer.from(pdfBytes));
+    if (originalBuffer && originalFilename && filename.endsWith('.enc')) {
+      // Arquivo encriptado: inclui original plaintext + versão .enc
+      zip.addFile(`ORIGINAL_${originalFilename}`, originalBuffer);
+      zip.addFile(filename, fileBuffer);
+    } else if (originalBuffer && originalFilename) {
+      // Arquivo não encriptado: inclui diretamente como original
+      zip.addFile(originalFilename, originalBuffer);
+    } else {
+      // Fallback: só o arquivo do cofre
+      zip.addFile(filename, fileBuffer);
+    }
+    if (periciaPdfBytes)   zip.addFile('pericia_forense_ncfn_digital.pdf', periciaPdfBytes);
+    if (periciaPrintBytes) zip.addFile('pericia_forense_ncfn_impressao.pdf', periciaPrintBytes);
+    zip.addFile('VERIFICACAO_HASHES.txt', Buffer.from(hashManifest, 'utf-8'));
     const zipBuf = zip.toBuffer();
 
-    // Access log
+    // Access log (file + DB)
     const logPath = path.join(VAULT_DIR, folder, '_registros_acesso.txt');
     try {
       appendFileSync(logPath,
-        `[BUNDLE] ${now.toISOString()} | ${token.email} | IP: ${ip} | ${filename} | sha256=${sha256}\n`
+        `[BUNDLE] ${now.toISOString()} | ${userEmail} | IP: ${ip} | ${filename} | sha256=${sha256}\n`
       );
     } catch {}
+    prisma.vaultAccessLog.create({
+      data: { filePath: `${folder}/${filename}`, action: 'download', userEmail: userEmail || 'unknown', ip, isCanary: false },
+    }).catch(() => {});
 
     // Burn copy — salva cópia AES imutável em 100_BURN_IMMUTABILITY (acumulativa)
     try {
       const { mkdirSync, writeFileSync } = await import('fs');
       const burnDir = path.join(VAULT_DIR, '100_BURN_IMMUTABILITY');
       mkdirSync(burnDir, { recursive: true });
-      writeFileSync(path.join(burnDir, `${now.getTime()}_${filename}.enc.bin`), encBuffer);
+      writeFileSync(path.join(burnDir, `${now.getTime()}_${baseFilename}.enc.bin`), encBuffer);
       appendFileSync(path.join(burnDir, '_registros_burn.txt'),
-        `[BURN] ${now.toISOString()} | ${token.email} | IP: ${ip} | ${filename} | sha256_enc=${encSha256}\n`
+        `[BURN] ${now.toISOString()} | ${userEmail} | IP: ${ip} | ${filename} | sha256_enc=${encSha256}\n`
       );
     } catch {} // falha silenciosa — não bloquear o download
 
-    const zipName = `bundle_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}_${now.getTime()}.zip`;
+    const zipName = `COFRE_${baseFilename.replace(/[^a-zA-Z0-9._-]/g, '_')}_${now.getTime()}.zip`;
 
     return new NextResponse(zipBuf, {
       status: 200,
@@ -228,7 +225,7 @@ export async function GET(req: NextRequest) {
         'Content-Disposition': `attachment; filename="${zipName}"`,
         'Content-Length': zipBuf.length.toString(),
         'X-NCFN-SHA256': sha256,
-        'X-NCFN-Operator': token.email,
+        'X-NCFN-Operator': userEmail,
       },
     });
   } catch (err: any) {

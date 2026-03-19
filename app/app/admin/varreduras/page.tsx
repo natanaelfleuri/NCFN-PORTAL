@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Radar, Play, Clock, CheckCircle, XCircle, AlertTriangle,
-  Zap, RefreshCw, Loader2, Hash, ArrowLeft, Calendar, Tag
+  Zap, RefreshCw, Loader2, Hash, ArrowLeft, Calendar, Tag, HelpCircle, X
 } from "lucide-react";
 import Link from "next/link";
 
@@ -48,6 +48,7 @@ export default function VarredurasPage() {
   const [runningManual, setRunningManual] = useState(false);
   const [manualResult, setManualResult] = useState<any>(null);
   const [selected, setSelected] = useState<ScanItem | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const IS_ADMIN_ROLE = "admin";
 
@@ -137,6 +138,10 @@ export default function VarredurasPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowHelp(true)}
+            className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all">
+            <HelpCircle size={14} /> Como funciona
+          </button>
           <button onClick={fetchData} className="p-2 text-gray-500 hover:text-[#bc13fe] transition border border-gray-800 rounded-lg hover:border-[#bc13fe]/30">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -293,6 +298,28 @@ export default function VarredurasPage() {
           </div>
         )}
       </div>
+
+      {showHelp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+              <X size={18} />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                <HelpCircle className="w-5 h-5 text-blue-400" />
+              </div>
+              <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
+            </div>
+            <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
+              <p>Este módulo executa <strong className="text-white">varreduras OSINT automatizadas</strong> utilizando ferramentas como Sherlock, theHarvester e Nmap em um ambiente Docker Kali Linux isolado.</p>
+              <p>As varreduras são <strong className="text-white">agendadas automaticamente</strong> às terças, sextas e domingos às 03h00, ou podem ser disparadas manualmente pelo administrador.</p>
+              <p>Os resultados buscam <strong className="text-white">rastros digitais</strong> de alvos monitorados em fontes públicas, redes sociais e infraestrutura de rede — todos registrados com hash SHA-256.</p>
+              <p>Os resultados das varreduras são automaticamente salvos na <strong className="text-white">Custódia de Evidências</strong> com análise de IA e podem ser consultados no módulo de Relatórios.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

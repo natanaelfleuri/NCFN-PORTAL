@@ -70,6 +70,25 @@ export async function POST(req: Request) {
         const encBuffer = Buffer.concat([iv, cipher.update(buffer), cipher.final()]);
         await fs.writeFile(`${filePath}.enc.bin`, encBuffer);
 
+        // ── Cópia de imutabilidade em 100_BURN_IMMUTABILITY ──────────────
+        try {
+          const burnDir = path.join(rootPath, '100_BURN_IMMUTABILITY');
+          await fs.ensureDir(burnDir);
+          // Salva cópia plaintext (original) com prefixo de timestamp
+          const burnFilename = `${Date.now()}_${safeFilename}`;
+          await fs.copyFile(filePath, path.join(burnDir, burnFilename));
+          // Manifesto: mapeia folder/filename → burnFilename para recuperação no ZIP
+          const manifestPath = path.join(burnDir, '_burn_manifest.json');
+          let manifest: Record<string, string> = {};
+          try { manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch {}
+          manifest[`${folder}/${safeFilename}`] = burnFilename;
+          await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+          await fs.appendFile(
+            path.join(burnDir, '_registros_burn.txt'),
+            `[UPLOAD_BURN] ${new Date().toISOString()} | ${session.user.email} | ${folder}/${safeFilename} | SHA-256=${fileHash} | burn=${burnFilename}\n`,
+          );
+        } catch {} // falha silenciosa
+
         // ── Relatório forense de recepção ─────────────────────────────────
         const sha256hash = fileHash; // already computed above
         const md5hash = crypto.createHash('md5').update(buffer).digest('hex');

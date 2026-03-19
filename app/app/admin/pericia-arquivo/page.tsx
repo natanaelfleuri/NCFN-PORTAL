@@ -1,12 +1,14 @@
 "use client";
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Search, ShieldAlert, Loader2, FileSearch, Hash, HardDrive,
   Monitor, AlertTriangle, CheckCircle2,
   ChevronDown, ChevronRight, Folder, FolderOpen, Copy, FileText,
-  HelpCircle, X, Save, Trash2, PlusCircle, BookOpen
+  HelpCircle, X, Save, Trash2, PlusCircle, BookOpen, ArrowLeft,
+  Clock, Info, FileBadge,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import AIModelSelector from "@/app/components/AIModelSelector";
 
 interface VaultFile {
@@ -32,6 +34,13 @@ interface Laudo {
   metadados: Record<string, string>;
   achados: string[];
   integridadeConfirmada: boolean;
+  _version?: number;
+  _savedAt?: string;
+}
+
+interface PericiaVersion {
+  version: number;
+  savedAt: string;
 }
 
 const FOLDER_LABELS: Record<string, string> = {
@@ -64,6 +73,10 @@ function formatBytes(b: number) {
   return `${(b / 1048576).toFixed(2)} MB`;
 }
 
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -79,6 +92,7 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function PericiaArquivoInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [folders, setFolders] = useState<Record<string, VaultFolder>>({});
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
@@ -87,6 +101,11 @@ function PericiaArquivoInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [metaOpen, setMetaOpen] = useState(true);
+
+  // Pericia versions
+  const [versions, setVersions] = useState<PericiaVersion[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [loadingVersion, setLoadingVersion] = useState<number | null>(null);
 
   // Stage progress
   const [currentStage, setCurrentStage] = useState(-1);
@@ -108,12 +127,74 @@ function PericiaArquivoInner() {
         const folder = searchParams?.get('folder');
         const file = searchParams?.get('file');
         if (folder && file) {
-          setSelectedPath(`${folder}/${file}`);
+          const filePath = `${folder}/${file}`;
+          setSelectedPath(filePath);
           setOpenFolders(new Set([folder]));
         }
       })
       .catch(() => {});
   }, [searchParams]);
+
+  // ── Fetch saved versions when file is selected ───────────────────────────
+  const fetchVersions = useCallback(async (filePath: string) => {
+    if (!filePath) return;
+    setLoadingVersions(true);
+    try {
+      const res = await fetch(`/api/admin/pericia-versions?filePath=${encodeURIComponent(filePath)}`);
+      if (res.ok) setVersions(await res.json());
+      else setVersions([]);
+    } catch { setVersions([]); }
+    finally { setLoadingVersions(false); }
+  }, []);
+
+  useEffect(() => {
+    if (selectedPath) {
+      setLaudo(null);
+      setCompletedStages([]);
+      setCurrentStage(-1);
+      setError('');
+      fetchVersions(selectedPath);
+    } else {
+      setVersions([]);
+    }
+  }, [selectedPath, fetchVersions]);
+
+  // ── Derived: file info from folder list ─────────────────────────────────
+  const selectedFileInfo = useMemo(() => {
+    if (!selectedPath) return null;
+    for (const folder of Object.values(folders)) {
+      const file = folder.files.find(f => f.path === selectedPath);
+      if (file) return file;
+    }
+    return null;
+  }, [selectedPath, folders]);
+
+  // ── Versions sorted newest first ────────────────────────────────────────
+  const sortedVersions = useMemo(
+    () => [...versions].sort((a, b) => b.version - a.version),
+    [versions]
+  );
+
+  // ── Load a specific saved version ───────────────────────────────────────
+  const loadVersion = async (versionNum: number) => {
+    if (!selectedPath) return;
+    setLoadingVersion(versionNum);
+    setError('');
+    try {
+      const res = await fetch(
+        `/api/admin/pericia-versions?filePath=${encodeURIComponent(selectedPath)}&version=${versionNum}`
+      );
+      if (!res.ok) throw new Error('Versão não encontrada');
+      const data = await res.json();
+      setLaudo(data);
+      setCompletedStages([0, 1, 2, 3]);
+      setCurrentStage(-1);
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingVersion(null);
+    }
+  };
 
   const startStageAnimation = () => {
     setCurrentStage(0);
@@ -146,9 +227,18 @@ function PericiaArquivoInner() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      // Wait for animation to finish if still running
       await new Promise(resolve => setTimeout(resolve, 2600));
       setLaudo(data);
+      logAction(selectedPath, 'pericia');
+
+      // Auto-save version to server (keep last 2)
+      fetch('/api/admin/pericia-versions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: selectedPath, laudo: data }),
+      })
+        .then(() => fetchVersions(selectedPath))
+        .catch(() => {});
     } catch (e: unknown) {
       if (stageTimer.current) clearInterval(stageTimer.current);
       setCurrentStage(-1);
@@ -156,17 +246,6 @@ function PericiaArquivoInner() {
       setError((e as Error).message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSaveLaudo = async () => {
-    if (!laudo) return;
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(laudo, null, 2));
-      // Toast would be ideal but we use a simple alert approach
-      alert('Laudo copiado para clipboard (salvo localmente).');
-    } catch {
-      alert('Não foi possível salvar o laudo.');
     }
   };
 
@@ -208,10 +287,28 @@ function PericiaArquivoInner() {
 
   const isRunning = loading || currentStage >= 0;
 
+  const logAction = async (filePath: string, action: string) => {
+    try {
+      await fetch('/api/vault/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath, action }),
+      });
+    } catch {}
+  };
+
   return (
-    <div className="min-h-screen p-6 max-w-7xl mx-auto">
+    <div className="min-h-screen p-6 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="mb-8">
+        <div className="mb-4">
+          <button
+            onClick={() => router.push('/vault')}
+            className="flex items-center gap-2 px-4 py-2 bg-violet-900/30 hover:bg-violet-800/40 text-violet-300 border border-violet-700/40 rounded-xl text-sm font-bold transition-all"
+          >
+            <ArrowLeft size={15} /> VOLTAR AO ARQUIVO DO COFRE
+          </button>
+        </div>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div>
@@ -235,7 +332,8 @@ function PericiaArquivoInner() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* File selector */}
+
+        {/* ── File selector ─────────────────────────────────────────────── */}
         <div className="lg:col-span-3 glass-panel rounded-2xl border border-white/10 p-4 flex flex-col gap-2">
           <h2 className="text-sm font-bold text-white/70 uppercase tracking-widest mb-2 flex items-center gap-2">
             <Folder size={14} /> Selecionar Arquivo
@@ -288,13 +386,138 @@ function PericiaArquivoInner() {
               className="w-full py-3 bg-[#00f3ff]/10 hover:bg-[#00f3ff]/20 text-[#00f3ff] rounded-xl font-bold text-sm transition-all border border-[#00f3ff]/30 disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {isRunning ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-              {isRunning ? 'Analisando...' : 'Iniciar Perícia'}
+              {isRunning ? 'Analisando...' : laudo ? 'Realizar Nova Perícia' : 'Iniciar Perícia'}
             </button>
           </div>
         </div>
 
-        {/* Results + Progress */}
-        <div className="lg:col-span-7 space-y-4">
+        {/* ── File detail + versions panel (visible when file selected) ──── */}
+        {selectedPath && (
+          <div className="lg:col-span-3 glass-panel rounded-2xl border border-white/10 p-4 flex flex-col gap-5">
+
+            {/* File info */}
+            <div>
+              <h2 className="text-xs font-bold text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Info size={12} /> Detalhes do Arquivo
+              </h2>
+              <div className="space-y-3">
+                <div className="bg-black/30 rounded-xl p-3 space-y-2">
+                  <div>
+                    <p className="text-[9px] text-gray-600 uppercase tracking-widest mb-0.5">Nome</p>
+                    <p className="text-white text-xs font-mono break-all leading-tight">
+                      {selectedPath.split('/').slice(1).join('/')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-gray-600 uppercase tracking-widest mb-0.5">Pasta</p>
+                    <p className="text-[#00f3ff] text-[10px] font-mono">
+                      {FOLDER_LABELS[selectedPath.split('/')[0]] || selectedPath.split('/')[0]}
+                    </p>
+                  </div>
+                  {selectedFileInfo && (
+                    <>
+                      <div>
+                        <p className="text-[9px] text-gray-600 uppercase tracking-widest mb-0.5">Tamanho</p>
+                        <p className="text-gray-300 text-[10px] font-mono">{formatBytes(selectedFileInfo.size)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-gray-600 uppercase tracking-widest mb-0.5">Tipo</p>
+                        <p className="text-gray-300 text-[10px] font-mono">{selectedFileInfo.type || '—'}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* RELATÓRIOS GERADOS */}
+            <div className="flex-1 flex flex-col">
+              <div className="flex items-center gap-2 mb-1">
+                <FileBadge size={12} className="text-[#bc13fe]" />
+                <h3 className="text-xs font-bold text-white/70 uppercase tracking-widest">Relatórios Gerados</h3>
+                {loadingVersions && <Loader2 size={10} className="animate-spin text-gray-500" />}
+              </div>
+
+              {/* Explanation */}
+              <div className="bg-[#bc13fe]/5 border border-[#bc13fe]/15 rounded-xl p-3 mb-3">
+                <p className="text-[10px] text-gray-400 leading-relaxed">
+                  <span className="text-[#bc13fe] font-bold">Política de versionamento:</span>{' '}
+                  O sistema preserva apenas as <strong className="text-white">2 versões mais recentes</strong> de perícia por arquivo.
+                  Ao gerar uma nova, a versão mais antiga é automaticamente removida, garantindo rastreabilidade sem acúmulo de dados.
+                </p>
+              </div>
+
+              {/* Thumbnail grid — 6 slots, newest first */}
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const v = sortedVersions[i];
+                  if (v) {
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => loadVersion(v.version)}
+                        disabled={loadingVersion === v.version}
+                        className="flex flex-col items-center gap-1.5 p-2.5 bg-[#bc13fe]/8 border border-[#bc13fe]/25 rounded-xl hover:border-[#bc13fe]/60 hover:bg-[#bc13fe]/15 transition-all group relative"
+                        title={`Versão ${v.version} — ${fmtDate(v.savedAt)}`}
+                      >
+                        {loadingVersion === v.version
+                          ? <Loader2 size={18} className="text-[#bc13fe] animate-spin" />
+                          : <FileText size={18} className="text-[#bc13fe] group-hover:text-white transition-colors" />
+                        }
+                        <span className="text-[11px] font-black text-[#bc13fe] group-hover:text-white transition-colors">
+                          V{v.version}
+                        </span>
+                        <span className="text-[8px] text-gray-600 font-mono text-center leading-tight">
+                          {new Date(v.savedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                        </span>
+                        <span className="text-[7px] text-gray-700 font-mono">
+                          {new Date(v.savedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </button>
+                    );
+                  }
+                  return (
+                    <div
+                      key={i}
+                      className="flex flex-col items-center gap-1.5 p-2.5 border border-white/5 rounded-xl opacity-25"
+                    >
+                      <FileText size={18} className="text-gray-700" />
+                      <span className="text-[11px] font-black text-gray-700">V{i + 1}</span>
+                      <span className="text-[8px] text-gray-800">—</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {versions.length === 0 && !loadingVersions && (
+                <p className="text-[10px] text-gray-700 text-center mt-3 font-mono italic">
+                  Nenhuma perícia salva para este arquivo
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="border-t border-white/10 pt-3 space-y-2">
+              <button
+                onClick={handleExcluir}
+                disabled={!laudo}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-white/10 bg-gray-900/50 hover:border-red-500/40 hover:bg-red-500/5 transition-all disabled:opacity-30 text-xs text-gray-400 hover:text-red-400 font-bold"
+              >
+                <Trash2 size={13} /> Limpar sessão
+              </button>
+              <button
+                onClick={() => setShowReport(true)}
+                disabled={!laudo}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-white/10 bg-gray-900/50 hover:border-[#00f3ff]/40 hover:bg-[#00f3ff]/5 transition-all disabled:opacity-30 text-xs text-gray-400 hover:text-[#00f3ff] font-bold"
+              >
+                <PlusCircle size={13} /> Adicionar Relatório
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Results + Progress ──────────────────────────────────────────── */}
+        <div className={`${selectedPath ? 'lg:col-span-6' : 'lg:col-span-7'} space-y-4`}>
 
           {/* Stage Progress Bar */}
           {(isRunning || completedStages.length > 0) && (
@@ -346,12 +569,30 @@ function PericiaArquivoInner() {
           {!laudo && !error && !isRunning && completedStages.length === 0 && (
             <div className="glass-panel rounded-2xl border border-white/10 p-12 flex flex-col items-center justify-center text-center gap-4">
               <FileSearch size={56} className="text-[#00f3ff]/20" />
-              <p className="text-gray-600 text-sm">Selecione um arquivo e clique em &quot;Iniciar Perícia&quot;</p>
+              <p className="text-gray-600 text-sm">
+                {selectedPath
+                  ? 'Clique em "Iniciar Perícia" para analisar o arquivo selecionado, ou carregue uma versão salva no painel ao lado.'
+                  : 'Selecione um arquivo no painel esquerdo para começar.'
+                }
+              </p>
             </div>
           )}
 
           {laudo && (
             <>
+              {/* Header: loaded version info */}
+              {laudo._version && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-[#bc13fe]/8 border border-[#bc13fe]/20 rounded-xl">
+                  <FileBadge size={13} className="text-[#bc13fe]" />
+                  <span className="text-xs text-[#bc13fe] font-bold">Exibindo Versão V{laudo._version}</span>
+                  {laudo._savedAt && (
+                    <span className="text-[10px] text-gray-500 font-mono ml-auto flex items-center gap-1">
+                      <Clock size={9} /> Salvo em {fmtDate(laudo._savedAt)}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Summary */}
               <div className="glass-panel rounded-2xl border border-[#00f3ff]/20 p-5">
                 <div className="flex items-start justify-between mb-4">
@@ -447,47 +688,37 @@ function PericiaArquivoInner() {
           )}
         </div>
 
-        {/* Action Sidebar */}
-        <div className="lg:col-span-2 flex flex-col gap-3">
-          <h2 className="text-xs font-bold text-white/40 uppercase tracking-widest">Ações</h2>
-
-          <button
-            onClick={handleSaveLaudo}
-            disabled={!laudo}
-            className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-white/10 bg-gray-900/50 hover:border-green-500/40 hover:bg-green-500/5 transition-all disabled:opacity-30 group"
-          >
-            <Save size={20} className="text-gray-400 group-hover:text-green-400 transition-colors" />
-            <span className="text-xs text-gray-400 group-hover:text-green-400 font-bold uppercase tracking-widest transition-colors text-center">Salvar Laudo</span>
-          </button>
-
-          <button
-            onClick={handleExcluir}
-            disabled={!laudo}
-            className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-white/10 bg-gray-900/50 hover:border-red-500/40 hover:bg-red-500/5 transition-all disabled:opacity-30 group"
-          >
-            <Trash2 size={20} className="text-gray-400 group-hover:text-red-400 transition-colors" />
-            <span className="text-xs text-gray-400 group-hover:text-red-400 font-bold uppercase tracking-widest transition-colors text-center">Excluir</span>
-          </button>
-
-          <button
-            onClick={() => setShowReport(true)}
-            disabled={!laudo}
-            className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-white/10 bg-gray-900/50 hover:border-[#00f3ff]/40 hover:bg-[#00f3ff]/5 transition-all disabled:opacity-30 group"
-          >
-            <PlusCircle size={20} className="text-gray-400 group-hover:text-[#00f3ff] transition-colors" />
-            <span className="text-xs text-gray-400 group-hover:text-[#00f3ff] font-bold uppercase tracking-widest transition-colors text-center leading-tight">Adicionar Relatório</span>
-          </button>
-
-          <div className="mt-auto">
+        {/* ── Action Sidebar (when no file selected) ─────────────────────── */}
+        {!selectedPath && (
+          <div className="lg:col-span-2 flex flex-col gap-3">
+            <h2 className="text-xs font-bold text-white/40 uppercase tracking-widest">Ações</h2>
             <button
-              onClick={() => setShowHelp(true)}
-              className="w-full flex flex-col items-center gap-2 p-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all group"
+              onClick={handleExcluir}
+              disabled={!laudo}
+              className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-white/10 bg-gray-900/50 hover:border-red-500/40 hover:bg-red-500/5 transition-all disabled:opacity-30 group"
             >
-              <BookOpen size={18} className="text-gray-600 group-hover:text-white transition-colors" />
-              <span className="text-[10px] text-gray-600 group-hover:text-white transition-colors text-center">Ajuda</span>
+              <Trash2 size={20} className="text-gray-400 group-hover:text-red-400 transition-colors" />
+              <span className="text-xs text-gray-400 group-hover:text-red-400 font-bold uppercase tracking-widest transition-colors text-center">Excluir</span>
             </button>
+            <button
+              onClick={() => setShowReport(true)}
+              disabled={!laudo}
+              className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-white/10 bg-gray-900/50 hover:border-[#00f3ff]/40 hover:bg-[#00f3ff]/5 transition-all disabled:opacity-30 group"
+            >
+              <PlusCircle size={20} className="text-gray-400 group-hover:text-[#00f3ff] transition-colors" />
+              <span className="text-xs text-gray-400 group-hover:text-[#00f3ff] font-bold uppercase tracking-widest transition-colors text-center leading-tight">Adicionar Relatório</span>
+            </button>
+            <div className="mt-auto">
+              <button
+                onClick={() => setShowHelp(true)}
+                className="w-full flex flex-col items-center gap-2 p-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all group"
+              >
+                <BookOpen size={18} className="text-gray-600 group-hover:text-white transition-colors" />
+                <span className="text-[10px] text-gray-600 group-hover:text-white transition-colors text-center">Ajuda</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Help Modal */}
@@ -504,8 +735,8 @@ function PericiaArquivoInner() {
               <h2 className="font-black text-white text-lg uppercase tracking-widest">Como essa página funciona</h2>
             </div>
             <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
-              <p><strong className="text-white">1. Selecione um arquivo</strong> do Vault no painel esquerdo. Arquivos das pastas Ultrasecretos e Provas Sensíveis acionam limpeza automática de cache após a perícia.</p>
-              <p><strong className="text-white">2. Clique em &quot;Iniciar Perícia&quot;</strong> para processar o arquivo em 4 etapas:</p>
+              <p><strong className="text-white">1. Selecione um arquivo</strong> do Vault no painel esquerdo para ver detalhes e versões salvas.</p>
+              <p><strong className="text-white">2. Clique em &quot;Iniciar Perícia&quot;</strong> para processar em 4 etapas:</p>
               <ol className="space-y-1 pl-4">
                 {STAGES.map((s, i) => (
                   <li key={i} className="text-xs font-mono text-[#00f3ff]/80 flex gap-2">
@@ -513,10 +744,8 @@ function PericiaArquivoInner() {
                   </li>
                 ))}
               </ol>
-              <p><strong className="text-white">3. Ações disponíveis</strong> após a análise: Salvar Laudo (JSON), Excluir da sessão, ou Adicionar Relatório ao caso forense.</p>
-              <div className="bg-gray-900 rounded-xl p-3 text-xs text-gray-500 font-mono">
-                Hash SHA-256 · SHA-1 · MD5 | ExifTool metadata | Achados heurísticos | Cadeia de custódia
-              </div>
+              <p><strong className="text-white">3. Versões salvas automaticamente:</strong> cada perícia é salva no sistema. O sistema mantém apenas as 2 versões mais recentes por arquivo — a mais antiga é removida automaticamente.</p>
+              <p><strong className="text-white">4. Clique em uma miniatura</strong> (V1, V2...) no painel central para carregar e visualizar uma versão anterior sem refazer a análise.</p>
             </div>
           </div>
         </div>
@@ -535,7 +764,6 @@ function PericiaArquivoInner() {
               </div>
               <h2 className="font-black text-white text-lg uppercase tracking-widest">Adicionar Relatório</h2>
             </div>
-
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Caso / Incidente</label>
@@ -548,17 +776,16 @@ function PericiaArquivoInner() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Notas de Observação do Perito (Markdown)</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Notas do Perito (Markdown)</label>
                 <textarea
                   value={peritoNotes}
                   onChange={e => setPeritoNotes(e.target.value)}
-                  placeholder="## Observações&#10;&#10;Descreva os achados relevantes, conclusões técnicas e recomendações..."
+                  placeholder="## Observações&#10;&#10;Descreva achados relevantes, conclusões e recomendações..."
                   rows={6}
                   className="w-full bg-gray-900 border border-gray-700 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#00f3ff]/50 focus:border-transparent outline-none text-sm font-mono resize-none"
                 />
               </div>
             </div>
-
             <div className="flex gap-3">
               <button
                 onClick={() => setShowReport(false)}

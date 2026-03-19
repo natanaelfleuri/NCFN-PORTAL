@@ -26,12 +26,23 @@ services:
       - CRON_SECRET=${CRON_SECRET}
       - MASTER_UNLOCK_KEY=${MASTER_UNLOCK_KEY}
       - PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+      - WEB_CHECK_URL=http://web-check:3000
       - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+      - DEV_BYPASS=true
     env_file:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: sh -c "apk add --no-cache exiftool file python3 make g++ chromium nss freetype harfbuzz ca-certificates ttf-freefont 2>/dev/null || true && chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
+    restart: unless-stopped
+
+  web-check:
+    image: lissy93/web-check
+    container_name: ncfn_web_check
+    ports:
+      - "3005:3000"
+    environment:
+      - API_ENABLE_RATE_LIMIT=false
     restart: unless-stopped
 
   caddy:
@@ -55,7 +66,7 @@ services:
     restart: unless-stopped
     # network_mode: host → localhost:3002 resolve para o host (onde portal expõe a porta)
     network_mode: host
-    command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiYzFlOWI4ZjEtNTAxMS00MGZhLTg4NDAtYjIyMTJjMDJhYmM3IiwicyI6Ik1qVXpZakJtWXpRdE4yVmxPUzAwWVRreUxUazNaREF0WldNNU1HRTFPVGRqWlRBMyJ9
+    command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiMTZhMTVlYmQtNDJjNS00ZDMwLTg0NGUtNTFiN2YyNjYyMzRmIiwicyI6Ik1qazRNbU0zWXpNdE1UTmhOQzAwT0RFMExXRmlNVEF0WWpZM05EWmtZV05rTlRjeCJ9
 
   # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
   # Ativar: docker compose --profile whisper up -d

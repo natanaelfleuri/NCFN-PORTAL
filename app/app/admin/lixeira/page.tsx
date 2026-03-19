@@ -3,7 +3,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import {
     Trash2, RotateCcw, Download, Clock, AlertTriangle,
-    Shield, FileText, Timer, X
+    Shield, FileText, Timer, X, HelpCircle
 } from 'lucide-react';
 
 type TrashItem = {
@@ -60,6 +60,8 @@ export default function LixeiraPage() {
     const [confirmed, setConfirmed] = useState(false);
     const [purging, setPurging] = useState(false);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+    const [showHelp, setShowHelp] = useState(false);
 
     // Global purge modal
     const [globalPurgeModal, setGlobalPurgeModal] = useState(false);
@@ -208,6 +210,12 @@ export default function LixeiraPage() {
                         <p className="text-purple-300 font-mono text-xs tracking-[0.3em] uppercase">
                             · PROTOCOLO DE PURGAÇÃO FORENSE ·
                         </p>
+                        <div className="flex justify-center mt-2">
+                            <button onClick={() => setShowHelp(true)}
+                                className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all">
+                                <HelpCircle size={14} /> Como funciona
+                            </button>
+                        </div>
                         <p className="text-slate-500 text-sm font-mono">
                             Arquivos são purgados automaticamente após 10 dias. Operações registradas em LOG criptográfico.
                         </p>
@@ -363,6 +371,28 @@ export default function LixeiraPage() {
                     </div>
                 )}
             </div>
+
+            {showHelp && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
+                        <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+                            <X size={18} />
+                        </button>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                                <HelpCircle className="w-5 h-5 text-blue-400" />
+                            </div>
+                            <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
+                        </div>
+                        <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
+                            <p>A <strong className="text-white">Lixeira Virtual</strong> armazena temporariamente arquivos excluídos do Vault antes de sua eliminação definitiva.</p>
+                            <p>Os arquivos ficam retidos por <strong className="text-white">10 dias</strong> e podem ser <strong className="text-white">restaurados</strong> para a pasta de origem a qualquer momento durante esse período.</p>
+                            <p>A <strong className="text-white">exclusão permanente</strong> sobrescreve o arquivo fisicamente e registra um log criptográfico com o identificador do operador e timestamp — garantindo rastreabilidade total.</p>
+                            <p>Uma vez excluído permanentemente, o arquivo <strong className="text-white">não pode ser recuperado</strong>. O hash do arquivo é registrado no LOG DE PURGAÇÃO para fins de auditoria.</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── SINGLE PURGE MODAL ── */}
             {purgeTarget && (

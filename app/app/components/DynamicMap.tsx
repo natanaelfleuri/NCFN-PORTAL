@@ -132,8 +132,8 @@ export default function DynamicMap({
   return (
     <div
       ref={mapRef}
-      style={{ height: '100%', width: '100%', borderRadius: '0.75rem' }}
-      className="z-0"
+      style={{ height: '100%', width: '100%', borderRadius: '0.75rem', backgroundColor: '#000' }}
+      className="z-0 [&_.leaflet-tile-pane]:bg-black [&_.leaflet-container]:bg-black"
     />
   );
 }

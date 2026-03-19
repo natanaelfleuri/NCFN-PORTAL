@@ -81,7 +81,46 @@ const TEXT_EXTS = new Set([
     '.js', '.ts', '.sql', '.yaml', '.yml', '.rtf', '.eml',
 ]);
 
-const IGNORE_DIRS = new Set(['.obsidian', '.trash', '.smart-env', '.git', 'RELATORIOS', 'COMANDOS - PERITO SANSÃO']);
+const IGNORE_DIRS   = new Set(['.obsidian', '.trash', '.smart-env', '.git', 'RELATORIOS', 'COMANDOS - PERITO SANSÃO']);
+const SANSAO_STATUS_FILE = '_sansao_status.json';
+const DATE_FIELDS = ['FileModifyDate', 'FileAccessDate', 'FileInodeChangeDate', 'FileAcessDate'];
+
+// Post-process Ollama analysis: replace ALTERADO→MODIFICADO in date field contexts
+function processAnalysis(text: string): { processed: string; hasModified: boolean } {
+    let processed = text;
+    let hasModified = false;
+    for (const field of DATE_FIELDS) {
+        // Match the field line or surrounding text containing ALTERADO
+        const regex = new RegExp(`(${field}[^\n]*?)\\bALTERADO\\b`, 'gi');
+        if (regex.test(processed)) {
+            hasModified = true;
+            processed = processed.replace(new RegExp(`(${field}[^\n]*?)\\bALTERADO\\b`, 'gi'), '$1MODIFICADO');
+        }
+    }
+    // Also handle generic ALTERADO near these field names in same paragraph
+    for (const field of DATE_FIELDS) {
+        const blockRegex = new RegExp(`(${field}[\\s\\S]{0,300}?)\\bALTERADO\\b`, 'gi');
+        if (blockRegex.test(processed)) {
+            hasModified = true;
+            processed = processed.replace(new RegExp(`(${field}[\\s\\S]{0,300}?)\\bALTERADO\\b`, 'gi'), '$1MODIFICADO');
+        }
+    }
+    return { processed, hasModified };
+}
+
+async function writeSansaoStatus(folder: string, filename: string, status: 'ÍNTEGRO' | 'SUSPEITO', lastCheck: string) {
+    try {
+        const folderPath = path.join(COFRE_BASE, folder);
+        const statusPath = path.join(folderPath, SANSAO_STATUS_FILE);
+        if (!statusPath.startsWith(COFRE_BASE)) return;
+        let current: Record<string, any> = {};
+        try {
+            if (fs.existsSync(statusPath)) current = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+        } catch (_) {}
+        current[filename] = { status, lastCheck };
+        await fs.writeFile(statusPath, JSON.stringify(current, null, 2), 'utf8');
+    } catch (_) {}
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function sha256(buf: Buffer): string {
@@ -177,7 +216,7 @@ export async function GET(req: Request) {
     if (action === 'list') {
         await fs.ensureDir(RELATORIOS_DIR);
         const files = fs.readdirSync(RELATORIOS_DIR)
-            .filter(f => f.endsWith('.md'))
+            .filter(f => f.endsWith('.md') || f.endsWith('.txt'))
             .map(f => {
                 const abs = path.join(RELATORIOS_DIR, f);
                 const stat = fs.statSync(abs);
@@ -284,17 +323,31 @@ export async function POST(req: Request) {
                     return;
                 }
 
-                // 3. Build report header
-                const ts = new Date().toISOString().replace(/[:.]/g, '-');
-                const reportName = `RELATORIO_SANSAO_${ts}.md`;
-                const reportPath = path.join(RELATORIOS_DIR, reportName);
+                // 3. Build report header + name
                 await fs.ensureDir(RELATORIOS_DIR);
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-');
+                const auditTitle = targetFolder
+                    ? targetFolder.replace(/[<>:"/\\|?*]/g, '_')
+                    : 'Auditoria Geral NCFN';
+                const prefix = `${auditTitle} ${dateStr}`;
+                const existing = fs.existsSync(RELATORIOS_DIR)
+                    ? fs.readdirSync(RELATORIOS_DIR).filter(f => f.startsWith(prefix)).length
+                    : 0;
+                const version = `v${existing + 1}`;
+                const userRef  = (user.email || user.name || 'sistema').replace(/[<>:"/\\|?*]/g, '_');
+                const reportName = `${prefix} ${version} ${userRef}.md`;
+                const reportPath = path.join(RELATORIOS_DIR, reportName);
 
                 const header = [
-                    '# RELATÓRIO GERAL DE AUDITORIA FORENSE — PERITO SANSÃO',
-                    `**Data de início:** ${new Date().toLocaleString('pt-BR')}`,
+                    `# ${auditTitle.toUpperCase()} — PERITO SANSÃO`,
+                    `**Nome do Relatório:** ${reportName}`,
+                    `**Data de início:** ${now.toLocaleString('pt-BR')}`,
+                    `**Versão:** ${version}`,
+                    `**Usuário responsável:** ${user.email || user.name || 'sistema'}`,
                     `**Modelo IA:** ${OLLAMA_MODEL} via Ollama`,
                     `**Total de arquivos analisados:** ${mappedFiles.length}`,
+                    targetFolder ? `**Pasta auditada:** ${targetFolder}` : '**Escopo:** Cofre completo',
                     '',
                     '---',
                     '',
@@ -328,7 +381,37 @@ export async function POST(req: Request) {
 
                     // Ask Ollama
                     send({ type: 'log', msg: `🤖 Enviando para Ollama: ${path.basename(abs)}` });
-                    const analysis = await askOllama(systemPrompt, fileData, path.basename(abs));
+                    const rawAnalysis = await askOllama(systemPrompt, fileData, path.basename(abs));
+
+                    // Post-process: ALTERADO → MODIFICADO for date fields
+                    const { processed: analysis, hasModified } = processAnalysis(rawAnalysis);
+
+                    // Determine integrity status
+                    const isSuspeito = hasModified ||
+                        /suspeito|comprometido|alteração|manipul|adulter/i.test(analysis);
+                    const fileStatus: 'ÍNTEGRO' | 'SUSPEITO' = isSuspeito ? 'SUSPEITO' : 'ÍNTEGRO';
+                    const checkTimestamp = new Date().toISOString();
+
+                    // Write per-file status to _sansao_status.json
+                    const folderOfFile = path.dirname(rel);
+                    await writeSansaoStatus(
+                        folderOfFile === '.' ? '' : folderOfFile,
+                        path.basename(abs),
+                        fileStatus,
+                        checkTimestamp
+                    );
+
+                    // Footer note when date fields were modified
+                    const modifiedFooter = hasModified ? [
+                        '',
+                        '> **⚠️ NOTA DE RODAPÉ — CAMPOS DE DATA MODIFICADOS**',
+                        '> ',
+                        '> Os campos `FileModifyDate`, `FileAccessDate` e/ou `FileInodeChangeDate` apresentam registros distintos da data original de custódia.',
+                        '> **O arquivo original está preservado.** O sistema NCFN registra **automaticamente** a data e hora de todas as PERÍCIAS DIGITAIS realizadas,',
+                        '> o que causa a alteração desses campos de data a cada verificação.',
+                        '> ',
+                        '> **STATUS: MODIFICADO** — registro diferente de datas detectado na realização da PERÍCIA DIGITAL. Isso é esperado e não indica violação da cadeia de custódia.',
+                    ].join('\n') : '';
 
                     // Append to report
                     const section = [
@@ -336,10 +419,13 @@ export async function POST(req: Request) {
                         `**Caminho:** \`${rel}\``,
                         `**Protocolo:** ${promptFile?.replace('.md', '')}`,
                         `**Extensão:** ${ext}`,
+                        `**Status de Integridade:** ${fileStatus}`,
+                        `**Última Verificação:** ${new Date(checkTimestamp).toLocaleString('pt-BR')}`,
                         '',
                         '### Análise Forense',
                         '',
                         analysis,
+                        modifiedFooter,
                         '',
                         '---',
                         '',
@@ -348,7 +434,7 @@ export async function POST(req: Request) {
                     await fs.appendFile(reportPath, section, 'utf8');
                     reportAccum += section;
 
-                    send({ type: 'log', msg: `✅ [${i + 1}/${mappedFiles.length}] ${path.basename(abs)} — concluído.` });
+                    send({ type: 'log', msg: `✅ [${i + 1}/${mappedFiles.length}] ${path.basename(abs)} — ${fileStatus}` });
                 }
 
                 // 5. Append footer

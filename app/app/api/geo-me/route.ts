@@ -6,9 +6,13 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+const DEV_BYPASS = process.env.DEV_BYPASS === 'true';
+
 export async function GET(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  if (!token?.email) {
+  const email = token?.email || (DEV_BYPASS ? (process.env.ADMIN_EMAIL || 'dev@ncfn.local') : null);
+
+  if (!email) {
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
 
@@ -33,7 +37,7 @@ export async function GET(req: NextRequest) {
   let dbUser = null;
   try {
     dbUser = await prisma.user.findUnique({
-      where: { email: token.email },
+      where: { email },
       select: {
         role: true,
         planType: true,
@@ -63,8 +67,8 @@ export async function GET(req: NextRequest) {
   })();
 
   return NextResponse.json({
-    email: token.email,
-    role: token.role || dbUser?.role || 'user',
+    email,
+    role: token?.role || dbUser?.role || 'user',
     plan: dbUser?.planType || 'TRIAL',
     proAccessUntil: dbUser?.proAccessUntil || null,
     uploadedFilesCount: dbUser?.uploadedFilesCount || 0,

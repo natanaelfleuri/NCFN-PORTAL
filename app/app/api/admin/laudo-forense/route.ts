@@ -20,10 +20,43 @@ export async function GET(req: NextRequest) {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
     if (!isAdmin(token)) return NextResponse.json({ error: "Acesso restrito." }, { status: 403 });
 
-    const laudos = await prisma.laudoForense.findMany({
-        orderBy: { createdAt: "desc" },
+    // Return all custody-report pericias from VaultAccessLog, newest first
+    const logs = await prisma.vaultAccessLog.findMany({
+        where: { action: 'pericia' },
+        orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json({ laudos });
+
+    // Annotate with version: for each filePath, count how many there are total and assign v1..vN
+    // (oldest = v1, newest = vN)
+    const countByPath: Record<string, number> = {};
+    const versionByPath: Record<string, number> = {};
+    // Walk from oldest to newest to assign ascending version numbers
+    const sorted = [...logs].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    for (const log of sorted) {
+        versionByPath[log.id] = (countByPath[log.filePath] || 0) + 1;
+        countByPath[log.filePath] = versionByPath[log.id];
+    }
+    const totalByPath: Record<string, number> = countByPath;
+
+    const pericias = logs.map(log => {
+        const parts = log.filePath.split('/');
+        const folder = parts[0];
+        const filename = parts.slice(1).join('/');
+        const version = versionByPath[log.id];
+        const total = totalByPath[log.filePath];
+        return {
+            id: log.id,
+            filePath: log.filePath,
+            folder,
+            filename,
+            version,
+            totalVersions: total,
+            userEmail: log.userEmail,
+            createdAt: log.createdAt,
+        };
+    });
+
+    return NextResponse.json({ pericias });
 }
 
 export async function POST(req: NextRequest) {

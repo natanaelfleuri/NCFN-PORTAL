@@ -139,17 +139,16 @@ export default function AuditoriaSansaoPage() {
         }
     }, [running, addLog, loadReports]);
 
-    // download report
-    const downloadReport = useCallback(() => {
-        if (!report) return;
-        const blob = new Blob([report], { type: 'text/markdown' });
+    // download report as .txt
+    const downloadReport = useCallback((content: string, name: string) => {
+        const blob = new Blob([content], { type: 'text/plain; charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = reportName || 'relatorio-sansao.md';
+        a.download = (name || 'relatorio-sansao').replace(/\.md$/, '') + '.txt';
         a.click();
         URL.revokeObjectURL(url);
-    }, [report, reportName]);
+    }, []);
 
     const pct = progress ? Math.round((progress.i / progress.total) * 100) : 0;
 
@@ -300,11 +299,11 @@ export default function AuditoriaSansaoPage() {
                             {reportName && <span className="text-[10px] text-gray-600 font-mono">{reportName}</span>}
                         </div>
                         <button
-                            onClick={downloadReport}
+                            onClick={() => downloadReport(report!, reportName)}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition"
                         >
                             <Download className="w-3.5 h-3.5" />
-                            Download .md
+                            Download .txt
                         </button>
                     </div>
                     <pre className="p-5 text-xs text-gray-300 whitespace-pre-wrap font-mono max-h-[500px] overflow-y-auto leading-relaxed bg-black/40">
@@ -338,18 +337,33 @@ export default function AuditoriaSansaoPage() {
                         ) : (
                             reports.map(r => (
                                 <div key={r.name}>
-                                    <button
-                                        onClick={() => openReport(r.name)}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition ${selectedReport === r.name ? 'bg-[#bc13fe]/5' : ''}`}
-                                    >
-                                        <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                                        <span className="text-xs font-mono text-gray-300 flex-1 truncate">{r.name}</span>
-                                        <span className="text-[10px] text-gray-600 flex-shrink-0">{fmtBytes(r.size)}</span>
-                                        <span className="text-[10px] text-gray-600 flex-shrink-0 hidden sm:block">{fmtDate(r.mtime)}</span>
-                                        {selectedReport === r.name
-                                            ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                                            : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
-                                    </button>
+                                    <div className={`flex items-center gap-1 hover:bg-white/5 transition ${selectedReport === r.name ? 'bg-[#bc13fe]/5' : ''}`}>
+                                        <button
+                                            onClick={() => openReport(r.name)}
+                                            className="flex items-center gap-3 px-4 py-3 text-left flex-1 min-w-0"
+                                        >
+                                            <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                                            <span className="text-xs font-mono text-gray-300 flex-1 truncate">{r.name}</span>
+                                            <span className="text-[10px] text-gray-600 flex-shrink-0">{fmtBytes(r.size)}</span>
+                                            <span className="text-[10px] text-gray-600 flex-shrink-0 hidden sm:block">{fmtDate(r.mtime)}</span>
+                                            {selectedReport === r.name
+                                                ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+                                                : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
+                                        </button>
+                                        <button
+                                            title="Download .txt"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const res = await fetch(`/api/admin/auditoria-sansao?action=read&name=${encodeURIComponent(r.name)}`);
+                                                if (!res.ok) return;
+                                                const data = await res.json();
+                                                downloadReport(data.content, r.name);
+                                            }}
+                                            className="flex-shrink-0 mr-3 p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/25 transition"
+                                        >
+                                            <Download className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
                                     {selectedReport === r.name && (
                                         <div className="border-t border-gray-900 bg-black/40">
                                             {loadingSelected ? (
@@ -357,9 +371,20 @@ export default function AuditoriaSansaoPage() {
                                                     <Loader2 className="w-5 h-5 text-[#bc13fe] animate-spin" />
                                                 </div>
                                             ) : (
-                                                <pre className="p-5 text-xs text-gray-300 whitespace-pre-wrap font-mono max-h-[400px] overflow-y-auto leading-relaxed">
-                                                    {selectedContent}
-                                                </pre>
+                                                <>
+                                                    <div className="flex items-center justify-end px-4 pt-3">
+                                                        <button
+                                                            onClick={() => selectedContent && downloadReport(selectedContent, r.name)}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/25 transition"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5" />
+                                                            Download .txt
+                                                        </button>
+                                                    </div>
+                                                    <pre className="p-5 text-xs text-gray-300 whitespace-pre-wrap font-mono max-h-[400px] overflow-y-auto leading-relaxed">
+                                                        {selectedContent}
+                                                    </pre>
+                                                </>
                                             )}
                                         </div>
                                     )}

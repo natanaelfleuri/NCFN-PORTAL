@@ -40,8 +40,8 @@ export default function MapDashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/forensics').then(r => r.json()).catch(() => ({ records: [] })),
-      fetch('/api/geo-me').then(r => r.json()).catch(() => null),
+      fetch('/api/forensics').then(r => r.ok ? r.json() : { records: [] }).catch(() => ({ records: [] })),
+      fetch('/api/geo-me').then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([forensics, geo]) => {
       setRecords(forensics.records || []);
       setGeoMe(geo || null);

@@ -3,7 +3,8 @@ import { useState, useRef, useCallback } from 'react';
 import {
     ShieldCheck, UploadCloud, Copy, Fingerprint, Info, X,
     Database, EyeOff, AlertTriangle, FileSearch, CheckCircle,
-    AlertCircle, Download
+    AlertCircle, Download, Hash, Search, Binary, FileCheck2,
+    Loader2, BookOpen, CheckCircle2,
 } from 'lucide-react';
 
 type AuditMode = 'CUSTODY' | 'THIRD_PARTY';
@@ -30,12 +31,27 @@ export default function OnlineAuditor() {
     const [copied, setCopied] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Hash-based search
+    const [hashSearchLoading, setHashSearchLoading] = useState(false);
+    const [hashSearchResult, setHashSearchResult] = useState<any>(null);
+
+    // Doc ID lookup
+    const [docIdValue, setDocIdValue] = useState('');
+    const [docIdLoading, setDocIdLoading] = useState(false);
+    const [docIdResult, setDocIdResult] = useState<any>(null);
+
+    // Hex header lookup
+    const [hexValue, setHexValue] = useState('');
+    const [hexLoading, setHexLoading] = useState(false);
+    const [hexResult, setHexResult] = useState<any>(null);
+
     const processFile = useCallback(async (selectedFile: File) => {
         setFile(selectedFile);
         setGeneratedHash(null);
         setVerdict(null);
         setLogId(null);
         setReportData(null);
+        setHashSearchResult(null);
         setLoading(true);
         try {
             const hash = await computeSha256(selectedFile);
@@ -65,7 +81,6 @@ export default function OnlineAuditor() {
         setVerdict(isMatch ? 'MATCH' : 'MISMATCH');
 
         if (mode === 'CUSTODY') {
-            // POST only hash (not file) to backend — creates AuditLog
             try {
                 const res = await fetch('/api/audit/verify-custody', {
                     method: 'POST',
@@ -78,7 +93,25 @@ export default function OnlineAuditor() {
                 console.error('Audit log error:', e);
             }
         }
-        // Mode B: zero network calls — verdict set above
+    };
+
+    const searchByHash = async () => {
+        if (!generatedHash) return;
+        setHashSearchLoading(true);
+        setHashSearchResult(null);
+        try {
+            const res = await fetch('/api/audit/lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'hash', value: generatedHash }),
+            });
+            const data = await res.json();
+            setHashSearchResult(data);
+        } catch {
+            setHashSearchResult({ found: false, message: 'Erro na consulta ao sistema.' });
+        } finally {
+            setHashSearchLoading(false);
+        }
     };
 
     const generateReport = async () => {
@@ -96,6 +129,44 @@ export default function OnlineAuditor() {
         }
     };
 
+    const lookupDocId = async () => {
+        if (!docIdValue.trim()) return;
+        setDocIdLoading(true);
+        setDocIdResult(null);
+        try {
+            const res = await fetch('/api/audit/lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'docid', value: docIdValue.trim() }),
+            });
+            const data = await res.json();
+            setDocIdResult(data);
+        } catch {
+            setDocIdResult({ found: false, message: 'Erro na consulta.' });
+        } finally {
+            setDocIdLoading(false);
+        }
+    };
+
+    const lookupHex = async () => {
+        if (!hexValue.trim()) return;
+        setHexLoading(true);
+        setHexResult(null);
+        try {
+            const res = await fetch('/api/audit/lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'hex', value: hexValue.trim() }),
+            });
+            const data = await res.json();
+            setHexResult(data);
+        } catch {
+            setHexResult({ found: false, message: 'Erro na consulta.' });
+        } finally {
+            setHexLoading(false);
+        }
+    };
+
     const copyHash = () => {
         if (!generatedHash) return;
         navigator.clipboard.writeText(generatedHash);
@@ -110,6 +181,7 @@ export default function OnlineAuditor() {
         setVerdict(null);
         setLogId(null);
         setReportData(null);
+        setHashSearchResult(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -193,12 +265,14 @@ export default function OnlineAuditor() {
                                 ? 'Hash calculado localmente — apenas a assinatura é transmitida ao servidor'
                                 : '100% Client-Side — zero transmissão de rede'}
                         </p>
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl border border-gray-600 transition flex items-center gap-3"
-                        >
-                            <UploadCloud className="w-5 h-5" /> Carregar Evidência Digital
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl border border-gray-600 transition flex items-center gap-3"
+                            >
+                                <UploadCloud className="w-5 h-5" /> Carregar Evidência Digital
+                            </button>
+                        </div>
                     </>
                 ) : (
                     <div className="w-full relative z-10 flex flex-col items-center">
@@ -233,6 +307,61 @@ export default function OnlineAuditor() {
                                         {copied ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
                                     </button>
                                 </div>
+
+                                {/* BUSCAR ARQUIVO PELO CÓDIGO HASH */}
+                                {mode === 'CUSTODY' && (
+                                    <div className="space-y-3">
+                                        <button
+                                            onClick={searchByHash}
+                                            disabled={hashSearchLoading}
+                                            className="w-full py-3.5 bg-[#00f3ff]/10 hover:bg-[#00f3ff]/20 border border-[#00f3ff]/30 text-[#00f3ff] font-black text-sm uppercase tracking-widest rounded-xl transition flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(0,243,255,0.07)] disabled:opacity-50"
+                                        >
+                                            {hashSearchLoading ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" /> Consultando Registro de Custódia...</>
+                                            ) : (
+                                                <><Search className="w-4 h-4" /> Buscar Arquivo pelo Código Hash</>
+                                            )}
+                                        </button>
+
+                                        {hashSearchResult && (
+                                            <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+                                                hashSearchResult.found
+                                                    ? 'bg-green-900/20 border-green-500/50'
+                                                    : 'bg-red-900/20 border-red-500/40'
+                                            }`}>
+                                                {hashSearchResult.found ? (
+                                                    <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                                                ) : (
+                                                    <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                                                )}
+                                                <div className="space-y-1 flex-1">
+                                                    <p className={`font-black text-sm ${hashSearchResult.found ? 'text-green-300' : 'text-red-300'}`}>
+                                                        {hashSearchResult.message}
+                                                    </p>
+                                                    {hashSearchResult.filename && (
+                                                        <p className="text-xs font-mono text-gray-300">
+                                                            Arquivo: <span className="text-white font-bold">{hashSearchResult.filename}</span>
+                                                            {hashSearchResult.folder && <span className="text-gray-500"> · Pasta: {hashSearchResult.folder}</span>}
+                                                        </p>
+                                                    )}
+                                                    {hashSearchResult.registeredAt && (
+                                                        <p className="text-[10px] font-mono text-gray-500">
+                                                            Registrado em: {new Date(hashSearchResult.registeredAt).toLocaleString('pt-BR')}
+                                                        </p>
+                                                    )}
+                                                    {hashSearchResult.logId && !reportData && (
+                                                        <button
+                                                            onClick={generateReport}
+                                                            className="mt-2 w-full py-2 bg-green-900/30 hover:bg-green-900/50 border border-green-500/30 rounded-lg text-green-300 font-bold text-xs flex items-center justify-center gap-2 transition"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5" /> Baixar Relatório de Conformidade
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div className="bg-gray-950 p-6 rounded-2xl border border-gray-800 space-y-4">
                                     <h4 className="font-bold text-white flex items-center gap-2">
@@ -317,6 +446,103 @@ export default function OnlineAuditor() {
                         ) : null}
                     </div>
                 )}
+            </div>
+
+            {/* ── LOOKUP TOOLS ────────────────────────────────────── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* Doc ID Lookup */}
+                <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6 space-y-4">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 bg-[#bc13fe]/10 border border-[#bc13fe]/30 rounded-lg">
+                            <BookOpen className="w-4 h-4 text-[#bc13fe]" />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-white text-sm">Consultar por ID do Documento</h4>
+                            <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Formato: NCFN-XXXXXXXX</p>
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                        Insira o ID do protocolo impresso no cabeçalho do laudo pericial para verificar se o arquivo ainda está custodiado no sistema.
+                    </p>
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            placeholder="NCFN-..."
+                            value={docIdValue}
+                            onChange={e => { setDocIdValue(e.target.value.toUpperCase()); setDocIdResult(null); }}
+                            className="flex-1 bg-black border border-gray-700 rounded-xl px-4 py-2.5 font-mono text-sm focus:border-[#bc13fe] focus:outline-none text-white uppercase"
+                            spellCheck={false}
+                        />
+                        <button
+                            onClick={lookupDocId}
+                            disabled={docIdLoading || !docIdValue.trim()}
+                            className="px-4 py-2.5 bg-[#bc13fe]/15 hover:bg-[#bc13fe]/25 border border-[#bc13fe]/30 text-[#bc13fe] font-bold rounded-xl transition disabled:opacity-40 flex items-center gap-1.5"
+                        >
+                            {docIdLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                        </button>
+                    </div>
+                    {docIdResult && (
+                        <div className={`p-3 rounded-xl border text-xs ${
+                            docIdResult.found ? 'bg-green-900/20 border-green-500/40 text-green-300' : 'bg-red-900/20 border-red-500/30 text-red-300'
+                        }`}>
+                            <p className="font-bold mb-1">{docIdResult.message}</p>
+                            {docIdResult.results?.map((r: any, i: number) => (
+                                <p key={i} className="font-mono text-gray-400 text-[10px]">
+                                    {r.filePath} · {r.action} · {new Date(r.timestamp).toLocaleString('pt-BR')}
+                                </p>
+                            ))}
+                            {docIdResult.generatedAt && (
+                                <p className="text-[10px] text-gray-500 mt-1">Gerado em: {new Date(docIdResult.generatedAt).toLocaleString('pt-BR')}</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Hex Header Lookup */}
+                <div className="bg-gray-950 border border-gray-800 rounded-2xl p-6 space-y-4">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                            <Binary className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-white text-sm">Consultar por Cabeçalho Hexadecimal</h4>
+                            <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Magic Bytes · File Signature</p>
+                        </div>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                        Cole o código hexadecimal do cabeçalho do arquivo (bytes mágicos, exibido no laudo) para identificar qual arquivo está custodiado com essa assinatura binária.
+                    </p>
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            placeholder="ex: 89504e47 ou FF D8 FF E0..."
+                            value={hexValue}
+                            onChange={e => { setHexValue(e.target.value); setHexResult(null); }}
+                            className="flex-1 bg-black border border-gray-700 rounded-xl px-4 py-2.5 font-mono text-sm focus:border-amber-500 focus:outline-none text-white"
+                            spellCheck={false}
+                        />
+                        <button
+                            onClick={lookupHex}
+                            disabled={hexLoading || !hexValue.trim()}
+                            className="px-4 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold rounded-xl transition disabled:opacity-40 flex items-center gap-1.5"
+                        >
+                            {hexLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                        </button>
+                    </div>
+                    {hexResult && (
+                        <div className={`p-3 rounded-xl border text-xs ${
+                            hexResult.found ? 'bg-amber-900/20 border-amber-500/40 text-amber-300' : 'bg-red-900/20 border-red-500/30 text-red-300'
+                        }`}>
+                            <p className="font-bold mb-1">{hexResult.message}</p>
+                            {hexResult.results?.map((r: any, i: number) => (
+                                <p key={i} className="font-mono text-gray-400 text-[10px]">
+                                    {r.folder} / <span className="text-white font-bold">{r.filename}</span>
+                                </p>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Security note — dynamic */}

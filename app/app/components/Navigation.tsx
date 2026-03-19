@@ -168,6 +168,20 @@ export default function Navigation() {
         {/* Divider */}
         <div className="w-px h-5 bg-white/10 mx-1" />
 
+        {/* Security status indicator */}
+        {session && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-green-500/20 bg-green-500/5 select-none" title="Conexão autenticada com TLS · Sessão protegida">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+            </span>
+            <span className="text-[9px] font-mono font-bold text-green-400/80 uppercase tracking-widest whitespace-nowrap">
+              {isAdmin_role ? 'ADMIN · SEGURO' : 'SESSÃO SEGURA'}
+            </span>
+            <Shield className="w-2.5 h-2.5 text-green-400/60" />
+          </div>
+        )}
+
         {session && (
           <Link href="/profile" className={isActive('/profile', true)
             ? `${linkBase} text-[#00f3ff] bg-[#00f3ff]/10 border border-[#00f3ff]/30`

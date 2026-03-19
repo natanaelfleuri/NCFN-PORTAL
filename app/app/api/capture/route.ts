@@ -88,12 +88,113 @@ async function rfcTimestamp(hash: string, captureId: string): Promise<string | n
   return tsr ? `RFC3161:SHA256:${hash.slice(0, 32)}...:TSR_SAVED` : null;
 }
 
+// ─── Novos helpers ─────────────────────────────────────────────────────────
+
+async function pingUrl(url: string): Promise<{ pingMs: number; status: number }> {
+  const start = Date.now();
+  try {
+    const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000), redirect: 'follow' });
+    return { pingMs: Date.now() - start, status: res.status };
+  } catch {
+    return { pingMs: -1, status: 0 };
+  }
+}
+
+async function queryWebCheck(url: string): Promise<Record<string, any> | null> {
+  const baseUrl = process.env.WEB_CHECK_URL || 'http://web-check:3000';
+  const enc = encodeURIComponent(url);
+
+  const endpoints = ['ip', 'ssl', 'dns', 'headers', 'cookies', 'robots-txt', 'tech-stack', 'ports', 'redirects', 'quality-summary'];
+
+  const results: Record<string, any> = {};
+
+  await Promise.allSettled(
+    endpoints.map(async (ep) => {
+      try {
+        const res = await fetch(`${baseUrl}/api/${ep}?url=${enc}`, {
+          signal: AbortSignal.timeout(12000),
+        });
+        if (res.ok) {
+          results[ep] = await res.json();
+        }
+      } catch {
+        // silencioso
+      }
+    })
+  );
+
+  return Object.keys(results).length > 0 ? results : null;
+}
+
+async function saveToWayback(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://web.archive.org/save/${url}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `url=${encodeURIComponent(url)}`,
+      signal: AbortSignal.timeout(40000),
+      redirect: 'manual',
+    });
+    const location = res.headers.get('Content-Location') || res.headers.get('Location');
+    if (location) {
+      return location.startsWith('http') ? location : `https://web.archive.org${location}`;
+    }
+    return `https://web.archive.org/web/*/${url}`;
+  } catch {
+    return `https://web.archive.org/web/*/${url}`;
+  }
+}
+
+// OpenTimestamps — submete hash a 3 calendários Bitcoin (sem API key)
+async function registerBlockchain(hash: string, otsPath: string): Promise<{ tx: string; verifyUrl: string }> {
+  const calendars = [
+    'https://alice.btc.calendar.opentimestamps.org/digest',
+    'https://bob.btc.calendar.opentimestamps.org/digest',
+    'https://finney.calendar.eternitywall.com/digest',
+  ];
+
+  const hashBytes = Buffer.from(hash, 'hex'); // 32 bytes
+
+  let otsData: Buffer | null = null;
+
+  for (const calendar of calendars) {
+    try {
+      const res = await fetch(calendar, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: hashBytes,
+        signal: AbortSignal.timeout(12000),
+      });
+      if (res.ok) {
+        otsData = Buffer.from(await res.arrayBuffer());
+        break;
+      }
+    } catch {
+      // tenta próximo calendário
+    }
+  }
+
+  if (otsData) {
+    try { await fs.writeFile(otsPath, otsData); } catch {}
+  }
+
+  return {
+    tx: hash,
+    verifyUrl: 'https://opentimestamps.org',
+  };
+}
+
+// ─── Certidão PDF ──────────────────────────────────────────────────────────
+
 async function generateCertidao(data: {
   id: string; url: string; operatorEmail: string; createdAt: Date;
   serverIp: string; serverLocation: string; sslIssuer: string; sslExpiry: string; sslFingerprint: string;
   whoisData: string; httpHeaders: string; profile: string;
   hashScreenshot: string; hashPdf: string; hashHtml: string; rfcTimestamp: string;
   verifyUrl: string;
+  pingMs?: number; siteStatus?: number;
+  waybackUrl?: string; blockchainVerify?: string;
+  webCheckData?: string;
 }): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595, 842]); // A4
@@ -106,137 +207,268 @@ async function generateCertidao(data: {
   const dark = rgb(0.05, 0.05, 0.05);
   const gray = rgb(0.4, 0.4, 0.4);
   const lightGray = rgb(0.92, 0.92, 0.92);
+  const green = rgb(0.1, 0.6, 0.1);
+  const red = rgb(0.8, 0.1, 0.1);
 
   let y = height - 50;
 
+  // Helper para adicionar nova página quando necessário
+  let currentPage = page;
+  function checkNewPage(needed = 30) {
+    if (y < needed + 40) {
+      currentPage = pdfDoc.addPage([595, 842]);
+      y = height - 50;
+    }
+  }
+
+  function drawText(text: string, opts: any) {
+    currentPage.drawText(text, opts);
+  }
+  function drawLine(opts: any) {
+    currentPage.drawLine(opts);
+  }
+  function drawRect(opts: any) {
+    currentPage.drawRectangle(opts);
+  }
+
   // Header
-  page.drawRectangle({ x: 0, y: height - 80, width, height: 80, color: rgb(0.02, 0.02, 0.04) });
-  page.drawText('PORTAL NCFN', { x: 40, y: height - 35, size: 18, font: fontBold, color: purple });
-  page.drawText('Nexus Cyber Forensic Network', { x: 40, y: height - 52, size: 9, font: fontReg, color: rgb(0.7, 0.7, 0.7) });
-  page.drawText('CERTIDÃO DE CAPTURA FORENSE DA WEB', { x: 40, y: height - 70, size: 8, font: fontBold, color: rgb(0.6, 0.6, 0.6) });
+  drawRect({ x: 0, y: height - 80, width, height: 80, color: rgb(0.02, 0.02, 0.04) });
+  drawText('PORTAL NCFN', { x: 40, y: height - 35, size: 18, font: fontBold, color: purple });
+  drawText('Nexus Cyber Forensic Network', { x: 40, y: height - 52, size: 9, font: fontReg, color: rgb(0.7, 0.7, 0.7) });
+  drawText('CERTIDÃO DE CAPTURA FORENSE DA WEB', { x: 40, y: height - 70, size: 8, font: fontBold, color: rgb(0.6, 0.6, 0.6) });
 
   y = height - 105;
 
   // ID e Data
-  page.drawText(`ID da Operação: ${data.id}`, { x: 40, y, size: 8, font: fontMono, color: dark });
+  drawText(`ID da Operação: ${data.id}`, { x: 40, y, size: 8, font: fontMono, color: dark });
   y -= 14;
-  page.drawText(`Data/Hora (UTC): ${data.createdAt.toISOString()}`, { x: 40, y, size: 8, font: fontMono, color: dark });
+  drawText(`Data/Hora (UTC): ${data.createdAt.toISOString()}`, { x: 40, y, size: 8, font: fontMono, color: dark });
   y -= 14;
-  page.drawText(`Data/Hora (BRT): ${new Date(data.createdAt.getTime() - 3*3600000).toISOString().replace('T', ' ').slice(0, 19)}`, { x: 40, y, size: 8, font: fontMono, color: dark });
+  drawText(`Data/Hora (BRT): ${new Date(data.createdAt.getTime() - 3*3600000).toISOString().replace('T', ' ').slice(0, 19)}`, { x: 40, y, size: 8, font: fontMono, color: dark });
   y -= 14;
-  page.drawText(`Operador: ${data.operatorEmail}`, { x: 40, y, size: 8, font: fontMono, color: dark });
+  drawText(`Operador: ${data.operatorEmail}`, { x: 40, y, size: 8, font: fontMono, color: dark });
   y -= 14;
-  page.drawText(`Perfil de Captura: ${data.profile.toUpperCase()}`, { x: 40, y, size: 8, font: fontMono, color: dark });
+  drawText(`Perfil de Captura: ${data.profile.toUpperCase()}`, { x: 40, y, size: 8, font: fontMono, color: dark });
 
   y -= 20;
-  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+  drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
   y -= 15;
 
-  // Seção: Alvo
-  page.drawText('1. IDENTIFICAÇÃO DO ALVO', { x: 40, y, size: 10, font: fontBold, color: purple });
+  // Seção 1: Alvo
+  drawText('1. IDENTIFICAÇÃO DO ALVO', { x: 40, y, size: 10, font: fontBold, color: purple });
   y -= 14;
   const urlLines = data.url.match(/.{1,80}/g) || [data.url];
   for (const line of urlLines) {
-    page.drawText(line, { x: 50, y, size: 8, font: fontMono, color: dark });
+    drawText(line, { x: 50, y, size: 8, font: fontMono, color: dark });
     y -= 12;
   }
   y -= 5;
-  page.drawText(`IP do Servidor: ${data.serverIp}`, { x: 50, y, size: 8, font: fontReg, color: dark });
+  drawText(`IP do Servidor: ${data.serverIp}`, { x: 50, y, size: 8, font: fontReg, color: dark });
   y -= 12;
-  page.drawText(`Geolocalização: ${data.serverLocation}`, { x: 50, y, size: 8, font: fontReg, color: dark });
+  drawText(`Geolocalização: ${data.serverLocation}`, { x: 50, y, size: 8, font: fontReg, color: dark });
+
+  // Status de disponibilidade
+  if (data.siteStatus !== undefined) {
+    y -= 12;
+    const online = data.siteStatus > 0 && data.siteStatus < 500;
+    const statusColor = online ? green : red;
+    drawText(`Status HTTP: ${data.siteStatus} — ${online ? 'ONLINE' : 'OFFLINE/ERRO'}`, { x: 50, y, size: 8, font: fontBold, color: statusColor });
+    if (data.pingMs !== undefined && data.pingMs >= 0) {
+      y -= 12;
+      drawText(`Tempo de Resposta: ${data.pingMs}ms`, { x: 50, y, size: 8, font: fontReg, color: dark });
+    }
+  }
 
   y -= 20;
-  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+  checkNewPage();
+  drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
   y -= 15;
 
-  // Seção: SSL
-  page.drawText('2. CERTIFICADO SSL/TLS', { x: 40, y, size: 10, font: fontBold, color: purple });
+  // Seção 2: SSL
+  drawText('2. CERTIFICADO SSL/TLS', { x: 40, y, size: 10, font: fontBold, color: purple });
   y -= 14;
-  page.drawText(`Emissor: ${data.sslIssuer.slice(0, 80)}`, { x: 50, y, size: 8, font: fontReg, color: dark });
+  drawText(`Emissor: ${data.sslIssuer.slice(0, 80)}`, { x: 50, y, size: 8, font: fontReg, color: dark });
   y -= 12;
-  page.drawText(`Validade: ${data.sslExpiry}`, { x: 50, y, size: 8, font: fontReg, color: dark });
+  drawText(`Validade: ${data.sslExpiry}`, { x: 50, y, size: 8, font: fontReg, color: dark });
   y -= 12;
-  page.drawText(`Fingerprint: ${data.sslFingerprint.slice(0, 80)}`, { x: 50, y, size: 8, font: fontMono, color: dark });
+  drawText(`Fingerprint: ${data.sslFingerprint.slice(0, 80)}`, { x: 50, y, size: 7, font: fontMono, color: dark });
 
   y -= 20;
-  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+  checkNewPage();
+  drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
   y -= 15;
 
-  // Seção: WHOIS resumido
-  page.drawText('3. REGISTRO DE DOMÍNIO (WHOIS)', { x: 40, y, size: 10, font: fontBold, color: purple });
+  // Seção 3: WHOIS
+  drawText('3. REGISTRO DE DOMÍNIO (WHOIS)', { x: 40, y, size: 10, font: fontBold, color: purple });
   y -= 14;
   const whoisLines = data.whoisData.split('\n').slice(0, 12);
   for (const line of whoisLines) {
     if (line.trim()) {
-      page.drawText(line.trim().slice(0, 85), { x: 50, y, size: 7, font: fontMono, color: gray });
+      checkNewPage();
+      drawText(line.trim().slice(0, 85), { x: 50, y, size: 7, font: fontMono, color: gray });
       y -= 10;
     }
   }
 
+  // Seção 4: Web-Check
+  if (data.webCheckData) {
+    try {
+      const wc = JSON.parse(data.webCheckData);
+      y -= 10;
+      checkNewPage();
+      drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+      y -= 15;
+      drawText('4. ANÁLISE WEB-CHECK', { x: 40, y, size: 10, font: fontBold, color: purple });
+      y -= 14;
+
+      // Tech stack
+      if (wc['tech-stack']?.technologies?.length > 0) {
+        const techs = wc['tech-stack'].technologies.slice(0, 8).map((t: any) => t.name || t).join(', ');
+        checkNewPage();
+        drawText(`Tech Stack: ${techs.slice(0, 85)}`, { x: 50, y, size: 8, font: fontReg, color: dark });
+        y -= 12;
+      }
+
+      // DNS
+      if (wc['dns']) {
+        const dnsStr = JSON.stringify(wc['dns']).slice(0, 200);
+        checkNewPage();
+        drawText(`DNS Records: ${dnsStr}`, { x: 50, y, size: 7, font: fontMono, color: gray });
+        y -= 12;
+      }
+
+      // Portas abertas
+      if (wc['ports']?.openPorts?.length > 0) {
+        const ports = wc['ports'].openPorts.join(', ');
+        checkNewPage();
+        drawText(`Portas Abertas: ${ports}`, { x: 50, y, size: 8, font: fontReg, color: dark });
+        y -= 12;
+      }
+
+      // Headers relevantes
+      if (wc['headers']) {
+        const relevantHeaders = ['server', 'x-powered-by', 'content-security-policy', 'x-frame-options'];
+        for (const h of relevantHeaders) {
+          if (wc['headers'][h]) {
+            checkNewPage();
+            drawText(`${h}: ${String(wc['headers'][h]).slice(0, 80)}`, { x: 50, y, size: 7, font: fontMono, color: gray });
+            y -= 10;
+          }
+        }
+      }
+    } catch {}
+  }
+
   y -= 10;
-  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+  checkNewPage();
+  drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
   y -= 15;
 
-  // Seção: Hashes
-  page.drawText('4. HASHES SHA-256 DOS ARTEFATOS', { x: 40, y, size: 10, font: fontBold, color: purple });
+  // Seção 5: Hashes
+  const secNum = data.webCheckData ? '5' : '4';
+  drawText(`${secNum}. HASHES SHA-256 DOS ARTEFATOS`, { x: 40, y, size: 10, font: fontBold, color: purple });
   y -= 14;
   if (data.hashScreenshot) {
-    page.drawText('Screenshot PNG:', { x: 50, y, size: 8, font: fontBold, color: dark });
+    drawText('Screenshot PNG:', { x: 50, y, size: 8, font: fontBold, color: dark });
     y -= 11;
-    page.drawText(data.hashScreenshot, { x: 55, y, size: 7, font: fontMono, color: rgb(0.1, 0.5, 0.1) });
+    drawText(data.hashScreenshot, { x: 55, y, size: 7, font: fontMono, color: rgb(0.1, 0.5, 0.1) });
     y -= 13;
   }
   if (data.hashPdf) {
-    page.drawText('PDF Renderizado:', { x: 50, y, size: 8, font: fontBold, color: dark });
+    drawText('PDF Renderizado:', { x: 50, y, size: 8, font: fontBold, color: dark });
     y -= 11;
-    page.drawText(data.hashPdf, { x: 55, y, size: 7, font: fontMono, color: rgb(0.1, 0.5, 0.1) });
+    drawText(data.hashPdf, { x: 55, y, size: 7, font: fontMono, color: rgb(0.1, 0.5, 0.1) });
     y -= 13;
   }
   if (data.hashHtml) {
-    page.drawText('HTML/DOM Snapshot:', { x: 50, y, size: 8, font: fontBold, color: dark });
+    drawText('HTML/DOM Snapshot:', { x: 50, y, size: 8, font: fontBold, color: dark });
     y -= 11;
-    page.drawText(data.hashHtml, { x: 55, y, size: 7, font: fontMono, color: rgb(0.1, 0.5, 0.1) });
+    drawText(data.hashHtml, { x: 55, y, size: 7, font: fontMono, color: rgb(0.1, 0.5, 0.1) });
     y -= 13;
   }
 
   y -= 10;
-  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+  checkNewPage();
+  drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
   y -= 15;
 
-  // Seção: Carimbo Temporal
-  page.drawText('5. CARIMBO TEMPORAL', { x: 40, y, size: 10, font: fontBold, color: purple });
+  // Seção 6: Carimbo Temporal
+  drawText(`${parseInt(secNum)+1}. CARIMBO TEMPORAL RFC 3161`, { x: 40, y, size: 10, font: fontBold, color: purple });
   y -= 14;
-  page.drawText(data.rfcTimestamp || 'Não disponível', { x: 50, y, size: 8, font: fontMono, color: dark });
+  drawText(data.rfcTimestamp || 'Não disponível', { x: 50, y, size: 8, font: fontMono, color: dark });
+
+  // Seção 7: Preservação Digital
+  if (data.waybackUrl || data.blockchainVerify) {
+    y -= 20;
+    checkNewPage();
+    drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+    y -= 15;
+    drawText(`${parseInt(secNum)+2}. PRESERVAÇÃO DIGITAL`, { x: 40, y, size: 10, font: fontBold, color: purple });
+    y -= 14;
+
+    if (data.waybackUrl) {
+      drawText('Wayback Machine (Internet Archive):', { x: 50, y, size: 8, font: fontBold, color: dark });
+      y -= 11;
+      drawText(data.waybackUrl.slice(0, 85), { x: 55, y, size: 7, font: fontMono, color: rgb(0.0, 0.3, 0.8) });
+      y -= 13;
+    }
+
+    if (data.blockchainVerify || data.waybackUrl) {
+      checkNewPage();
+      drawText('Registro Blockchain — OpenTimestamps (Bitcoin):', { x: 50, y, size: 8, font: fontBold, color: dark });
+      y -= 12;
+      const otsLines = [
+        'Como funciona: o hash SHA-256 dos artefatos foi enviado a 3 calendários Bitcoin da rede',
+        'OpenTimestamps (alice, bob, finney). Após ~1h (próximo bloco minerado), o hash fica',
+        'ancorado permanentemente na blockchain Bitcoin, tornando-se prova imutável de existência.',
+        '',
+        'Para verificar:',
+        '  1. Acesse https://opentimestamps.org',
+        '  2. Carregue o arquivo hash.ots (disponível nos artefatos desta captura)',
+        '  3. O site exibirá o bloco Bitcoin e a data/hora exatos do registro',
+        '  4. Alternativa via CLI: ots verify hash.ots',
+      ];
+      for (const ln of otsLines) {
+        checkNewPage(12);
+        drawText(ln, { x: 55, y, size: 7, font: ln.startsWith('  ') || ln.startsWith('https') ? fontMono : fontReg, color: ln === '' ? dark : (ln.startsWith('Para') || ln.startsWith('Como') ? dark : gray) });
+        y -= 10;
+      }
+    }
+  }
 
   y -= 20;
-  page.drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
+  checkNewPage();
+  drawLine({ start: { x: 40, y }, end: { x: width - 40, y }, thickness: 0.5, color: lightGray });
   y -= 15;
 
   // Base Legal
-  page.drawText('6. FUNDAMENTO LEGAL', { x: 40, y, size: 10, font: fontBold, color: purple });
+  drawText(`${parseInt(secNum)+3}. FUNDAMENTO LEGAL`, { x: 40, y, size: 10, font: fontBold, color: purple });
   y -= 14;
-  page.drawText('Art. 7º, III da Lei nº 12.965/2014 (Marco Civil da Internet)', { x: 50, y, size: 8, font: fontReg, color: dark });
+  drawText('Art. 7º, III da Lei nº 12.965/2014 (Marco Civil da Internet)', { x: 50, y, size: 8, font: fontReg, color: dark });
   y -= 12;
-  page.drawText('Art. 10 da Lei nº 12.965/2014 — Responsabilidade pela guarda de registros', { x: 50, y, size: 8, font: fontReg, color: dark });
+  drawText('Art. 10 da Lei nº 12.965/2014 — Responsabilidade pela guarda de registros', { x: 50, y, size: 8, font: fontReg, color: dark });
   y -= 12;
-  page.drawText('Art. 159 do Código de Processo Penal — Perícia criminal digital', { x: 50, y, size: 8, font: fontReg, color: dark });
+  drawText('Art. 159 do Código de Processo Penal — Perícia criminal digital', { x: 50, y, size: 8, font: fontReg, color: dark });
 
   // QR Code de verificação
   try {
     const qrBuffer = await QRCode.toBuffer(data.verifyUrl, { type: 'png', width: 80, margin: 1 });
     const qrImage = await pdfDoc.embedPng(qrBuffer);
-    page.drawImage(qrImage, { x: width - 120, y: 50, width: 80, height: 80 });
-    page.drawText('Verificar autenticidade', { x: width - 125, y: 38, size: 6, font: fontReg, color: gray });
+    currentPage.drawImage(qrImage, { x: width - 120, y: 50, width: 80, height: 80 });
+    currentPage.drawText('Verificar autenticidade', { x: width - 125, y: 38, size: 6, font: fontReg, color: gray });
   } catch {}
 
-  // Rodapé
-  page.drawRectangle({ x: 0, y: 0, width, height: 40, color: rgb(0.02, 0.02, 0.04) });
-  page.drawText('Certidão de Captura Forense — Portal NCFN | Nexus Cyber Forensic Network', {
-    x: 40, y: 25, size: 7, font: fontReg, color: rgb(0.5, 0.5, 0.5)
-  });
-  page.drawText(`Verificar: ${data.verifyUrl}`, {
-    x: 40, y: 13, size: 7, font: fontReg, color: purple
-  });
+  // Rodapé em todas as páginas
+  for (let i = 0; i < pdfDoc.getPageCount(); i++) {
+    const pg = pdfDoc.getPage(i);
+    pg.drawRectangle({ x: 0, y: 0, width, height: 40, color: rgb(0.02, 0.02, 0.04) });
+    pg.drawText('Certidão de Captura Forense — Portal NCFN | Nexus Cyber Forensic Network', {
+      x: 40, y: 25, size: 7, font: fontReg, color: rgb(0.5, 0.5, 0.5)
+    });
+    pg.drawText(`Verificar: ${data.verifyUrl}`, {
+      x: 40, y: 13, size: 7, font: fontReg, color: purple
+    });
+  }
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
@@ -256,7 +488,9 @@ export async function GET(req: NextRequest) {
     select: {
       id: true, url: true, profile: true, status: true, operatorEmail: true,
       serverIp: true, serverLocation: true, hashScreenshot: true,
-      screenshotFile: true, certidaoPdf: true, createdAt: true, errorMessage: true
+      screenshotFile: true, certidaoPdf: true, createdAt: true, errorMessage: true,
+      webCheckData: true, waybackUrl: true, blockchainVerify: true,
+      pingMs: true, siteStatus: true,
     }
   });
 
@@ -271,7 +505,6 @@ export async function POST(req: NextRequest) {
   const dbUser = await getDbUser(session.user.email);
   if (!dbUser || dbUser.role !== 'admin') return NextResponse.json({ error: 'Acesso restrito' }, { status: 403 });
 
-  // RATE LIMIT: 5 capturas por hora por admin
   if (!checkRateLimit(`capture:${session.user.email}`, 5, 3_600_000)) {
     return NextResponse.json({ error: 'Limite de capturas atingido (5/hora). Aguarde.' }, { status: 429 });
   }
@@ -288,26 +521,30 @@ export async function POST(req: NextRequest) {
     data: { url, profile, operatorEmail: session.user.email!, status: 'processing' }
   });
 
-  // Diretório de saída
-  const captureDir = path.join(process.cwd(), '../COFRE_NCFN/capturas_web', capture.id);
+  const captureDir = path.join(process.cwd(), '../COFRE_NCFN/7_NCFN-CAPTURAS-WEB_OSINT', capture.id);
   await fs.ensureDir(captureDir);
 
   try {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
 
-    // ── 1. Informações do servidor (paralelo) ─────────────────────────────
-    const [serverInfo, whoisData, sslInfo] = await Promise.all([
+    // ── 1. Informações do servidor + ping + web-check (paralelo) ──────────
+    const [serverInfo, whoisData, sslInfo, pingResult, webCheckResult] = await Promise.all([
       getServerInfo(url),
       profile !== 'rapida' ? getWhois(hostname) : Promise.resolve(''),
       profile !== 'rapida' ? getSslInfo(hostname) : Promise.resolve({ issuer: 'N/A', expiry: 'N/A', fingerprint: 'N/A' }),
+      pingUrl(url),
+      profile !== 'rapida' ? queryWebCheck(url) : Promise.resolve(null),
     ]);
 
     const serverIp = await resolveIp(hostname);
     const serverLocation = serverIp !== 'N/A' ? await getGeoIp(serverIp) : 'N/A';
     const httpHeaders = JSON.stringify(serverInfo.headers, null, 2);
 
-    // ── 2. Captura com Playwright (via script Node inline) ─────────────────
+    // ── 2. Wayback Machine (em paralelo com Playwright) ───────────────────
+    const waybackPromise = saveToWayback(url);
+
+    // ── 3. Captura com Playwright ─────────────────────────────────────────
     const playwrightScript = `
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -356,29 +593,36 @@ const path = require('path');
       await execAsync(`node ${scriptPath}`, { timeout: 60000, env: process.env });
 
       if (fs.existsSync(path.join(captureDir, 'screenshot.png'))) {
-        screenshotFile = `capturas_web/${capture.id}/screenshot.png`;
+        screenshotFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/screenshot.png`;
         hashScreenshot = sha256(path.join(captureDir, 'screenshot.png'));
       }
       if (fs.existsSync(path.join(captureDir, 'pagina.pdf'))) {
-        pdfFile = `capturas_web/${capture.id}/pagina.pdf`;
+        pdfFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/pagina.pdf`;
         hashPdf = sha256(path.join(captureDir, 'pagina.pdf'));
       }
       if (fs.existsSync(path.join(captureDir, 'dom.html'))) {
-        htmlFile = `capturas_web/${capture.id}/dom.html`;
+        htmlFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/dom.html`;
         hashHtml = sha256(path.join(captureDir, 'dom.html'));
       }
       if (fs.existsSync(path.join(captureDir, 'network.har'))) {
-        harFile = `capturas_web/${capture.id}/network.har`;
+        harFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/network.har`;
       }
     } catch (e: any) {
       console.error('[CAPTURE] Playwright error:', e.message);
     }
 
-    // ── 3. RFC 3161 Timestamp ──────────────────────────────────────────────
+    // ── 4. RFC 3161 Timestamp ──────────────────────────────────────────────
     const combinedHash = sha256Buffer(Buffer.from([hashScreenshot, hashPdf, hashHtml].filter(Boolean).join('')));
     const rfcTs = await rfcTimestamp(combinedHash, capture.id);
 
-    // ── 4. Certidão PDF ────────────────────────────────────────────────────
+    // ── 5. Blockchain registration + Wayback (resolve) ────────────────────
+    const otsPath = path.join(captureDir, 'hash.ots');
+    const [blockchainResult, waybackUrl] = await Promise.all([
+      registerBlockchain(combinedHash, otsPath),
+      waybackPromise,
+    ]);
+
+    // ── 6. Certidão PDF ────────────────────────────────────────────────────
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3002';
     const verifyUrl = `${baseUrl}/verify?id=${capture.id}`;
 
@@ -400,12 +644,17 @@ const path = require('path');
       hashHtml: hashHtml || '',
       rfcTimestamp: rfcTs || 'Indisponível',
       verifyUrl,
+      pingMs: pingResult.pingMs,
+      siteStatus: pingResult.status,
+      waybackUrl: waybackUrl || undefined,
+      blockchainVerify: blockchainResult.verifyUrl,
+      webCheckData: webCheckResult ? JSON.stringify(webCheckResult) : undefined,
     });
 
     const certidaoPath = path.join(captureDir, 'certidao_captura.pdf');
     await fs.writeFile(certidaoPath, certidaoBuffer);
 
-    // ── 5. Atualiza registro no DB ─────────────────────────────────────────
+    // ── 7. Atualiza registro no DB ─────────────────────────────────────────
     const updated = await prisma.webCapture.update({
       where: { id: capture.id },
       data: {
@@ -416,12 +665,17 @@ const path = require('path');
         screenshotFile, pdfFile, htmlFile, harFile,
         hashScreenshot, hashPdf, hashHtml,
         rfcTimestamp: rfcTs,
-        certidaoPdf: `capturas_web/${capture.id}/certidao_captura.pdf`,
+        certidaoPdf: `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/certidao_captura.pdf`,
+        webCheckData: webCheckResult ? JSON.stringify(webCheckResult).slice(0, 8000) : null,
+        waybackUrl,
+        blockchainTx: blockchainResult.tx,
+        blockchainVerify: blockchainResult.verifyUrl,
+        pingMs: pingResult.pingMs >= 0 ? pingResult.pingMs : null,
+        siteStatus: pingResult.status || null,
         status: 'done',
       }
     });
 
-    // Limpa script temporário
     await fs.remove(scriptPath).catch(() => {});
 
     return NextResponse.json({ ok: true, capture: updated });

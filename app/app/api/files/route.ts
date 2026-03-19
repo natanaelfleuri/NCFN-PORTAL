@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import fs from 'fs-extra';
 import path from 'path';
 import { prisma } from '@/lib/prisma';
-import { getToken } from 'next-auth/jwt';
+import { getSession, getDbUser } from '@/lib/auth';
 import crypto from 'crypto';
 
 const ARQUIVOS_DIR = path.join(process.cwd(), '../COFRE_NCFN');
@@ -15,9 +15,12 @@ export async function GET(req: NextRequest) {
         const isPublicRequested = searchParams.get('public') === 'true';
 
         // Check session role
-        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-        
-        if (token?.role === 'guest') {
+        const session = await getSession();
+        const userEmail = session?.user?.email;
+        const dbUser = userEmail ? await getDbUser(userEmail) : null;
+        const isAdmin = dbUser?.role === 'admin';
+
+        if (!isAdmin && !userEmail) {
             return NextResponse.json([]);
         }
 
@@ -42,9 +45,6 @@ export async function GET(req: NextRequest) {
         const statusMap = new Map();
         dbStatus.forEach(s => statusMap.set(`${s.folder}/${s.filename}`, s.isPublic));
 
-        // Filter results: If public requested and no admin session, only show public files
-        const isAdmin = token?.role === 'admin';
-        
         const result = allFiles
             .map(f => ({
                 ...f,
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
             .filter(f => {
                 if (isAdmin) return true;
                 if (isPublicRequested) return f.isPublic;
-                return token ? true : false; // Logged in users see all unless guest, others see nothing unless public requested
+                return !!userEmail; // Logged in non-admin users see all; unauthenticated see nothing
             });
 
         return NextResponse.json(result);

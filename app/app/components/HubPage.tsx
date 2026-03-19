@@ -387,6 +387,24 @@ export default function MasterHub() {
     <>
       {/* Global keyframe styles */}
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap');
+
+        .hub-title {
+          font-family: 'Orbitron', 'Courier New', monospace;
+          font-weight: 900;
+          letter-spacing: 0.18em;
+          line-height: 1.15;
+        }
+        .hub-title-main {
+          font-size: clamp(1.6rem, 5vw, 3.2rem);
+        }
+        .hub-title-sub {
+          font-family: 'Orbitron', 'Courier New', monospace;
+          font-weight: 700;
+          font-size: clamp(0.7rem, 1.8vw, 1rem);
+          letter-spacing: 0.3em;
+        }
+
         @keyframes hexRain {
           0%   { transform: translateY(-100%); opacity: 0; }
           10%  { opacity: 0.035; }
@@ -428,7 +446,7 @@ export default function MasterHub() {
         }
       `}</style>
 
-      <div className="relative min-h-screen bg-slate-950 overflow-x-hidden">
+      <div className="relative min-h-screen bg-transparent overflow-x-hidden">
 
         {/* ── Hex data rain background ── */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden>
@@ -470,23 +488,17 @@ export default function MasterHub() {
               <div className="h-px flex-1 bg-gradient-to-l from-transparent to-cyan-500/30" />
             </div>
 
-            <h1
-              className="text-2xl sm:text-3xl md:text-4xl font-mono font-bold text-white uppercase"
-              style={{ letterSpacing: '0.35em', lineHeight: 1.3 }}
-            >
-              <span className="text-cyan-400 drop-shadow-[0_0_20px_rgba(6,182,212,0.8)]">
-                N E X U S
-              </span>{' '}
-              C Y B E R{' '}
-              <span className="text-cyan-400 drop-shadow-[0_0_20px_rgba(6,182,212,0.8)]">
-                F O R E N S I C
-              </span>{' '}
-              N E T W O R K
+            <h1 className="hub-title hub-title-main text-white uppercase">
+              <span className="text-cyan-400 drop-shadow-[0_0_24px_rgba(6,182,212,0.9)]">
+                NEXUS CYBER
+              </span>
+              <br />
+              <span className="text-white/90 drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">
+                FORENSIC NETWORK
+              </span>
             </h1>
 
-            <p
-              className="text-[10px] sm:text-xs font-mono text-cyan-300/70 uppercase tracking-[0.2em] drop-shadow-[0_0_8px_rgba(6,182,212,0.4)] max-w-2xl mx-auto"
-            >
+            <p className="hub-title-sub text-cyan-300/60 uppercase drop-shadow-[0_0_8px_rgba(6,182,212,0.4)] max-w-2xl mx-auto">
               CADEIA DE CUSTÓDIA E TRATAMENTO FORENSE EM DOCUMENTOS DIGITAIS PROBATÓRIOS
             </p>
           </motion.div>
