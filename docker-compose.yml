@@ -66,7 +66,7 @@ services:
     restart: unless-stopped
     # network_mode: host → localhost:3002 resolve para o host (onde portal expõe a porta)
     network_mode: host
-    command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiMTZhMTVlYmQtNDJjNS00ZDMwLTg0NGUtNTFiN2YyNjYyMzRmIiwicyI6Ik1qazRNbU0zWXpNdE1UTmhOQzAwT0RFMExXRmlNVEF0WWpZM05EWmtZV05rTlRjeCJ9
+    command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiYzhhOGQ5NTctNmRjNy00YWYwLWEwNGQtOTAwYzM3ODRiNDY2IiwicyI6Ik9HSXdaRGszWVdJdFpHTXlPQzAwWXprMkxXSTRPVGd0WVRRNFptSTJaRE0xWXpCaiJ9
 
   # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
   # Ativar: docker compose --profile whisper up -d
