@@ -67,8 +67,8 @@ export default function RootLayout({
                     />
                   </div>
                   <div className="hidden sm:block">
-                    <h1 className="text-base lg:text-lg font-black text-white tracking-widest uppercase italic leading-none">NCFN.NET</h1>
-                    <p className="text-[8px] text-[#00f3ff]/40 font-mono uppercase tracking-[0.15em] leading-none mt-0.5 hidden lg:block">Nexus Cloud Forensic</p>
+                    <h1 className="text-base lg:text-lg font-black text-white tracking-widest uppercase leading-none">NCFN</h1>
+                    <p className="text-[8px] text-[#00f3ff]/50 font-mono uppercase tracking-[0.12em] leading-none mt-0.5 hidden lg:block">Nexus Cyber Forensic Network</p>
                   </div>
                 </Link>
                 <Navigation />
