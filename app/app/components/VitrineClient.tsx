@@ -7,7 +7,7 @@ import {
   Download, X, CheckSquare, Square, HardDrive, Upload,
   Shield, AlertCircle, Hash, Eye, Mail, Plus, Trash2,
   Clock, UserCheck, AlertTriangle, Lock, ChevronDown, ChevronRight,
-  RefreshCw, HelpCircle,
+  RefreshCw, HelpCircle, KeyRound,
 } from "lucide-react";
 
 type FileItem = {
@@ -351,6 +351,223 @@ function EmailGate({ onAccess }: { onAccess: (email: string) => void }) {
   );
 }
 
+/* ── Public Vitrine (password-based, no auth required) ── */
+type PublicEntry = {
+  id: string;
+  recipientName: string;
+  filename: string;
+  publishedAt: string;
+  downloadCount: number;
+};
+
+function PublicVitrineView() {
+  const [entries, setEntries] = useState<PublicEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [passwords, setPasswords] = useState<Record<string, string>>({});
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [done, setDone] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/vitrine/public')
+      .then(r => r.json())
+      .then(data => setEntries(Array.isArray(data) ? data : []))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleRedeem = async (entry: PublicEntry) => {
+    const pw = passwords[entry.id] || '';
+    if (!pw) return;
+    setDownloading(d => ({ ...d, [entry.id]: true }));
+    setErrors(e => ({ ...e, [entry.id]: '' }));
+    try {
+      const res = await fetch('/api/vitrine/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: entry.id, password: pw }),
+      });
+      if (res.status === 401) {
+        setErrors(e => ({ ...e, [entry.id]: 'Senha incorreta' }));
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErrors(e => ({ ...e, [entry.id]: data.error || 'Erro ao baixar' }));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const cd = res.headers.get('Content-Disposition') || '';
+      const match = cd.match(/filename="([^"]+)"/);
+      a.href = url;
+      a.download = match ? match[1] : `${entry.filename}_NCFN_CERTIFY.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setDone(d => ({ ...d, [entry.id]: true }));
+      // refresh download counts
+      fetch('/api/vitrine/public').then(r => r.json()).then(data => setEntries(Array.isArray(data) ? data : [])).catch(() => {});
+    } finally {
+      setDownloading(d => ({ ...d, [entry.id]: false }));
+    }
+  };
+
+  const filtered = entries.filter(e =>
+    e.recipientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    e.filename.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-12">
+      {/* Header */}
+      <div className="text-center mb-12 space-y-4">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#00f3ff]/10 border border-[#00f3ff]/30 rounded-full text-[#00f3ff] text-xs font-bold uppercase tracking-[0.2em] animate-pulse">
+          <Globe className="w-4 h-4" /> Canal de Distribuição Forense Certificada
+        </div>
+        <h1 className="text-5xl lg:text-7xl font-black text-white tracking-tighter italic">VITRINE PÚBLICA</h1>
+        <p className="text-gray-500 font-mono text-sm max-w-2xl mx-auto uppercase tracking-widest opacity-80">
+          Repositório de ativos forenses autorizados pelo protocolo NCFN — cadeia de custódia verificável
+        </p>
+        <div className="flex justify-center mt-4">
+          <button onClick={() => setShowHelp(true)}
+            className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all">
+            <HelpCircle size={14} /> Como funciona
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-2xl mx-auto mb-10 group">
+        <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00f3ff] transition-colors" />
+        <input type="text" placeholder="BUSCAR POR DESTINATÁRIO OU ARQUIVO..."
+          value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+          className="w-full bg-black/40 backdrop-blur-xl border border-white/10 focus:border-[#00f3ff]/50 rounded-2xl py-5 pl-16 pr-6 text-white font-mono tracking-widest focus:outline-none transition-all" />
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-48 bg-white/5 border border-white/10 rounded-3xl animate-pulse" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-32 bg-white/5 border border-dashed border-white/10 rounded-[3rem]">
+          <div className="max-w-xs mx-auto space-y-6">
+            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto">
+              <Search className="w-8 h-8 text-gray-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-400 uppercase tracking-widest">Nenhum arquivo disponível</h3>
+            <p className="text-gray-600 text-sm leading-relaxed">Nenhum arquivo foi publicado na vitrine ainda.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filtered.map(entry => (
+            <div key={entry.id} className="relative bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/10 hover:border-violet-500/40 hover:shadow-[0_20px_60px_-15px_rgba(139,92,246,0.15)] hover:-translate-y-1 rounded-3xl p-6 transition-all duration-300">
+              {/* Badge */}
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-green-900/30 border border-green-500/30 rounded-full px-2 py-1">
+                <ShieldCheck className="w-3 h-3 text-green-400" />
+                <span className="text-green-400 text-[9px] font-mono uppercase">Custódia Ativa</span>
+              </div>
+
+              {/* File info */}
+              <div className="flex items-start gap-4 mb-4 mt-2">
+                <div className="p-3 bg-white/5 rounded-2xl text-violet-400">
+                  <FileText className="w-8 h-8" />
+                </div>
+                <div className="flex-1 overflow-hidden pr-20">
+                  <p className="text-[10px] font-mono text-gray-500 uppercase mb-0.5">Para</p>
+                  <h3 className="text-white font-bold text-base truncate mb-1" title={entry.recipientName}>{entry.recipientName}</h3>
+                  <p className="text-gray-400 text-xs font-mono truncate" title={entry.filename}>{entry.filename}</p>
+                </div>
+              </div>
+
+              {/* Meta */}
+              <div className="flex items-center gap-4 text-[10px] font-mono text-gray-600 mb-4">
+                <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(entry.publishedAt).toLocaleDateString('pt-BR')}</span>
+                <span className="flex items-center gap-1"><Download className="w-3 h-3" />{entry.downloadCount} downloads</span>
+              </div>
+
+              {/* Password + download */}
+              {done[entry.id] ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-900/20 border border-green-500/30 rounded-xl text-green-300 text-xs font-bold">
+                  <ShieldCheck className="w-4 h-4 text-green-400" /> Download iniciado — acesso registrado
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 w-3.5 h-3.5" />
+                      <input
+                        type="password"
+                        placeholder="Código de acesso..."
+                        value={passwords[entry.id] || ''}
+                        onChange={e => setPasswords(p => ({ ...p, [entry.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') handleRedeem(entry); }}
+                        className="w-full bg-black/40 border border-white/10 focus:border-violet-500/50 rounded-xl pl-9 pr-3 py-2 text-white font-mono text-xs focus:outline-none transition-all"
+                      />
+                    </div>
+                    <button
+                      onClick={() => handleRedeem(entry)}
+                      disabled={!passwords[entry.id] || downloading[entry.id]}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-violet-900/30 hover:bg-violet-800/40 border border-violet-700/40 text-violet-300 font-bold text-xs rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {downloading[entry.id]
+                        ? <div className="w-3.5 h-3.5 border-2 border-t-violet-400 border-white/20 rounded-full animate-spin" />
+                        : <Download className="w-3.5 h-3.5" />}
+                      {downloading[entry.id] ? 'Baixando...' : 'Baixar ZIP'}
+                    </button>
+                  </div>
+                  {errors[entry.id] && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 border border-red-500/30 rounded-lg text-red-300 text-xs">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {errors[entry.id]}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Legal footer */}
+      <div className="mt-24 pt-12 border-t border-white/5 text-center">
+        <div className="flex items-center justify-center gap-2 text-[#00f3ff]/40 text-xs font-mono uppercase tracking-[0.4em] mb-4">
+          <Shield className="w-4 h-4" /> NCFN Zero-Trust Global Delivery
+        </div>
+        <p className="text-slate-600 text-[10px] max-w-3xl mx-auto font-mono italic leading-relaxed">
+          Os ativos listados nesta vitrine são protegidos por algoritmos de integridade SHA-256 e estão em conformidade com o protocolo NCFN de preservação de materialidade digital.
+        </p>
+      </div>
+
+      {showHelp && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
+            <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+              <X size={18} />
+            </button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                <HelpCircle className="w-5 h-5 text-blue-400" />
+              </div>
+              <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
+            </div>
+            <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
+              <p>A <strong className="text-white">Vitrine Pública</strong> lista arquivos forenses disponibilizados pelo protocolo NCFN para destinatários específicos.</p>
+              <p>Cada arquivo possui um <strong className="text-white">código de acesso numérico de 6 dígitos</strong> entregue ao destinatário pelo operador NCFN.</p>
+              <p>O download gera um <strong className="text-white">pacote ZIP certificado</strong> contendo o arquivo original mais um guia de verificação de autenticidade SHA-256.</p>
+              <p>Todo acesso — incluindo IP e timestamp — é <strong className="text-white">registrado permanentemente</strong> nos logs de auditoria forense do portal.</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Vitrine Component ── */
 function VitrineInner({ initialIsAdmin }: { initialIsAdmin: boolean }) {
   const searchParams = useSearchParams();
@@ -410,8 +627,10 @@ function VitrineInner({ initialIsAdmin }: { initialIsAdmin: boolean }) {
     }
   }, [searchTerm, files]);
 
-  // Visitor: show email gate if not admin and no email yet
-  const showGate = !isAdmin && !visitorEmail;
+  // Non-admin: render the new password-based public vitrine
+  if (!isAdmin) {
+    return <PublicVitrineView />;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
@@ -434,134 +653,104 @@ function VitrineInner({ initialIsAdmin }: { initialIsAdmin: boolean }) {
         </div>
       </div>
 
-      {/* Email Gate for visitors */}
-      {showGate ? (
-        <EmailGate onAccess={handleVisitorAccess} />
-      ) : (
-        <>
-          {/* Visitor identity bar */}
-          {visitorEmail && (
-            <div className="flex items-center justify-between gap-3 mb-6 px-4 py-3 bg-[#00f3ff]/5 border border-[#00f3ff]/20 rounded-xl">
-              <div className="flex items-center gap-2 text-[#00f3ff] text-xs font-mono">
-                <UserCheck size={14} /> Acesso verificado para: <strong>{visitorEmail}</strong>
-              </div>
-              <button onClick={() => { setVisitorEmail(null); setFiles([]); }}
-                className="text-gray-500 hover:text-red-400 text-xs transition-all flex items-center gap-1">
-                <X size={12} /> Trocar e-mail
-              </button>
+      {/* Search Bar */}
+      <div className="relative max-w-2xl mx-auto mb-10 group">
+        <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00f3ff] transition-colors" />
+        <input type="text" placeholder="BUSCAR POR NOME, PASTA OU HASH SHA-256..."
+          value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-black/40 backdrop-blur-xl border border-white/10 focus:border-[#00f3ff]/50 rounded-2xl py-5 pl-16 pr-6 text-white font-mono tracking-widest focus:outline-none transition-all" />
+      </div>
+
+      {/* Admin: refresh button */}
+      <div className="flex justify-end mb-4">
+        <button onClick={() => fetchFiles()} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#00f3ff] transition-all">
+          <RefreshCw size={12} /> Atualizar lista
+        </button>
+      </div>
+
+      {/* Main grid */}
+      <div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex-1">
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[1, 2, 3, 4].map(i => <div key={i} className="h-48 bg-white/5 border border-white/10 rounded-3xl animate-pulse" />)}
             </div>
-          )}
-
-          {/* Search Bar */}
-          <div className="relative max-w-2xl mx-auto mb-10 group">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00f3ff] transition-colors" />
-            <input type="text" placeholder="BUSCAR POR NOME, PASTA OU HASH SHA-256..."
-              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-black/40 backdrop-blur-xl border border-white/10 focus:border-[#00f3ff]/50 rounded-2xl py-5 pl-16 pr-6 text-white font-mono tracking-widest focus:outline-none transition-all" />
-          </div>
-
-          {/* Admin: refresh button */}
-          {isAdmin && (
-            <div className="flex justify-end mb-4">
-              <button onClick={() => fetchFiles()} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#00f3ff] transition-all">
-                <RefreshCw size={12} /> Atualizar lista
-              </button>
-            </div>
-          )}
-
-          {/* Main grid */}
-          <div className="flex flex-col lg:flex-row gap-8">
-            <div className="flex-1">
-              {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {[1, 2, 3, 4].map(i => <div key={i} className="h-48 bg-white/5 border border-white/10 rounded-3xl animate-pulse" />)}
-                </div>
-              ) : filteredFiles.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {filteredFiles.map((file, idx) => {
-                    const isHighlighted = isNew && file.folder === newFolder && file.filename === newFilename;
-                    return (
-                      <div key={idx} className={`relative bg-[#0a0a0a]/80 backdrop-blur-xl border rounded-3xl p-6 transition-all duration-500 ${isHighlighted ? 'border-red-500/50 shadow-[0_0_40px_rgba(239,68,68,0.15)]' : 'border-white/10 hover:border-[#00f3ff]/40 hover:shadow-[0_20px_60px_-15px_rgba(0,243,255,0.15)] hover:-translate-y-1'}`}>
-                        {/* Custody badge */}
-                        <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-green-900/30 border border-green-500/30 rounded-full px-2 py-1">
-                          <ShieldCheck className="w-3 h-3 text-green-400" />
-                          <span className="text-green-400 text-[9px] font-mono uppercase">Custódia Ativa</span>
-                        </div>
-
-                        <div className="flex items-start gap-4 mb-4 mt-2 cursor-pointer" onClick={() => setSelectedFile(file)}>
-                          <div className="p-3 bg-white/5 rounded-2xl text-gray-500 hover:text-[#00f3ff] transition-colors">
-                            <FileText className="w-8 h-8" />
-                          </div>
-                          <div className="flex-1 overflow-hidden pr-20">
-                            <h3 className="text-white font-bold text-lg truncate mb-1" title={file.filename}>{file.filename}</h3>
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono uppercase">
-                              <Folder className="w-3 h-3" /> {file.folder}
-                            </div>
-                          </div>
-                        </div>
-
-                        {file.hash && (
-                          <div className="mb-3 bg-black/30 rounded-lg px-3 py-2 cursor-pointer" onClick={() => setSelectedFile(file)}>
-                            <p className="text-[9px] text-slate-600 font-mono uppercase mb-0.5">SHA-256</p>
-                            <p className="text-cyan-700 font-mono text-[10px] truncate">{file.hash}</p>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between pt-3 border-t border-white/5 cursor-pointer" onClick={() => setSelectedFile(file)}>
-                          <div className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">{formatBytes(file.size)}</div>
-                          <div className="inline-flex items-center gap-2 text-xs font-black text-[#00f3ff] uppercase tracking-widest">
-                            <Eye className="w-3.5 h-3.5" /> Ver Detalhes
-                          </div>
-                        </div>
-
-                        {/* Admin: email access manager */}
-                        {isAdmin && (
-                          <AdminEmailManager
-                            folder={file.folder}
-                            filename={file.filename}
-                            highlighted={isHighlighted}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-32 bg-white/5 border border-dashed border-white/10 rounded-[3rem]">
-                  <div className="max-w-xs mx-auto space-y-6">
-                    <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto">
-                      <Search className="w-8 h-8 text-gray-600" />
+          ) : filteredFiles.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredFiles.map((file, idx) => {
+                const isHighlighted = isNew && file.folder === newFolder && file.filename === newFilename;
+                return (
+                  <div key={idx} className={`relative bg-[#0a0a0a]/80 backdrop-blur-xl border rounded-3xl p-6 transition-all duration-500 ${isHighlighted ? 'border-red-500/50 shadow-[0_0_40px_rgba(239,68,68,0.15)]' : 'border-white/10 hover:border-[#00f3ff]/40 hover:shadow-[0_20px_60px_-15px_rgba(0,243,255,0.15)] hover:-translate-y-1'}`}>
+                    {/* Custody badge */}
+                    <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-green-900/30 border border-green-500/30 rounded-full px-2 py-1">
+                      <ShieldCheck className="w-3 h-3 text-green-400" />
+                      <span className="text-green-400 text-[9px] font-mono uppercase">Custódia Ativa</span>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-400 uppercase tracking-widest">
-                      {visitorEmail ? 'Nenhum arquivo disponível para você' : 'Nenhuma Evidência'}
-                    </h3>
-                    <p className="text-gray-600 text-sm leading-relaxed">
-                      {visitorEmail
-                        ? `Nenhum arquivo público foi compartilhado com ${visitorEmail}.`
-                        : 'Nenhum arquivo foi marcado como público.'}
-                    </p>
+
+                    <div className="flex items-start gap-4 mb-4 mt-2 cursor-pointer" onClick={() => setSelectedFile(file)}>
+                      <div className="p-3 bg-white/5 rounded-2xl text-gray-500 hover:text-[#00f3ff] transition-colors">
+                        <FileText className="w-8 h-8" />
+                      </div>
+                      <div className="flex-1 overflow-hidden pr-20">
+                        <h3 className="text-white font-bold text-lg truncate mb-1" title={file.filename}>{file.filename}</h3>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-mono uppercase">
+                          <Folder className="w-3 h-3" /> {file.folder}
+                        </div>
+                      </div>
+                    </div>
+
+                    {file.hash && (
+                      <div className="mb-3 bg-black/30 rounded-lg px-3 py-2 cursor-pointer" onClick={() => setSelectedFile(file)}>
+                        <p className="text-[9px] text-slate-600 font-mono uppercase mb-0.5">SHA-256</p>
+                        <p className="text-cyan-700 font-mono text-[10px] truncate">{file.hash}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-3 border-t border-white/5 cursor-pointer" onClick={() => setSelectedFile(file)}>
+                      <div className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">{formatBytes(file.size)}</div>
+                      <div className="inline-flex items-center gap-2 text-xs font-black text-[#00f3ff] uppercase tracking-widest">
+                        <Eye className="w-3.5 h-3.5" /> Ver Detalhes
+                      </div>
+                    </div>
+
+                    {/* Admin: email access manager */}
+                    <AdminEmailManager
+                      folder={file.folder}
+                      filename={file.filename}
+                      highlighted={isHighlighted}
+                    />
                   </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-32 bg-white/5 border border-dashed border-white/10 rounded-[3rem]">
+              <div className="max-w-xs mx-auto space-y-6">
+                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto">
+                  <Search className="w-8 h-8 text-gray-600" />
                 </div>
-              )}
+                <h3 className="text-xl font-bold text-gray-400 uppercase tracking-widest">Nenhuma Evidência</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">Nenhum arquivo foi marcado como público.</p>
+              </div>
             </div>
+          )}
+        </div>
 
-            {/* Sidebar */}
-            <div className="w-full lg:w-80 shrink-0">
-              <LocalHashVerifier />
-            </div>
-          </div>
+        {/* Sidebar */}
+        <div className="w-full lg:w-80 shrink-0">
+          <LocalHashVerifier />
+        </div>
+      </div>
 
-          {/* Legal Footer */}
-          <div className="mt-24 pt-12 border-t border-white/5 text-center">
-            <div className="flex items-center justify-center gap-2 text-[#00f3ff]/40 text-xs font-mono uppercase tracking-[0.4em] mb-4">
-              <Shield className="w-4 h-4" /> NCFN Zero-Trust Global Delivery
-            </div>
-            <p className="text-slate-600 text-[10px] max-w-3xl mx-auto font-mono italic leading-relaxed">
-              Os ativos listados nesta vitrine são protegidos por algoritmos de integridade SHA-256 e estão em conformidade com o protocolo NCFN de preservação de materialidade digital.
-            </p>
-          </div>
-        </>
-      )}
+      {/* Legal Footer */}
+      <div className="mt-24 pt-12 border-t border-white/5 text-center">
+        <div className="flex items-center justify-center gap-2 text-[#00f3ff]/40 text-xs font-mono uppercase tracking-[0.4em] mb-4">
+          <Shield className="w-4 h-4" /> NCFN Zero-Trust Global Delivery
+        </div>
+        <p className="text-slate-600 text-[10px] max-w-3xl mx-auto font-mono italic leading-relaxed">
+          Os ativos listados nesta vitrine são protegidos por algoritmos de integridade SHA-256 e estão em conformidade com o protocolo NCFN de preservação de materialidade digital.
+        </p>
+      </div>
 
       {showHelp && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">

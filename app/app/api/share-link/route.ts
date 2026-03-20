@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
         });
 
         // Provide the absolute URL to access it
-        const url = new URL(`/shared/${shareToken}`, req.url).href;
+        const base = process.env.NEXTAUTH_URL || 'https://ncfn.net';
+        const url = `${base}/shared/${shareToken}`;
 
         return NextResponse.json({ url, token: shareToken });
 

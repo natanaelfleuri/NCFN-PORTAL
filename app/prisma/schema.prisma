@@ -380,3 +380,14 @@ model VaultAccessLog {
   @@index([filePath])
   @@index([createdAt])
 }
+
+model VitrinePublish {
+  id            String   @id @default(cuid())
+  folder        String
+  filename      String
+  recipientName String
+  passwordHash  String   // bcrypt or sha256 hash of 6-digit code
+  publishedAt   DateTime @default(now())
+  downloadCount Int      @default(0)
+  active        Boolean  @default(true)
+}

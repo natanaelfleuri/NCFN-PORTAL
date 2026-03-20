@@ -9,9 +9,162 @@ import {
   ChevronDown, ChevronRight, Hash, Clock, HardDrive, X, ZoomIn,
   FileSearch, Shield, AlertTriangle, Menu, ChevronsDown, ChevronsUp,
   Trash2, Upload, Globe, FileCheck2, CheckCircle, XCircle, CheckCircle2,
-  ArrowRight, PackageCheck, Printer, HelpCircle,
+  ArrowRight, PackageCheck, Printer, HelpCircle, Share2, RefreshCw,
 } from "lucide-react";
 import ShareModal from "./ShareModal";
+
+/* ── Vitrine Publish Modal ── */
+function gerarSenhas(): string[] {
+  return Array.from({ length: 20 }, () =>
+    Math.floor(100000 + Math.random() * 900000).toString()
+  );
+}
+
+function VitrinePublishModal({
+  folder,
+  filename,
+  onClose,
+  notify,
+}: {
+  folder: string;
+  filename: string;
+  onClose: () => void;
+  notify: (type: 'success' | 'error', msg: string) => void;
+}) {
+  const [recipientName, setRecipientName] = useState('');
+  const [senhas, setSenhas] = useState<string[]>(() => gerarSenhas());
+  const [selectedPw, setSelectedPw] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [published, setPublished] = useState(false);
+
+  const canSubmit = recipientName.trim().length > 0 && selectedPw !== null && !saving;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/vitrine/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder, filename, recipientName: recipientName.trim(), password: selectedPw }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao publicar');
+      }
+      setPublished(true);
+      notify('success', `"${filename}" publicado na vitrine para ${recipientName.trim()}.`);
+      setTimeout(() => onClose(), 2000);
+    } catch (e: any) {
+      notify('error', e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-gray-950 border border-violet-500/40 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-violet-950/40 border-b border-violet-500/30 px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Share2 size={18} className="text-violet-400 flex-shrink-0" />
+            <div>
+              <h3 className="text-violet-200 font-black text-sm uppercase tracking-widest">Publicar na Vitrine</h3>
+              <p className="text-[10px] text-gray-500 font-mono mt-0.5 truncate max-w-xs">{filename}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-600 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {published ? (
+          <div className="px-5 py-10 text-center space-y-3">
+            <CheckCircle size={48} className="text-green-400 mx-auto" />
+            <p className="text-green-300 font-black text-base uppercase tracking-widest">Publicado na vitrine!</p>
+            <p className="text-gray-500 text-xs font-mono">Código entregue a: {recipientName}</p>
+          </div>
+        ) : (
+          <div className="px-5 py-5 space-y-5">
+            {/* File display */}
+            <div className="flex items-center gap-3 px-3 py-2 bg-black/40 border border-white/10 rounded-xl">
+              <FileText size={16} className="text-violet-400 flex-shrink-0" />
+              <div className="flex-1 overflow-hidden">
+                <p className="text-white text-xs font-mono truncate">{filename}</p>
+                <p className="text-gray-600 text-[10px] font-mono">{folder}</p>
+              </div>
+            </div>
+
+            {/* Recipient name */}
+            <div>
+              <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-widest">Disponibilizar para</label>
+              <input
+                type="text"
+                value={recipientName}
+                onChange={e => setRecipientName(e.target.value)}
+                placeholder="Nome do destinatário..."
+                className="w-full bg-black/40 border border-white/10 focus:border-violet-500/50 rounded-xl px-3 py-2 text-white text-sm focus:outline-none transition-all"
+              />
+            </div>
+
+            {/* Password grid */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Código de acesso</label>
+                <button
+                  onClick={() => { setSenhas(gerarSenhas()); setSelectedPw(null); }}
+                  className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-violet-400 transition-colors"
+                >
+                  <RefreshCw size={10} /> Gerar novas senhas
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-600 font-mono mb-2">Selecione um código para entregar ao destinatário:</p>
+              <div className="grid grid-cols-5 gap-1.5 max-h-44 overflow-y-auto">
+                {senhas.map(pw => (
+                  <button
+                    key={pw}
+                    onClick={() => setSelectedPw(pw === selectedPw ? null : pw)}
+                    className={`py-1.5 rounded-lg text-xs font-mono font-bold border transition-all ${
+                      selectedPw === pw
+                        ? 'bg-violet-600/40 border-violet-400 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.3)]'
+                        : 'bg-black/40 border-white/10 text-gray-400 hover:border-violet-500/40 hover:text-violet-300'
+                    }`}
+                  >
+                    {pw}
+                  </button>
+                ))}
+              </div>
+              {selectedPw && (
+                <p className="mt-2 text-center text-violet-300 text-sm font-mono font-black">
+                  Selecionado: <span className="bg-violet-900/40 px-2 py-0.5 rounded">{selectedPw}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex gap-2 pt-1 border-t border-gray-800">
+              <button
+                onClick={onClose}
+                className="flex-1 py-2 rounded-xl border border-gray-700 text-gray-500 hover:text-gray-300 text-xs font-bold transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className="flex-1 py-2 rounded-xl bg-violet-900/40 border border-violet-500/40 text-violet-300 hover:bg-violet-900/70 hover:text-white text-xs font-black transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Share2 size={13} />
+                {saving ? 'Gravando...' : 'Gravar'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface VaultFile {
   name: string;
@@ -146,6 +299,11 @@ export default function VaultPage() {
 
   // Share modal (DISPONIBILIZAR PARA TERCEIROS)
   const [shareModal, setShareModal] = useState<{
+    open: boolean; folder: string; filename: string;
+  }>({ open: false, folder: '', filename: '' });
+
+  // Vitrine Publish modal
+  const [vitrineModal, setVitrineModal] = useState<{
     open: boolean; folder: string; filename: string;
   }>({ open: false, folder: '', filename: '' });
 
@@ -395,6 +553,15 @@ export default function VaultPage() {
       : selected.name;
     logAction(selected.path, 'share');
     setShareModal({ open: true, folder, filename: actualName });
+  };
+
+  const handleOpenVitrine = () => {
+    if (!selected) return;
+    const [folder] = selected.path.split('/');
+    const actualName = (sessionEncrypted.has(selected.path) && !selected.name.endsWith('.enc'))
+      ? selected.name + '.enc'
+      : selected.name;
+    setVitrineModal({ open: true, folder, filename: actualName });
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -837,6 +1004,16 @@ export default function VaultPage() {
         notify={notify}
       />
 
+      {/* Vitrine Publish modal */}
+      {vitrineModal.open && (
+        <VitrinePublishModal
+          folder={vitrineModal.folder}
+          filename={vitrineModal.filename}
+          onClose={() => setVitrineModal(s => ({ ...s, open: false }))}
+          notify={notify}
+        />
+      )}
+
       {/* Notification toast */}
       {notification && (
         <div className={`fixed top-4 right-4 z-[100] flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium transition-all ${
@@ -1197,6 +1374,19 @@ export default function VaultPage() {
                 >
                   <Globe size={13} />
                   DISPONIBILIZAR ATIVO PARA TERCEIROS
+                </button>
+                <button
+                  onClick={handleOpenVitrine}
+                  disabled={!selected}
+                  title="Publicar na Vitrine com código de acesso numérico"
+                  className={`mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all border ${
+                    selected
+                      ? 'bg-violet-900/20 hover:bg-violet-800/30 border-violet-700/40 text-violet-400 hover:shadow-[0_0_15px_rgba(139,92,246,0.15)]'
+                      : 'bg-gray-900/30 border-gray-700/20 text-gray-600 cursor-not-allowed'
+                  }`}
+                >
+                  <Share2 size={13} />
+                  PUBLICAR NA VITRINE
                 </button>
               </div>
 

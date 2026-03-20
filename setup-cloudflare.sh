@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # ── Credenciais ─────────────────────────────────────────────────────────────
-CF_TOKEN="cfat_oT3G8Ky1a3cLbqDNXedRJhk0Mmlt1pizfBfTpud7cdd35ef8"
+CF_TOKEN="cfat_IBauu7f8qD6Rjg4is1AMvmaLEHtWajqRGiVTIE9w8d4ecbca"
 ZONE_ID="9e6b4e4c2455925f1c81207092feeb2c"
 ACCOUNT_ID="4d29f510cefd46c07f5c1ec78e272792"
 DOMAIN="ncfn.net"
@@ -25,7 +25,7 @@ cf() { curl -sf "${H[@]}" "$@"; }
 
 # ── 0. Verificar token ───────────────────────────────────────────────────────
 info "Verificando token Cloudflare..."
-STATUS=$(cf "${CF}/user/tokens/verify" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['result']['status'])" 2>/dev/null || echo "error")
+STATUS=$(cf "${CF}/accounts/${ACCOUNT_ID}/tokens/verify" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['result']['status'])" 2>/dev/null || echo "error")
 if [[ "$STATUS" != "active" ]]; then
   err "Token inválido ou inativo. Verifique o token e tente novamente."
   exit 1
