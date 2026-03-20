@@ -4,7 +4,7 @@ import {
   Camera, FileText, Globe, Code2, Search, Zap, Loader2, CheckCircle,
   AlertTriangle, Download, Trash2, Eye, Save, ChevronDown, ChevronUp,
   ExternalLink, Wifi, WifiOff, HelpCircle, X, Hash, Shield, Plus, Minus,
-  BookOpen, Link2, Archive, Server, Cpu, Code,
+  BookOpen, Link2, Archive, Server, Cpu, Clock, Activity,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -106,6 +106,25 @@ const ACTIONS = [
     mime: "application/json",
   },
 ] as const;
+
+// ─── Plan limits (Browserless.io free tier) ───────────────────────────────────
+
+const MAX_UNITS = 1000;          // units/month
+const COOLDOWN_SECS = 12;        // wait between actions (2 concurrent browser limit)
+const MAX_SESSION_SECS = 55;     // warn at 55 s (1 min hard limit)
+
+const UNIT_COSTS: Record<Action, number> = {
+  screenshot: 1,
+  pdf: 1,
+  content: 1,
+  scrape: 1,
+  performance: 5,   // Lighthouse is heavier
+};
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -378,6 +397,14 @@ export default function CapturaWebPage() {
   const [loadingAction, setLoadingAction] = useState<Action | null>(null);
   const [actionErrors, setActionErrors] = useState<Partial<Record<Action, string>>>({});
 
+  // Rate limit & cooldown
+  const [cooldown, setCooldown] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [monthlyUsage, setMonthlyUsage] = useState<{ month: string; units: number }>({
+    month: currentMonth(),
+    units: 0,
+  });
+
   // Collection
   const [collection, setCollection] = useState<CollectedItem[]>([]);
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
@@ -395,9 +422,53 @@ export default function CapturaWebPage() {
   // Help
   const [showHelp, setShowHelp] = useState(false);
 
+  // ── Load monthly usage from localStorage ─────────────────────────────────
+  useEffect(() => {
+    const month = currentMonth();
+    try {
+      const stored = localStorage.getItem("bl_usage");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.month === month) {
+          setMonthlyUsage(parsed);
+          return;
+        }
+      }
+    } catch {}
+    const fresh = { month, units: 0 };
+    setMonthlyUsage(fresh);
+    try { localStorage.setItem("bl_usage", JSON.stringify(fresh)); } catch {}
+  }, []);
+
+  // ── Cooldown countdown ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  // ── Elapsed timer while loading (session timeout warning) ────────────────
+  useEffect(() => {
+    if (!loadingAction) { setElapsed(0); return; }
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [loadingAction]);
+
   useEffect(() => {
     fetchHistory();
   }, []);
+
+  // ── Track unit usage ──────────────────────────────────────────────────────
+  function addUnits(action: Action) {
+    const month = currentMonth();
+    setMonthlyUsage((prev) => {
+      const base = prev.month === month ? prev.units : 0;
+      const updated = { month, units: base + UNIT_COSTS[action] };
+      try { localStorage.setItem("bl_usage", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    setCooldown(COOLDOWN_SECS);
+  }
 
   async function fetchHistory() {
     try {
@@ -416,6 +487,13 @@ export default function CapturaWebPage() {
   }
 
   async function handleAction(action: Action) {
+    // Hard limits
+    if (cooldown > 0) return;
+    if (monthlyUsage.units >= MAX_UNITS) {
+      setUrlError(`Limite mensal de ${MAX_UNITS} unidades atingido. Reinicia no próximo mês.`);
+      return;
+    }
+
     const trimmedUrl = url.trim();
     if (!trimmedUrl) {
       setUrlError("Informe a URL antes de capturar");
@@ -459,7 +537,8 @@ export default function CapturaWebPage() {
       if (json.data) item.data = json.data;
 
       setCollection((prev) => [...prev, item]);
-      setSavedCapture(null); // reset saved state when new item is added
+      setSavedCapture(null);
+      addUnits(action); // start cooldown + track usage
     } catch (err: any) {
       setActionErrors((prev) => ({ ...prev, [action]: err.message }));
     } finally {
@@ -568,7 +647,57 @@ export default function CapturaWebPage() {
       {/* ── Main Panel ─────────────────────────────────────────────────────── */}
       <div className="glass-panel rounded-2xl border border-[#00f3ff]/20 p-6 space-y-6">
 
-        {/* URL Input */}
+        {/* ── Monthly Usage Meter ─────────────────────────────────────────── */}
+        {(() => {
+          const pct = Math.min((monthlyUsage.units / MAX_UNITS) * 100, 100);
+          const remaining = MAX_UNITS - monthlyUsage.units;
+          const isCritical = remaining <= 0;
+          const isWarning = pct >= 80 && !isCritical;
+          return (
+            <div className={`rounded-xl border px-4 py-3 space-y-2 ${
+              isCritical
+                ? "bg-red-950/30 border-red-500/40"
+                : isWarning
+                ? "bg-amber-950/20 border-amber-500/30"
+                : "bg-white/3 border-white/8"
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className={`w-3.5 h-3.5 ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-gray-500"}`} />
+                  <span className={`text-xs font-bold uppercase tracking-widest ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-gray-500"}`}>
+                    Uso Mensal — Plano Gratuito
+                  </span>
+                </div>
+                <span className={`text-xs font-mono font-bold ${isCritical ? "text-red-400" : isWarning ? "text-amber-300" : "text-gray-400"}`}>
+                  {monthlyUsage.units} / {MAX_UNITS} unidades
+                </span>
+              </div>
+              {/* Progress bar */}
+              <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isCritical ? "bg-red-500" : isWarning ? "bg-amber-500" : "bg-[#00f3ff]/60"
+                  }`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-gray-600 font-mono">
+                <span>· 2 navegadores simultâneos · 1 min/sessão · Performance = 5 unidades</span>
+                <span>{isCritical ? "ESGOTADO" : `${remaining} restantes`}</span>
+              </div>
+              {(isWarning || isCritical) && (
+                <p className={`text-xs font-bold flex items-center gap-1.5 ${isCritical ? "text-red-400" : "text-amber-400"}`}>
+                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                  {isCritical
+                    ? "Limite atingido. As capturas serão desbloqueadas no próximo mês."
+                    : `Atenção: apenas ${remaining} unidades restantes este mês.`}
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── URL Input ──────────────────────────────────────────────────── */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">
             URL Alvo
@@ -638,6 +767,50 @@ export default function CapturaWebPage() {
           </div>
         </div>
 
+        {/* ── Session timeout warning ──────────────────────────────────── */}
+        {loadingAction && elapsed >= 45 && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-950/30 border border-amber-500/40">
+            <Clock className="w-4 h-4 text-amber-400 flex-shrink-0 animate-pulse" />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-amber-400">
+                Sessão longa — {elapsed}s (limite: 60s)
+              </p>
+              <div className="w-full h-1 bg-white/5 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full transition-all"
+                  style={{ width: `${Math.min((elapsed / 60) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Cooldown banner ───────────────────────────────────────────── */}
+        {cooldown > 0 && (
+          <div className="rounded-xl border border-[#00f3ff]/25 bg-[#00f3ff]/5 px-4 py-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#00f3ff] animate-pulse" />
+                <span className="text-xs font-black text-[#00f3ff] uppercase tracking-widest">
+                  AGUARDE {cooldown}s PARA UMA NOVA CAPTURA
+                </span>
+              </div>
+              <span className="text-xs text-gray-500 font-mono">
+                2 navegadores simultâneos
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#00f3ff] to-[#bc13fe] rounded-full transition-all duration-1000"
+                style={{ width: `${((COOLDOWN_SECS - cooldown) / COOLDOWN_SECS) * 100}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-gray-600 font-mono">
+              Plano gratuito · 1 min/sessão · 1 000 unidades/mês · São Francisco · Londres · Amsterdã
+            </p>
+          </div>
+        )}
+
         {/* ── Action Buttons ─────────────────────────────────────────────── */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
@@ -647,12 +820,14 @@ export default function CapturaWebPage() {
             {ACTIONS.map((action) => {
               const isLoading = loadingAction === action.key;
               const err = actionErrors[action.key];
+              const isDisabled = !!loadingAction || cooldown > 0 || monthlyUsage.units >= MAX_UNITS;
+              const cost = UNIT_COSTS[action.key];
               return (
                 <button
                   key={action.key}
                   onClick={() => handleAction(action.key)}
-                  disabled={!!loadingAction}
-                  className={`p-4 rounded-xl border text-left transition-all ${action.bg} ${action.border} ${action.hover} disabled:opacity-40 disabled:cursor-not-allowed`}
+                  disabled={isDisabled}
+                  className={`p-4 rounded-xl border text-left transition-all ${action.bg} ${action.border} ${isDisabled ? "opacity-40 cursor-not-allowed" : action.hover}`}
                 >
                   <div className="mb-2">
                     {isLoading ? (
@@ -663,8 +838,9 @@ export default function CapturaWebPage() {
                   </div>
                   <p className={`text-xs font-black ${action.color}`}>{action.label}</p>
                   <p className="text-[10px] text-gray-600 mt-0.5 leading-tight">{action.desc}</p>
+                  <p className="text-[9px] text-gray-700 mt-1 font-mono">{cost} unidade{cost !== 1 ? "s" : ""}</p>
                   {err && (
-                    <p className="text-[9px] text-red-400 mt-1.5 leading-tight">{err.slice(0, 80)}</p>
+                    <p className="text-[9px] text-red-400 mt-1 leading-tight">{err.slice(0, 80)}</p>
                   )}
                 </button>
               );
@@ -809,7 +985,7 @@ export default function CapturaWebPage() {
             )}
             <button
               onClick={handleSave}
-              disabled={saving || !url.trim()}
+              disabled={saving || !url.trim() || cooldown > 0}
               className="w-full py-4 rounded-xl font-black uppercase tracking-widest text-sm transition-all bg-gradient-to-r from-[#00f3ff]/20 to-[#bc13fe]/20 border border-[#00f3ff]/40 hover:border-[#00f3ff]/70 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-[0_0_24px_rgba(0,243,255,0.15)] flex items-center justify-center gap-2"
             >
               {saving ? (
