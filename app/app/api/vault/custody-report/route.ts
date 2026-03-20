@@ -682,23 +682,68 @@ async function generatePdf(data: {
     x: 448, y: H - 56, size: 8, font: fontReg, color: C.ORANGE,
   });
 
-  // Center title block
+  // ── COVER TITLE BLOCK — professional centered layout ─────────────────────
   const titleY = H - 130;
-  ctx.page.drawRectangle({ x: 40, y: titleY - 90, width: 515, height: 95, color: C.PANEL });
-  ctx.page.drawRectangle({ x: 40, y: titleY - 90, width: 515, height: 2, color: C.PURPLE });
-  ctx.page.drawRectangle({ x: 40, y: titleY + 3, width: 515, height: 2, color: C.PURPLE });
-  ctx.page.drawText('RELATORIO PERICIAL FORENSE', {
-    x: 100, y: titleY - 18, size: 22, font: fontBold, color: C.WHITE,
-  });
-  ctx.page.drawText('Cadeia de Custodia Digital', {
-    x: 165, y: titleY - 38, size: 14, font: fontReg, color: C.CYAN,
-  });
-  ctx.page.drawText('Protocolo NCFN v2.0 | PERITO SANSAO - Inteligencia Artificial Interna', {
-    x: 80, y: titleY - 56, size: 9, font: fontMono, color: C.PURPLE,
-  });
-  ctx.page.drawText('Protegido e Isolado de Sistemas Externos | ISO/IEC 27037:2012', {
-    x: 103, y: titleY - 70, size: 8, font: fontReg, color: C.GRAY,
-  });
+  const blkL = 38, blkW = 519, blkH = 104;
+  const blkCX = blkL + blkW / 2; // ≈ 297.5
+
+  // Base panel
+  ctx.page.drawRectangle({ x: blkL, y: titleY - blkH + 6, width: blkW, height: blkH, color: C.PANEL });
+  // Dark band behind main title
+  ctx.page.drawRectangle({ x: blkL + 4, y: titleY - 26, width: blkW - 8, height: 30, color: C.DARK });
+  // Inner top accent micro-line
+  ctx.page.drawRectangle({ x: blkL + 4, y: titleY + 1, width: blkW - 8, height: 1, color: C.CYAN });
+
+  // Outer border lines (purple top, cyan bottom)
+  ctx.page.drawRectangle({ x: blkL, y: titleY + 3, width: blkW, height: 2.5, color: C.PURPLE });
+  ctx.page.drawRectangle({ x: blkL, y: titleY - blkH + 6, width: blkW, height: 2.5, color: C.CYAN });
+
+  // Vertical accent bars (left purple, right cyan)
+  ctx.page.drawRectangle({ x: blkL, y: titleY - blkH + 8.5, width: 4, height: blkH - 5, color: C.PURPLE });
+  ctx.page.drawRectangle({ x: blkL + blkW - 4, y: titleY - blkH + 8.5, width: 4, height: blkH - 5, color: C.CYAN });
+
+  // Corner accent marks
+  ctx.page.drawRectangle({ x: blkL + 4, y: titleY - 1, width: 10, height: 2, color: C.CYAN });
+  ctx.page.drawRectangle({ x: blkL + blkW - 14, y: titleY - 1, width: 10, height: 2, color: C.PURPLE });
+  ctx.page.drawRectangle({ x: blkL + 4, y: titleY - blkH + 8.5, width: 10, height: 2, color: C.PURPLE });
+  ctx.page.drawRectangle({ x: blkL + blkW - 14, y: titleY - blkH + 8.5, width: 10, height: 2, color: C.CYAN });
+
+  // Main title — glow shadow then white text, centered
+  const mainTitle = 'RELATORIO DIGITAL FORENSE';
+  const mainTitleSz = 23;
+  const mainTitleW = fontBold.widthOfTextAtSize(mainTitle, mainTitleSz);
+  const mainTitleX = blkCX - mainTitleW / 2;
+  // Shadow layer (purple, 1px offset)
+  ctx.page.drawText(mainTitle, { x: mainTitleX + 1, y: titleY - 19, size: mainTitleSz, font: fontBold, color: C.PURPLE });
+  // Main white layer
+  ctx.page.drawText(mainTitle, { x: mainTitleX, y: titleY - 18, size: mainTitleSz, font: fontBold, color: C.WHITE });
+
+  // Decorative separator: left line ——◆—— right line
+  const sepY = titleY - 32;
+  const gap = 18;
+  ctx.page.drawLine({ start: { x: blkL + 22, y: sepY }, end: { x: blkCX - gap, y: sepY }, thickness: 0.7, color: C.PURPLE });
+  ctx.page.drawLine({ start: { x: blkCX + gap, y: sepY }, end: { x: blkL + blkW - 22, y: sepY }, thickness: 0.7, color: C.CYAN });
+  // Diamond at center
+  const dm = 4;
+  ctx.page.drawLine({ start: { x: blkCX, y: sepY + dm }, end: { x: blkCX + dm, y: sepY }, thickness: 0.9, color: C.CYAN });
+  ctx.page.drawLine({ start: { x: blkCX + dm, y: sepY }, end: { x: blkCX, y: sepY - dm }, thickness: 0.9, color: C.CYAN });
+  ctx.page.drawLine({ start: { x: blkCX, y: sepY - dm }, end: { x: blkCX - dm, y: sepY }, thickness: 0.9, color: C.PURPLE });
+  ctx.page.drawLine({ start: { x: blkCX - dm, y: sepY }, end: { x: blkCX, y: sepY + dm }, thickness: 0.9, color: C.PURPLE });
+
+  // Subtitle "Cadeia de Custodia Digital" — centered, CYAN
+  const sub1 = 'Cadeia de Custodia Digital';
+  const sub1W = fontReg.widthOfTextAtSize(sub1, 13);
+  ctx.page.drawText(sub1, { x: blkCX - sub1W / 2, y: titleY - 48, size: 13, font: fontReg, color: C.CYAN });
+
+  // Protocol line — centered, monospace PURPLE
+  const proto = 'Protocolo NCFN v2.0  |  PERITO SANSAO - Inteligencia Artificial Interna';
+  const protoW = fontMono.widthOfTextAtSize(proto, 8);
+  ctx.page.drawText(proto, { x: blkCX - protoW / 2, y: titleY - 63, size: 8, font: fontMono, color: C.PURPLE });
+
+  // Compliance line — centered, small GRAY
+  const comp = 'Protegido e Isolado de Sistemas Externos  |  ISO/IEC 27037:2012';
+  const compW = fontReg.widthOfTextAtSize(comp, 7.5);
+  ctx.page.drawText(comp, { x: blkCX - compW / 2, y: titleY - 77, size: 7.5, font: fontReg, color: C.GRAY });
 
   // Summary info box — 3-column grid (col × row)
   const infoY = titleY - 115;
@@ -771,14 +816,14 @@ async function generatePdf(data: {
     try { dtBRT = '  |  ' + data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' BRT'; } catch {}
     ctx.page.drawText(safeText(dtISO + dtBRT, 72), { x: M + 105, y: stripTop - 13, size: 9.5, font: fontBold, color: C.AMBER });
 
-    // Hash rows
-    ctx.page.drawText('SHA-256', { x: M + 8, y: stripTop - 31, size: 6.5, font: fontBold, color: C.CYAN });
+    // Hash rows — no internal spaces so the full 64-char hash is copyable
+    ctx.page.drawText('SHA-256 (arquivo original):', { x: M + 8, y: stripTop - 29, size: 6.5, font: fontBold, color: C.CYAN });
     const h = data.sha256;
-    ctx.page.drawText(safeText(`${h.slice(0,8)} ${h.slice(8,16)} ${h.slice(16,24)} ${h.slice(24,32)}`, 50), {
-      x: M + 53, y: stripTop - 31, size: 8.5, font: fontMono, color: C.WHITE,
+    ctx.page.drawText(safeText(h.slice(0, 32), 35), {
+      x: M + 8, y: stripTop - 39, size: 8.5, font: fontMono, color: C.WHITE,
     });
-    ctx.page.drawText(safeText(`${h.slice(32,40)} ${h.slice(40,48)} ${h.slice(48,56)} ${h.slice(56,64)}`, 50), {
-      x: M + 53, y: stripTop - 42, size: 8.5, font: fontMono, color: C.LGRAY,
+    ctx.page.drawText(safeText(h.slice(32, 64), 35), {
+      x: M + 8, y: stripTop - 50, size: 8.5, font: fontMono, color: C.LGRAY,
     });
   }
 
@@ -863,7 +908,21 @@ async function generatePdf(data: {
       const lns = wrapText(blk.text, cMaxL);
       for (let i = 0; i < lns.length; i++) {
         if (ly < 44) break;
-        ctx.page.drawText(safeText(lns[i], cMaxL + 2), { x: col1X, y: ly, size: cFontSz, font: blk.bold ? fontBold : fontReg, color: blk.bold ? C.CYAN : C.LGRAY });
+        const lineText = lns[i];
+        if (!blk.bold && i === 0 && lineText.startsWith('[')) {
+          const tagEnd = lineText.indexOf(']');
+          if (tagEnd > 0) {
+            const tag = lineText.slice(0, tagEnd + 1);
+            const rest = lineText.slice(tagEnd + 1);
+            const tagW = fontBold.widthOfTextAtSize(tag, cFontSz);
+            ctx.page.drawText(tag, { x: col1X, y: ly, size: cFontSz, font: fontBold, color: rgb(1.00, 0.60, 0.20) });
+            if (rest) ctx.page.drawText(safeText(rest, cMaxL), { x: col1X + tagW, y: ly, size: cFontSz, font: fontReg, color: C.LGRAY });
+          } else {
+            ctx.page.drawText(safeText(lineText, cMaxL + 2), { x: col1X, y: ly, size: cFontSz, font: fontReg, color: C.LGRAY });
+          }
+        } else {
+          ctx.page.drawText(safeText(lns[i], cMaxL + 2), { x: col1X, y: ly, size: cFontSz, font: blk.bold ? fontBold : fontReg, color: blk.bold ? C.CYAN : C.LGRAY });
+        }
         ly -= cLineH;
       }
       ly -= (blk.gap || 0);
@@ -884,7 +943,21 @@ async function generatePdf(data: {
       const lns = wrapText(blk.text, cMaxL);
       for (let i = 0; i < lns.length; i++) {
         if (ry < 44) break;
-        ctx.page.drawText(safeText(lns[i], cMaxL + 2), { x: col2X, y: ry, size: cFontSz, font: blk.bold ? fontBold : fontReg, color: blk.bold ? C.CYAN : C.LGRAY });
+        const lineText = lns[i];
+        if (!blk.bold && i === 0 && lineText.startsWith('[')) {
+          const tagEnd = lineText.indexOf(']');
+          if (tagEnd > 0) {
+            const tag = lineText.slice(0, tagEnd + 1);
+            const rest = lineText.slice(tagEnd + 1);
+            const tagW = fontBold.widthOfTextAtSize(tag, cFontSz);
+            ctx.page.drawText(tag, { x: col2X, y: ry, size: cFontSz, font: fontBold, color: rgb(1.00, 0.60, 0.20) });
+            if (rest) ctx.page.drawText(safeText(rest, cMaxL), { x: col2X + tagW, y: ry, size: cFontSz, font: fontReg, color: C.LGRAY });
+          } else {
+            ctx.page.drawText(safeText(lineText, cMaxL + 2), { x: col2X, y: ry, size: cFontSz, font: fontReg, color: C.LGRAY });
+          }
+        } else {
+          ctx.page.drawText(safeText(lns[i], cMaxL + 2), { x: col2X, y: ry, size: cFontSz, font: blk.bold ? fontBold : fontReg, color: blk.bold ? C.CYAN : C.LGRAY });
+        }
         ry -= cLineH;
       }
       ry -= (blk.gap || 0);
@@ -1071,16 +1144,35 @@ async function generatePdf(data: {
       note('Momento exato em que o atestado foi registrado no sistema. Imutavel apos o registro inicial.');
     }
 
-    // Explanation note
+    // Explanation note — includes third-party file procedure
     checkY(20);
     ctx.y -= 4;
-    const coletaNoteLines = wrapText('Coleta (Art. 158-B, III CPP): Procedimento de obtencao do vestigio digital. Realizada sob responsabilidade do custodiante para arquivos sob sua guarda. O atestado acima documenta a origem e autenticidade declarada do ativo no momento de sua entrada no cofre.', 108);
-    const coletaNoteH = coletaNoteLines.length * 9 + 10;
+    const coletaNoteText = [
+      'Coleta (Art. 158-B, III CPP): Procedimento de obtencao do vestigio digital. Realizada sob responsabilidade do custodiante para arquivos sob sua guarda.',
+      '',
+      'COMO FUNCIONA PARA ARQUIVOS DE TERCEIROS: No momento em que qualquer arquivo e carregado no sistema NCFN, antes do tratamento dos dados e custodia do ativo, aparece uma caixa flutuante na tela onde o custodiante, devidamente cadastrado, preenche um ATESTADO DE COLETA contendo as seguintes declaracoes:',
+      '',
+      '[Voce atesta a veracidade deste arquivo?] Ao selecionar essa opcao o custodiante declara que o arquivo e autentico e foi obtido de forma licita.',
+      '',
+      '[Este arquivo foi coletado por voce?] Ao selecionar essa opcao o custodiante declara que realizou pessoalmente a coleta deste vestigio digital.',
+      '',
+      '[Data da coleta] Campo para insercao da data em que o vestigio foi coletado na fonte original.',
+      '',
+      'Ao confirmar o atestado, os dados sao gravados neste relatorio. IMPORTANTE: existe a opcao de fechar sem preencher; de toda forma, esse nao preenchimento e atestado no Relatorio e toda a responsabilidade pela autenticidade e coleta pessoal (ou nao) e exclusiva do custodiante cadastrado, pois o NCFN tem como principio a custodia de ativos licitos que devem ser preservados com o devido tratamento forense para futura apresentacao de provas e elementos de provas fidedignos na defesa de direitos individuais e da coletividade.',
+    ];
+    const coletaNoteLines: string[] = [];
+    for (const ln of coletaNoteText) {
+      if (ln === '') { coletaNoteLines.push(''); continue; }
+      for (const wl of wrapText(ln, 106)) coletaNoteLines.push(wl);
+    }
+    const coletaNoteH = coletaNoteLines.filter(l => l !== '').length * 9 + coletaNoteLines.filter(l => l === '').length * 4 + 12;
     ctx.page.drawRectangle({ x: M + 2, y: ctx.y - coletaNoteH, width: CW - 4, height: coletaNoteH + 4, color: C.DARK });
     ctx.page.drawRectangle({ x: M + 2, y: ctx.y - coletaNoteH, width: 3, height: coletaNoteH + 4, color: C.TEAL });
     let cny = ctx.y - 6;
-    for (let i = 0; i < coletaNoteLines.length; i++) {
-      ctx.page.drawText(safeText(coletaNoteLines[i], 110), { x: M + 12, y: cny, size: 6.5, font: fontReg, color: C.LGRAY });
+    for (const ln of coletaNoteLines) {
+      if (ln === '') { cny -= 4; continue; }
+      const isTag = ln.startsWith('[');
+      ctx.page.drawText(safeText(ln, 110), { x: M + 12, y: cny, size: 6.5, font: isTag ? fontBold : fontReg, color: isTag ? C.TEAL : C.LGRAY });
       cny -= 9;
     }
     ctx.y -= coletaNoteH + 10;
@@ -1196,8 +1288,8 @@ async function generatePdf(data: {
   // [5] HASHES CRIPTOGRAFICOS - Impressao Digital do Arquivo
   // ─────────────────────────────────────────────────
   section('[5] HASHES CRIPTOGRAFICOS - Impressao Digital do Arquivo', C.PURPLE);
-  field('SHA-256 (hash principal):', data.sha256, true, C.CYAN);
-  note('Hash primario de 256 bits. Identifica o conteudo do arquivo de forma unica. Qualquer alteracao de 1 byte o torna completamente diferente.');
+  field('SHA-256 (hash principal — arquivo original):', data.sha256, true, C.CYAN);
+  note('Este e o hash SHA-256 do arquivo original custodiado. 64 caracteres hexadecimais, sem espacos — copie-o integralmente para verificar autenticidade. Qualquer alteracao de 1 byte gera hash completamente diferente.');
   field('SHA-1:', data.sha1, true, C.LGRAY);
   note('Hash de 160 bits mantido para compatibilidade com sistemas legados e ferramentas externas de verificacao.');
   field('MD5:', data.md5, true, C.LGRAY);
@@ -1643,8 +1735,8 @@ async function generatePdf(data: {
     `do Cofre Forense NCFN, foi submetido a analise pericial digital completa pelo Perito Sansao -`,
     `Inteligencia Artificial Interna do Sistema NCFN, Protegida e Isolada de Sistemas Externos.`,
     '',
-    `Hash SHA-256: ${data.sha256.slice(0, 40)}`,
-    `              ${data.sha256.slice(40)}`,
+    `SHA-256 (arquivo original):`,
+    `${data.sha256}`,
     '',
     `A integridade do arquivo e atestada pelos hashes criptograficos calculados neste relatorio.`,
     `Qualquer alteracao posterior produzira hash completamente diferente, evidenciando adulteracao.`,
@@ -1880,7 +1972,7 @@ async function generatePdf(data: {
     ctx.page.drawText('[1] ARQUIVO ORIGINAL (cofre):', { x: M + 8, y: ctx.y - 27, size: 6.5, font: fontBold, color: C.CYAN });
     ctx.page.drawText(safeText(data.filename, 55), { x: M + 155, y: ctx.y - 27, size: 6.5, font: fontMono, color: C.WHITE });
     const sh = data.sha256;
-    ctx.page.drawText(safeText(`SHA-256: ${sh.slice(0,16)} ${sh.slice(16,32)} ${sh.slice(32,48)} ${sh.slice(48,64)}`, 95), {
+    ctx.page.drawText(safeText(`SHA-256: ${sh}`, 95), {
       x: M + 8, y: ctx.y - 38, size: 6.5, font: fontMono, color: C.CYAN,
     });
     ctx.page.drawText(safeText(`MD5:     ${data.md5}`, 80), {
@@ -1928,13 +2020,11 @@ async function generatePdf(data: {
       ctx.y -= 10;
     }
 
-    // ── Campo hash copiavel ──
-    const hashDisplayShort = `${data.sha256.slice(0, 32)}...${data.sha256.slice(56)}`;
+    // ── Campo hash copiavel — hash completo sem espacos ──
     checkY(14);
-    // visual border only (sem texto — evita que o rotulo seja copiado junto com o hash)
-    ctx.page.drawRectangle({ x: VX - 1, y: ctx.y - 2, width: 240, height: 12, color: C.DARK, borderColor: C.TEAL, borderWidth: 0.5 });
-    field('Hash SHA-256 (arquivo):', hashDisplayShort, true, C.CYAN);
-    note('Confronte este hash com o arquivo original. Qualquer divergencia de um unico caractere invalida este laudo.');
+    ctx.page.drawRectangle({ x: VX - 1, y: ctx.y - 2, width: 370, height: 12, color: C.DARK, borderColor: C.TEAL, borderWidth: 0.5 });
+    field('SHA-256 (arquivo original):', data.sha256, true, C.CYAN);
+    note('Hash completo de 64 caracteres sem espacos — copie-o integralmente. Qualquer divergencia de um unico caractere invalida este laudo.');
 
     checkY(14);
     ctx.page.drawRectangle({ x: VX - 1, y: ctx.y - 2, width: 160, height: 12, color: C.DARK, borderColor: C.GREEN, borderWidth: 0.5 });
@@ -2047,8 +2137,8 @@ async function generatePdf(data: {
       x: M + 82, y: ctx.y - 14, size: 8.5, font: fontBold, color: C.CYAN,
     });
     const sh = data.sha256;
-    const hashLine1 = `${sh.slice(0,8)}  ${sh.slice(8,16)}  ${sh.slice(16,24)}  ${sh.slice(24,32)}`;
-    const hashLine2 = `${sh.slice(32,40)}  ${sh.slice(40,48)}  ${sh.slice(48,56)}  ${sh.slice(56,64)}`;
+    const hashLine1 = `${sh.slice(0,8)} ${sh.slice(8,16)} ${sh.slice(16,24)} ${sh.slice(24,32)}`;
+    const hashLine2 = `${sh.slice(32,40)} ${sh.slice(40,48)} ${sh.slice(48,56)} ${sh.slice(56,64)}`;
     ctx.page.drawText(safeText(hashLine1, 80), { x: M + 38, y: ctx.y - 28, size: 8.5, font: fontMono, color: C.WHITE });
     ctx.page.drawText(safeText(hashLine2, 80), { x: M + 38, y: ctx.y - 40, size: 8.5, font: fontMono, color: C.WHITE });
     ctx.page.drawText('SHA-256 (FIPS 180-4)', { x: M + 38, y: ctx.y - 50, size: 6.5, font: fontBold, color: C.PURPLE });
