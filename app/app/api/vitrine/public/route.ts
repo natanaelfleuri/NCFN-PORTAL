@@ -16,6 +16,7 @@ export async function GET() {
       filename: true,
       publishedAt: true,
       downloadCount: true,
+      passwordIndex: true,
     },
   });
   return NextResponse.json(entries);

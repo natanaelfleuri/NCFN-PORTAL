@@ -36,13 +36,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: 'Acesso restrito' }, { status: 403 });
-  const { folder, filename, recipientName, password } = await req.json();
+  const { folder, filename, recipientName, password, passwordIndex } = await req.json();
   if (!folder || !filename || !recipientName || !password) {
     return NextResponse.json({ error: 'Parâmetros inválidos' }, { status: 400 });
   }
   const passwordHash = hashPassword(String(password));
   const entry = await prisma.vitrinePublish.create({
-    data: { folder, filename, recipientName: recipientName.trim(), passwordHash },
+    data: {
+      folder, filename, recipientName: recipientName.trim(), passwordHash,
+      passwordIndex: typeof passwordIndex === 'number' ? passwordIndex : 0,
+    },
   });
   return NextResponse.json({ ok: true, id: entry.id });
 }

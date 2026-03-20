@@ -358,9 +358,10 @@ type PublicEntry = {
   filename: string;
   publishedAt: string;
   downloadCount: number;
+  passwordIndex: number;
 };
 
-function PublicVitrineView() {
+function PublicVitrineView({ isAdmin = false }: { isAdmin?: boolean }) {
   const [entries, setEntries] = useState<PublicEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [passwords, setPasswords] = useState<Record<string, string>>({});
@@ -369,6 +370,7 @@ function PublicVitrineView() {
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState("");
   const [showHelp, setShowHelp] = useState(false);
+  const [removing, setRemoving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch('/api/vitrine/public')
@@ -414,6 +416,17 @@ function PublicVitrineView() {
       fetch('/api/vitrine/public').then(r => r.json()).then(data => setEntries(Array.isArray(data) ? data : [])).catch(() => {});
     } finally {
       setDownloading(d => ({ ...d, [entry.id]: false }));
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    if (!confirm('Remover este arquivo da vitrine?')) return;
+    setRemoving(r => ({ ...r, [id]: true }));
+    try {
+      await fetch(`/api/vitrine/publish?id=${id}`, { method: 'DELETE' });
+      setEntries(prev => prev.filter(e => e.id !== id));
+    } finally {
+      setRemoving(r => ({ ...r, [id]: false }));
     }
   };
 
@@ -482,6 +495,15 @@ function PublicVitrineView() {
                   <p className="text-[10px] font-mono text-gray-500 uppercase mb-0.5">Para</p>
                   <h3 className="text-white font-bold text-base truncate mb-1" title={entry.recipientName}>{entry.recipientName}</h3>
                   <p className="text-gray-400 text-xs font-mono truncate" title={entry.filename}>{entry.filename}</p>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleRemove(entry.id)}
+                      disabled={removing[entry.id]}
+                      className="mt-1.5 flex items-center gap-1 text-[10px] text-red-600 hover:text-red-400 font-mono transition-colors disabled:opacity-40"
+                    >
+                      <X className="w-3 h-3" /> {removing[entry.id] ? 'Removendo...' : 'Remover da vitrine'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -490,6 +512,16 @@ function PublicVitrineView() {
                 <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(entry.publishedAt).toLocaleDateString('pt-BR')}</span>
                 <span className="flex items-center gap-1"><Download className="w-3 h-3" />{entry.downloadCount} downloads</span>
               </div>
+
+              {/* Password index badge */}
+              {entry.passwordIndex > 0 && (
+                <div className="mb-3 flex items-center gap-2 px-3 py-1.5 bg-violet-950/30 border border-violet-700/30 rounded-xl">
+                  <KeyRound className="w-3 h-3 text-violet-500 flex-shrink-0" />
+                  <span className="text-[10px] font-mono text-gray-500">Código</span>
+                  <span className="text-violet-300 font-black font-mono text-sm">#{entry.passwordIndex}</span>
+                  <span className="text-[10px] font-mono text-gray-600 ml-1">— use o código de número {entry.passwordIndex} fornecido pelo NCFN</span>
+                </div>
+              )}
 
               {/* Password + download */}
               {done[entry.id] ? (
@@ -627,10 +659,9 @@ function VitrineInner({ initialIsAdmin }: { initialIsAdmin: boolean }) {
     }
   }, [searchTerm, files]);
 
-  // Non-admin: render the new password-based public vitrine
-  if (!isAdmin) {
-    return <PublicVitrineView />;
-  }
+  // Everyone sees the new password-based public vitrine
+  return <PublicVitrineView isAdmin={isAdmin} />;
+  // eslint-disable-next-line no-unreachable
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">

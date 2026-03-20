@@ -34,6 +34,7 @@ function VitrinePublishModal({
   const [recipientName, setRecipientName] = useState('');
   const [senhas, setSenhas] = useState<string[]>(() => gerarSenhas());
   const [selectedPw, setSelectedPw] = useState<string | null>(null);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null); // 1-based
   const [saving, setSaving] = useState(false);
   const [published, setPublished] = useState(false);
 
@@ -46,7 +47,7 @@ function VitrinePublishModal({
       const res = await fetch('/api/vitrine/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder, filename, recipientName: recipientName.trim(), password: selectedPw }),
+        body: JSON.stringify({ folder, filename, recipientName: recipientName.trim(), password: selectedPw, passwordIndex: selectedIdx }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -121,23 +122,28 @@ function VitrinePublishModal({
               </div>
               <p className="text-[10px] text-gray-600 font-mono mb-2">Selecione um código para entregar ao destinatário:</p>
               <div className="grid grid-cols-5 gap-1.5 max-h-44 overflow-y-auto">
-                {senhas.map(pw => (
-                  <button
-                    key={pw}
-                    onClick={() => setSelectedPw(pw === selectedPw ? null : pw)}
-                    className={`py-1.5 rounded-lg text-xs font-mono font-bold border transition-all ${
-                      selectedPw === pw
-                        ? 'bg-violet-600/40 border-violet-400 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.3)]'
-                        : 'bg-black/40 border-white/10 text-gray-400 hover:border-violet-500/40 hover:text-violet-300'
-                    }`}
-                  >
-                    {pw}
-                  </button>
-                ))}
+                {senhas.map((pw, i) => {
+                  const num = i + 1;
+                  const isSelected = selectedPw === pw;
+                  return (
+                    <button
+                      key={pw}
+                      onClick={() => { setSelectedPw(isSelected ? null : pw); setSelectedIdx(isSelected ? null : num); }}
+                      className={`py-1.5 rounded-lg text-xs font-mono font-bold border transition-all flex flex-col items-center gap-0.5 ${
+                        isSelected
+                          ? 'bg-violet-600/40 border-violet-400 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.3)]'
+                          : 'bg-black/40 border-white/10 text-gray-400 hover:border-violet-500/40 hover:text-violet-300'
+                      }`}
+                    >
+                      <span className={`text-[8px] font-black leading-none ${isSelected ? 'text-violet-400' : 'text-gray-600'}`}>#{num}</span>
+                      {pw}
+                    </button>
+                  );
+                })}
               </div>
-              {selectedPw && (
+              {selectedPw && selectedIdx !== null && (
                 <p className="mt-2 text-center text-violet-300 text-sm font-mono font-black">
-                  Selecionado: <span className="bg-violet-900/40 px-2 py-0.5 rounded">{selectedPw}</span>
+                  Selecionado: <span className="bg-violet-900/40 px-2 py-0.5 rounded">#{selectedIdx} · {selectedPw}</span>
                 </p>
               )}
             </div>
@@ -269,6 +275,7 @@ export default function VaultPage() {
   const [encDownloadWarning, setEncDownloadWarning] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [burnDownloaded, setBurnDownloaded] = useState<Set<string>>(new Set());
+  const [custodiaDownloaded, setCustodiaDownloaded] = useState<Set<string>>(new Set());
   const [burnDeleteTarget, setBurnDeleteTarget] = useState<string | null>(null); // path of file to delete
   const [burnDeleteAck, setBurnDeleteAck] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
@@ -473,6 +480,7 @@ export default function VaultPage() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
       notify('success', 'Bundle ZIP gerado com sucesso! Verifique seus downloads.');
+      setCustodiaDownloaded(prev => new Set([...prev, selected.path]));
       logAction(selected.path, 'download');
     } catch (e: any) {
       notify('error', 'Erro ao gerar bundle de custódia: ' + e.message);
@@ -1362,14 +1370,23 @@ export default function VaultPage() {
                   <PackageCheck size={16} />
                   {actionLoading === 'custod' ? 'Gerando Bundle ZIP...' : 'CUSTÓDIA LOCAL · BACK UP'}
                 </button>
+                {/* DISPONIBILIZAR / PUBLICAR — only unlocked after CUSTÓDIA LOCAL download */}
+                {selected && !custodiaDownloaded.has(selected.path) && (
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-700/30 bg-amber-950/20">
+                    <Lock size={11} className="text-amber-600 flex-shrink-0" />
+                    <span className="text-[10px] text-amber-700 font-mono leading-tight">
+                      Faça o <strong className="text-amber-500">CUSTÓDIA LOCAL · BACK UP</strong> antes de compartilhar
+                    </span>
+                  </div>
+                )}
                 <button
                   onClick={handleOpenShare}
-                  disabled={!selected}
-                  title="Gerar link seguro com expiração e limite de acessos"
+                  disabled={!selected || !custodiaDownloaded.has(selected?.path ?? '')}
+                  title={!selected || !custodiaDownloaded.has(selected?.path ?? '') ? 'Faça o CUSTÓDIA LOCAL primeiro' : 'Gerar link seguro com expiração e limite de acessos'}
                   className={`mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all border ${
-                    selected
+                    selected && custodiaDownloaded.has(selected.path)
                       ? 'bg-green-900/20 hover:bg-green-800/30 border-green-700/40 text-green-400 hover:shadow-[0_0_15px_rgba(34,197,94,0.15)]'
-                      : 'bg-gray-900/30 border-gray-700/20 text-gray-600 cursor-not-allowed'
+                      : 'bg-gray-900/30 border-gray-700/20 text-gray-600 cursor-not-allowed opacity-50'
                   }`}
                 >
                   <Globe size={13} />
@@ -1377,12 +1394,12 @@ export default function VaultPage() {
                 </button>
                 <button
                   onClick={handleOpenVitrine}
-                  disabled={!selected}
-                  title="Publicar na Vitrine com código de acesso numérico"
+                  disabled={!selected || !custodiaDownloaded.has(selected?.path ?? '')}
+                  title={!selected || !custodiaDownloaded.has(selected?.path ?? '') ? 'Faça o CUSTÓDIA LOCAL primeiro' : 'Publicar na Vitrine com código de acesso numérico'}
                   className={`mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all border ${
-                    selected
+                    selected && custodiaDownloaded.has(selected.path)
                       ? 'bg-violet-900/20 hover:bg-violet-800/30 border-violet-700/40 text-violet-400 hover:shadow-[0_0_15px_rgba(139,92,246,0.15)]'
-                      : 'bg-gray-900/30 border-gray-700/20 text-gray-600 cursor-not-allowed'
+                      : 'bg-gray-900/30 border-gray-700/20 text-gray-600 cursor-not-allowed opacity-50'
                   }`}
                 >
                   <Share2 size={13} />

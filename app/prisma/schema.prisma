@@ -387,6 +387,7 @@ model VitrinePublish {
   filename      String
   recipientName String
   passwordHash  String   // bcrypt or sha256 hash of 6-digit code
+  passwordIndex Int      @default(0)  // 1-20: number shown next to the code in the vitrine
   publishedAt   DateTime @default(now())
   downloadCount Int      @default(0)
   active        Boolean  @default(true)
