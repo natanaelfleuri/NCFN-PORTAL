@@ -751,7 +751,7 @@ export default function CapturaWebPage() {
                       prev.map((s, i) => (i === idx ? e.target.value : s))
                     )
                   }
-                  placeholder="h1, .title, #content, table tr..."
+                  placeholder="h1, .titulo, #conteudo, table tr..."
                   className="flex-1 bg-black/40 border border-gray-800 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-yellow-500/50 placeholder:text-gray-700"
                 />
                 {selectors.length > 1 && (
@@ -764,6 +764,84 @@ export default function CapturaWebPage() {
                 )}
               </div>
             ))}
+          </div>
+
+          {/* ── CSS Selector reference ──────────────────────────────────── */}
+          <div className="mt-3 rounded-xl border border-yellow-500/10 bg-yellow-950/10 p-4 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-500/60">
+              Referência de Seletores CSS
+            </p>
+            {/* Most important */}
+            <div>
+              <p className="text-[9px] uppercase tracking-widest text-yellow-400/80 font-bold mb-1.5 flex items-center gap-1">
+                ★ Mais usados em investigação
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { sel: "body", tip: "todo o conteúdo da página" },
+                  { sel: "p", tip: "todos os parágrafos" },
+                  { sel: "h1, h2, h3", tip: "títulos e subtítulos" },
+                  { sel: "a", tip: "todos os links" },
+                  { sel: "a[href]", tip: "links com URL" },
+                  { sel: "img", tip: "todas as imagens" },
+                  { sel: "table", tip: "tabelas de dados" },
+                  { sel: "table tr", tip: "linhas de tabela" },
+                  { sel: "meta[name='description']", tip: "meta descrição" },
+                  { sel: "time", tip: "datas/horas marcadas" },
+                  { sel: "[class*='price']", tip: "elementos com 'price' na classe" },
+                  { sel: "form", tip: "formulários" },
+                ].map(({ sel, tip }) => (
+                  <button
+                    key={sel}
+                    type="button"
+                    title={tip}
+                    onClick={() => {
+                      if (!selectors.includes(sel)) setSelectors((prev) => [...prev.filter(s => s !== ""), sel]);
+                    }}
+                    className="px-2 py-1 rounded-md bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 text-[10px] font-mono hover:bg-yellow-500/25 transition cursor-pointer"
+                  >
+                    {sel}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Other selectors */}
+            <div>
+              <p className="text-[9px] uppercase tracking-widest text-gray-600 font-bold mb-1.5">
+                Outros seletores
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { sel: "#main", tip: "elemento com id='main'" },
+                  { sel: ".classe", tip: "elementos com classe específica" },
+                  { sel: "article", tip: "artigos/posts" },
+                  { sel: "span", tip: "trechos de texto inline" },
+                  { sel: "li", tip: "itens de lista" },
+                  { sel: "script", tip: "código JavaScript inline" },
+                  { sel: "input, select", tip: "campos de formulário" },
+                  { sel: "[data-*]", tip: "atributos data-*" },
+                  { sel: "header", tip: "cabeçalho da página" },
+                  { sel: "footer", tip: "rodapé da página" },
+                  { sel: "nav a", tip: "links do menu de navegação" },
+                  { sel: "strong, b", tip: "texto em negrito" },
+                ].map(({ sel, tip }) => (
+                  <button
+                    key={sel}
+                    type="button"
+                    title={tip}
+                    onClick={() => {
+                      if (!selectors.includes(sel)) setSelectors((prev) => [...prev.filter(s => s !== ""), sel]);
+                    }}
+                    className="px-2 py-1 rounded-md bg-gray-800/60 border border-gray-700/50 text-gray-400 text-[10px] font-mono hover:bg-gray-700/50 hover:text-gray-200 transition cursor-pointer"
+                  >
+                    {sel}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-[9px] text-gray-700 font-mono">
+              Clique para adicionar · Cada seletor retorna texto, atributos e HTML do elemento encontrado
+            </p>
           </div>
         </div>
 
