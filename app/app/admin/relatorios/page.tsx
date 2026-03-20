@@ -6,6 +6,7 @@ import {
   Target, AlertTriangle, Shield, Download, X, Edit3,
   ChevronRight, Crosshair, Layers, Navigation, Radio,
   Clock, StickyNote, Flag, Lock, Unlock, RefreshCw,
+  Navigation2, PenLine, Maximize2,
 } from "lucide-react";
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -71,6 +72,153 @@ export default function MapaAlvosPage() {
   const [coordPendente, setCoordPendente] = useState<{ lat: number; lng: number } | null>(null);
   const [painelAberto, setPainelAberto] = useState(true);
 
+  // 3D tilt
+  const [tilt3d, setTilt3d] = useState(false);
+
+  // Route mode
+  const [modoRota, setModoRota] = useState(false);
+  const rotaWaypointsRef = useRef<{ lat: number; lng: number }[]>([]);
+  const rotaMarkersRef = useRef<any[]>([]);
+  const rotaPolylineRef = useRef<any>(null);
+  const [rotaDistancias, setRotaDistancias] = useState<{ seg: number[]; total: number } | null>(null);
+
+  // Drawing
+  const drawingManagerRef = useRef<any>(null);
+  const drawnShapesRef = useRef<any[]>([]);
+  const [modoDesenho, setModoDesenho] = useState(false);
+  const [drawTool, setDrawTool] = useState<"polygon" | "circle" | "rectangle" | "polyline">("polygon");
+  const [drawColor, setDrawColor] = useState("#bc13fe");
+  const [drawOpacity, setDrawOpacity] = useState(0.3);
+  const [savedDrawings, setSavedDrawings] = useState<any[]>([]);
+
+  // Refs to avoid stale closures in drawing
+  const drawColorRef = useRef(drawColor);
+  const drawOpacityRef = useRef(drawOpacity);
+  useEffect(() => { drawColorRef.current = drawColor; }, [drawColor]);
+  useEffect(() => { drawOpacityRef.current = drawOpacity; }, [drawOpacity]);
+
+  // Middle mouse drag refs
+  const isDraggingMiddleRef = useRef(false);
+  const lastXRef = useRef(0);
+  const lastYRef = useRef(0);
+
+  // ── SURPRISE FEATURES ─────────────────────────────────────────────────────
+
+  // 1. Context menu (right-click)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // 2. Proximity rings (show 500m/1km/5km circles around selected alvo)
+  const proximityCirclesRef = useRef<any[]>([]);
+  const [proximityAtivo, setProximityAtivo] = useState(false);
+
+  // 3. Heading (compass rotation for 3D)
+  const [heading, setHeading] = useState(0);
+
+  // 4. Geolocation
+  const [geolocLoading, setGeolocLoading] = useState(false);
+  const geolocMarkerRef = useRef<any>(null);
+
+  // 5. Geocoding search
+  const [geocodeBusca, setGeocodeBusca] = useState("");
+  const [geocodeLoading, setGeocodeLoading] = useState(false);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Heading effect
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    mapInstanceRef.current.setHeading(heading);
+  }, [heading]);
+
+  // Proximity rings effect
+  useEffect(() => {
+    // Clear old circles
+    proximityCirclesRef.current.forEach(c => c.setMap(null));
+    proximityCirclesRef.current = [];
+    if (!proximityAtivo || !selecionado || !mapInstanceRef.current) return;
+    const radii = [500, 1000, 5000];
+    const colors = ["#00f3ff", "#f59e0b", "#ef4444"];
+    radii.forEach((r, i) => {
+      const circle = new window.google.maps.Circle({
+        center: { lat: selecionado.lat, lng: selecionado.lng },
+        radius: r,
+        map: mapInstanceRef.current,
+        strokeColor: colors[i],
+        strokeOpacity: 0.6,
+        strokeWeight: 1.5,
+        fillColor: colors[i],
+        fillOpacity: 0.04,
+        zIndex: 0,
+      });
+      proximityCirclesRef.current.push(circle);
+    });
+  }, [proximityAtivo, selecionado]);
+
+  // Geolocate
+  const geolocate = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setGeolocLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.panTo({ lat, lng });
+          mapInstanceRef.current.setZoom(14);
+          if (geolocMarkerRef.current) geolocMarkerRef.current.setMap(null);
+          const svgPulse = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" fill="rgba(0,243,255,0.15)" stroke="#00f3ff" stroke-width="1.5"/>
+            <circle cx="12" cy="12" r="4" fill="#00f3ff"/>
+          </svg>`;
+          const marker = new window.google.maps.Marker({
+            position: { lat, lng },
+            map: mapInstanceRef.current,
+            icon: { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svgPulse), scaledSize: new window.google.maps.Size(24, 24), anchor: new window.google.maps.Point(12, 12) },
+            title: "Sua localização",
+            zIndex: 9999,
+          });
+          geolocMarkerRef.current = marker;
+        }
+        setGeolocLoading(false);
+      },
+      () => setGeolocLoading(false)
+    );
+  }, []);
+
+  // Fit all alvos in bounds
+  const fitBounds = useCallback(() => {
+    if (!mapInstanceRef.current || alvos.length === 0) return;
+    const bounds = new window.google.maps.LatLngBounds();
+    alvos.filter(a => a.visivel).forEach(a => bounds.extend({ lat: a.lat, lng: a.lng }));
+    mapInstanceRef.current.fitBounds(bounds, 60);
+  }, [alvos]);
+
+  // Geocode search
+  const geocodeSearch = useCallback(async () => {
+    if (!geocodeBusca.trim() || !mapInstanceRef.current) return;
+    setGeocodeLoading(true);
+    try {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ address: geocodeBusca }, (results: any, status: string) => {
+        if (status === "OK" && results[0]) {
+          const loc = results[0].geometry.location;
+          mapInstanceRef.current.panTo(loc);
+          mapInstanceRef.current.setZoom(13);
+        }
+        setGeocodeLoading(false);
+      });
+    } catch { setGeocodeLoading(false); }
+  }, [geocodeBusca]);
+
   // Persistência local
   useEffect(() => {
     const saved = localStorage.getItem("ncfn_alvos_mapa");
@@ -85,15 +233,136 @@ export default function MapaAlvosPage() {
   useEffect(() => {
     if (window.google?.maps) { initMap(); return; }
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initMap&v=weekly`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=drawing,geometry&callback=initMap&v=weekly`;
     script.async = true;
     script.defer = true;
     window.initMap = initMap;
     document.head.appendChild(script);
     return () => {
-      document.head.removeChild(script);
+      if (document.head.contains(script)) document.head.removeChild(script);
       delete window.initMap;
     };
+  }, []);
+
+  // Save drawings to localStorage
+  const saveDrawings = useCallback(() => {
+    const serialized = drawnShapesRef.current.map((shape: any) => {
+      if (shape instanceof window.google.maps.Polygon) {
+        const path = shape.getPath().getArray().map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
+        return { type: "polygon", path, fillColor: shape.fillColor, fillOpacity: shape.fillOpacity, strokeColor: shape.strokeColor };
+      } else if (shape instanceof window.google.maps.Circle) {
+        const c = shape.getCenter();
+        return { type: "circle", center: { lat: c.lat(), lng: c.lng() }, radius: shape.getRadius(), fillColor: shape.fillColor, fillOpacity: shape.fillOpacity, strokeColor: shape.strokeColor };
+      } else if (shape instanceof window.google.maps.Rectangle) {
+        const b = shape.getBounds();
+        return { type: "rectangle", bounds: { north: b.getNorthEast().lat(), south: b.getSouthWest().lat(), east: b.getNorthEast().lng(), west: b.getSouthWest().lng() }, fillColor: shape.fillColor, fillOpacity: shape.fillOpacity, strokeColor: shape.strokeColor };
+      } else if (shape instanceof window.google.maps.Polyline) {
+        const path = shape.getPath().getArray().map((p: any) => ({ lat: p.lat(), lng: p.lng() }));
+        return { type: "polyline", path, strokeColor: shape.strokeColor };
+      }
+      return null;
+    }).filter(Boolean);
+    localStorage.setItem("ncfn_drawings_mapa", JSON.stringify(serialized));
+    setSavedDrawings(serialized);
+  }, []);
+
+  // Load drawings from localStorage
+  const loadDrawings = useCallback((map: any) => {
+    const raw = localStorage.getItem("ncfn_drawings_mapa");
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      data.forEach((d: any) => {
+        let shape: any = null;
+        if (d.type === "polygon") {
+          shape = new window.google.maps.Polygon({
+            paths: d.path,
+            fillColor: d.fillColor || "#bc13fe",
+            fillOpacity: d.fillOpacity ?? 0.3,
+            strokeColor: d.strokeColor || "#bc13fe",
+            strokeWeight: 2,
+            map,
+          });
+        } else if (d.type === "circle") {
+          shape = new window.google.maps.Circle({
+            center: d.center,
+            radius: d.radius,
+            fillColor: d.fillColor || "#bc13fe",
+            fillOpacity: d.fillOpacity ?? 0.3,
+            strokeColor: d.strokeColor || "#bc13fe",
+            strokeWeight: 2,
+            map,
+          });
+        } else if (d.type === "rectangle") {
+          shape = new window.google.maps.Rectangle({
+            bounds: d.bounds,
+            fillColor: d.fillColor || "#bc13fe",
+            fillOpacity: d.fillOpacity ?? 0.3,
+            strokeColor: d.strokeColor || "#bc13fe",
+            strokeWeight: 2,
+            map,
+          });
+        } else if (d.type === "polyline") {
+          shape = new window.google.maps.Polyline({
+            path: d.path,
+            strokeColor: d.strokeColor || "#bc13fe",
+            strokeWeight: 3,
+            map,
+          });
+        }
+        if (shape) drawnShapesRef.current.push(shape);
+      });
+    } catch (_) {}
+  }, []);
+
+  // Restore route from localStorage
+  const loadRota = useCallback((map: any) => {
+    const raw = localStorage.getItem("ncfn_rota_mapa");
+    if (!raw) return;
+    try {
+      const pts: { lat: number; lng: number }[] = JSON.parse(raw);
+      if (!pts.length) return;
+      rotaWaypointsRef.current = pts;
+      pts.forEach((pt, idx) => {
+        const svgNum = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="13" fill="#f59e0b" stroke="#000" stroke-width="1.5"/>
+          <text x="14" y="19" text-anchor="middle" font-size="12" font-weight="bold" fill="#000">${idx + 1}</text>
+        </svg>`;
+        const marker = new window.google.maps.Marker({
+          position: pt,
+          map,
+          icon: {
+            url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svgNum),
+            scaledSize: new window.google.maps.Size(28, 28),
+            anchor: new window.google.maps.Point(14, 14),
+          },
+          title: `Ponto ${idx + 1}`,
+        });
+        rotaMarkersRef.current.push(marker);
+      });
+      if (pts.length > 1) {
+        const poly = new window.google.maps.Polyline({
+          path: pts,
+          strokeColor: "#f59e0b",
+          strokeWeight: 2,
+          icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 3 }, offset: "0", repeat: "16px" }],
+          strokeOpacity: 0,
+          map,
+        });
+        rotaPolylineRef.current = poly;
+      }
+      // calculate distances
+      const segs: number[] = [];
+      for (let i = 1; i < pts.length; i++) {
+        const d = window.google.maps.geometry.spherical.computeDistanceBetween(
+          new window.google.maps.LatLng(pts[i - 1].lat, pts[i - 1].lng),
+          new window.google.maps.LatLng(pts[i].lat, pts[i].lng)
+        );
+        segs.push(d);
+      }
+      const total = segs.reduce((a, b) => a + b, 0);
+      if (segs.length) setRotaDistancias({ seg: segs, total });
+    } catch (_) {}
   }, []);
 
   function initMap() {
@@ -101,38 +370,161 @@ export default function MapaAlvosPage() {
     const map = new window.google.maps.Map(mapRef.current, {
       center: { lat: -15.793, lng: -47.882 },
       zoom: 5,
+      mapId: "bc7a2bd22c9e684f343256d5",
       mapTypeId: "hybrid",
       disableDefaultUI: true,
       zoomControl: true,
       zoomControlOptions: { position: window.google.maps.ControlPosition.RIGHT_CENTER },
       scaleControl: true,
       fullscreenControl: false,
-      styles: [
-        { elementType: "geometry", stylers: [{ color: "#0a0a0a" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#0a0a0a" }] },
-        { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#1a1a1a" }] },
-        { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a1628" }] },
-        { featureType: "road", elementType: "geometry", stylers: [{ color: "#1a1a1a" }] },
-      ],
+      tilt: 0,
     });
     mapInstanceRef.current = map;
     infoWindowRef.current = new window.google.maps.InfoWindow();
 
+    // Middle mouse drag
+    const mapDiv = mapRef.current;
+    mapDiv.addEventListener("mousedown", (e: MouseEvent) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        isDraggingMiddleRef.current = true;
+        lastXRef.current = e.clientX;
+        lastYRef.current = e.clientY;
+      }
+    });
+    mapDiv.addEventListener("mousemove", (e: MouseEvent) => {
+      if (isDraggingMiddleRef.current) {
+        const deltaX = e.clientX - lastXRef.current;
+        const deltaY = e.clientY - lastYRef.current;
+        map.panBy(-deltaX, -deltaY);
+        lastXRef.current = e.clientX;
+        lastYRef.current = e.clientY;
+      }
+    });
+    mapDiv.addEventListener("mouseup", (e: MouseEvent) => {
+      if (e.button === 1) {
+        isDraggingMiddleRef.current = false;
+      }
+    });
+
     map.addListener("click", (e: any) => {
-      if (!modoAdicionarRef.current) return;
+      if (modoAdicionarRef.current) {
+        const lat = e.latLng.lat();
+        const lng = e.latLng.lng();
+        setCoordPendente({ lat, lng });
+        setFormAlvo({
+          lat, lng,
+          prioridade: "ALTA",
+          status: "ATIVO",
+          notas: "",
+          visivel: true,
+        });
+        setEditando(true);
+        setModoAdicionar(false);
+        return;
+      }
+      if (modoRotaRef.current) {
+        const lat = e.latLng.lat();
+        const lng = e.latLng.lng();
+        const newPts = [...rotaWaypointsRef.current, { lat, lng }];
+        rotaWaypointsRef.current = newPts;
+
+        const idx = newPts.length - 1;
+        const svgNum = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="13" fill="#f59e0b" stroke="#000" stroke-width="1.5"/>
+          <text x="14" y="19" text-anchor="middle" font-size="12" font-weight="bold" fill="#000">${idx + 1}</text>
+        </svg>`;
+        const marker = new window.google.maps.Marker({
+          position: { lat, lng },
+          map,
+          icon: {
+            url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svgNum),
+            scaledSize: new window.google.maps.Size(28, 28),
+            anchor: new window.google.maps.Point(14, 14),
+          },
+          title: `Ponto ${idx + 1}`,
+        });
+        rotaMarkersRef.current.push(marker);
+
+        // update polyline
+        if (rotaPolylineRef.current) {
+          rotaPolylineRef.current.setPath(newPts);
+        } else {
+          const poly = new window.google.maps.Polyline({
+            path: newPts,
+            strokeColor: "#f59e0b",
+            strokeWeight: 2,
+            icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 3 }, offset: "0", repeat: "16px" }],
+            strokeOpacity: 0,
+            map,
+          });
+          rotaPolylineRef.current = poly;
+        }
+
+        // distances
+        if (newPts.length > 1) {
+          const segs: number[] = [];
+          for (let i = 1; i < newPts.length; i++) {
+            const d = window.google.maps.geometry.spherical.computeDistanceBetween(
+              new window.google.maps.LatLng(newPts[i - 1].lat, newPts[i - 1].lng),
+              new window.google.maps.LatLng(newPts[i].lat, newPts[i].lng)
+            );
+            segs.push(d);
+          }
+          const total = segs.reduce((a, b) => a + b, 0);
+          setRotaDistancias({ seg: segs, total });
+        }
+
+        // save route
+        localStorage.setItem("ncfn_rota_mapa", JSON.stringify(newPts));
+        return;
+      }
+    });
+
+    // Drawing manager
+    const dm = new window.google.maps.drawing.DrawingManager({
+      drawingMode: null,
+      drawingControl: false,
+      polygonOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
+      circleOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
+      rectangleOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
+      polylineOptions: { strokeColor: "#bc13fe", strokeWeight: 3, clickable: true, editable: false },
+    });
+    dm.setMap(map);
+    drawingManagerRef.current = dm;
+
+    window.google.maps.event.addListener(dm, "overlaycomplete", (e: any) => {
+      // apply current colors from refs
+      const color = drawColorRef.current;
+      const opacity = drawOpacityRef.current;
+      if (e.type !== "polyline") {
+        e.overlay.setOptions({ fillColor: color, fillOpacity: opacity, strokeColor: color });
+      } else {
+        e.overlay.setOptions({ strokeColor: color });
+      }
+      drawnShapesRef.current.push(e.overlay);
+      saveDrawings();
+      dm.setDrawingMode(null);
+    });
+
+    loadDrawings(map);
+    loadRota(map);
+
+    // Right-click context menu
+    map.addListener("rightclick", (e: any) => {
       const lat = e.latLng.lat();
       const lng = e.latLng.lng();
-      setCoordPendente({ lat, lng });
-      setFormAlvo({
-        lat, lng,
-        prioridade: "ALTA",
-        status: "ATIVO",
-        notas: "",
-        visivel: true,
+      // Get pixel position relative to map div
+      const overlay = new window.google.maps.OverlayView();
+      overlay.draw = () => {};
+      overlay.setMap(map);
+      window.requestAnimationFrame(() => {
+        const proj = overlay.getProjection();
+        if (!proj) { setContextMenu({ x: e.pixel?.x ?? 200, y: e.pixel?.y ?? 200, lat, lng }); return; }
+        const point = proj.fromLatLngToContainerPixel(e.latLng);
+        setContextMenu({ x: point.x, y: point.y, lat, lng });
+        overlay.setMap(null);
       });
-      setEditando(true);
-      setModoAdicionar(false);
     });
 
     setMapCarregado(true);
@@ -142,19 +534,52 @@ export default function MapaAlvosPage() {
   const modoAdicionarRef = useRef(false);
   useEffect(() => { modoAdicionarRef.current = modoAdicionar; }, [modoAdicionar]);
 
+  // Ref para modoRota
+  const modoRotaRef = useRef(false);
+  useEffect(() => { modoRotaRef.current = modoRota; }, [modoRota]);
+
   // Cursor no mapa quando modoAdicionar
   useEffect(() => {
     if (!mapInstanceRef.current) return;
-    mapInstanceRef.current.setOptions({
-      draggableCursor: modoAdicionar ? "crosshair" : "grab",
-    });
-  }, [modoAdicionar]);
+    let cursor = "grab";
+    if (modoAdicionar) cursor = "crosshair";
+    else if (modoRota) cursor = "cell";
+    mapInstanceRef.current.setOptions({ draggableCursor: cursor });
+  }, [modoAdicionar, modoRota]);
 
   // Tipo de mapa
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     mapInstanceRef.current.setMapTypeId(tipoMapa);
   }, [tipoMapa]);
+
+  // 3D tilt
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    mapInstanceRef.current.setTilt(tilt3d ? 45 : 0);
+  }, [tilt3d]);
+
+  // Drawing manager options sync
+  useEffect(() => {
+    if (!drawingManagerRef.current) return;
+    const dm = drawingManagerRef.current;
+    dm.setOptions({
+      polygonOptions: { fillColor: drawColor, fillOpacity: drawOpacity, strokeColor: drawColor, strokeWeight: 2, clickable: true, editable: false },
+      circleOptions: { fillColor: drawColor, fillOpacity: drawOpacity, strokeColor: drawColor, strokeWeight: 2, clickable: true, editable: false },
+      rectangleOptions: { fillColor: drawColor, fillOpacity: drawOpacity, strokeColor: drawColor, strokeWeight: 2, clickable: true, editable: false },
+      polylineOptions: { strokeColor: drawColor, strokeWeight: 3, clickable: true, editable: false },
+    });
+  }, [drawColor, drawOpacity, drawTool]);
+
+  // Drawing mode active/inactive
+  useEffect(() => {
+    if (!drawingManagerRef.current) return;
+    if (modoDesenho) {
+      drawingManagerRef.current.setDrawingMode(drawTool);
+    } else {
+      drawingManagerRef.current.setDrawingMode(null);
+    }
+  }, [modoDesenho, drawTool]);
 
   // Sincronizar markers
   useEffect(() => {
@@ -172,24 +597,24 @@ export default function MapaAlvosPage() {
     alvos.forEach(alvo => {
       const cfg = PRIORITY_CONFIG[alvo.prioridade];
       const svgIcon = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
+        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="32" viewBox="0 0 26 32">
           <defs>
             <filter id="glow">
               <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
               <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
             </filter>
           </defs>
-          <ellipse cx="18" cy="42" rx="6" ry="2" fill="rgba(0,0,0,0.4)"/>
-          <path d="M18 2 C10.3 2 4 8.3 4 16 C4 26 18 42 18 42 C18 42 32 26 32 16 C32 8.3 25.7 2 18 2Z"
-            fill="${cfg.dot}" fill-opacity="${alvo.visivel ? "0.9" : "0.3"}" stroke="${cfg.color}" stroke-width="1.5" filter="url(#glow)"/>
-          <circle cx="18" cy="16" r="5" fill="rgba(0,0,0,0.6)" stroke="${cfg.color}" stroke-width="1"/>
-          <circle cx="18" cy="16" r="2" fill="${cfg.color}"/>
+          <ellipse cx="13" cy="30" rx="5" ry="2" fill="rgba(0,0,0,0.4)"/>
+          <path d="M13 2 C7.5 2 3 6.5 3 12 C3 20 13 30 13 30 C13 30 23 20 23 12 C23 6.5 18.5 2 13 2Z"
+            fill="${cfg.dot}" fill-opacity="${alvo.visivel ? "0.55" : "0.2"}" stroke="${cfg.color}" stroke-width="1.5" filter="url(#glow)"/>
+          <circle cx="13" cy="12" r="4" fill="rgba(0,0,0,0.6)" stroke="${cfg.color}" stroke-width="1"/>
+          <circle cx="13" cy="12" r="1.5" fill="${cfg.color}"/>
         </svg>`;
 
       const icon = {
         url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svgIcon),
-        scaledSize: new window.google.maps.Size(36, 44),
-        anchor: new window.google.maps.Point(18, 44),
+        scaledSize: new window.google.maps.Size(26, 32),
+        anchor: new window.google.maps.Point(13, 32),
       };
 
       if (markersRef.current.has(alvo.id)) {
@@ -272,6 +697,34 @@ export default function MapaAlvosPage() {
     URL.revokeObjectURL(url);
   };
 
+  const salvarRota = () => {
+    localStorage.setItem("ncfn_rota_mapa", JSON.stringify(rotaWaypointsRef.current));
+  };
+
+  const limparRota = () => {
+    rotaMarkersRef.current.forEach(m => m.setMap(null));
+    rotaMarkersRef.current = [];
+    if (rotaPolylineRef.current) {
+      rotaPolylineRef.current.setMap(null);
+      rotaPolylineRef.current = null;
+    }
+    rotaWaypointsRef.current = [];
+    setRotaDistancias(null);
+    localStorage.removeItem("ncfn_rota_mapa");
+  };
+
+  const limparDesenhos = () => {
+    drawnShapesRef.current.forEach(s => s.setMap(null));
+    drawnShapesRef.current = [];
+    localStorage.removeItem("ncfn_drawings_mapa");
+    setSavedDrawings([]);
+  };
+
+  const formatDist = (m: number) => {
+    if (m >= 1000) return (m / 1000).toFixed(1) + " km";
+    return Math.round(m) + " m";
+  };
+
   const alvosFiltered = alvos.filter(a => {
     if (filtroPrioridade !== "TODOS" && a.prioridade !== filtroPrioridade) return false;
     if (filtroStatus !== "TODOS" && a.status !== filtroStatus) return false;
@@ -283,6 +736,10 @@ export default function MapaAlvosPage() {
 
   const statsCritica = alvos.filter(a => a.prioridade === "CRÍTICA").length;
   const statsAtivos = alvos.filter(a => a.status === "ATIVO").length;
+
+  // Current mode indicator
+  const currentMode = modoAdicionar ? "MARCANDO ALVO" : modoRota ? "MODO ROTA" : modoDesenho ? "MODO DESENHO" : null;
+  const modeColor = modoAdicionar ? "#ef4444" : modoRota ? "#f59e0b" : "#bc13fe";
 
   return (
     <div className="h-screen flex flex-col bg-black overflow-hidden">
@@ -327,6 +784,56 @@ export default function MapaAlvosPage() {
             ))}
           </div>
 
+          {/* 3D button */}
+          <button onClick={() => setTilt3d(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black rounded-lg border transition ${tilt3d
+              ? "bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
+              : "border-gray-800 text-gray-500 hover:text-white hover:border-gray-600"}`}>
+            <Maximize2 className="w-3 h-3" /> 3D
+          </button>
+
+          {/* Rota button */}
+          <button onClick={() => {
+            const next = !modoRota;
+            setModoRota(next);
+            if (next) { setModoAdicionar(false); setModoDesenho(false); }
+          }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black rounded-lg border transition ${modoRota
+              ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400 shadow-[0_0_8px_rgba(245,158,11,0.3)] animate-pulse"
+              : "border-gray-800 text-gray-500 hover:text-white hover:border-gray-600"}`}>
+            <Navigation2 className="w-3 h-3" /> ROTA
+          </button>
+
+          {/* Desenho button */}
+          <button onClick={() => {
+            const next = !modoDesenho;
+            setModoDesenho(next);
+            if (next) { setModoAdicionar(false); setModoRota(false); }
+          }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black rounded-lg border transition ${modoDesenho
+              ? "bg-[#bc13fe]/20 border-[#bc13fe]/50 text-[#bc13fe] shadow-[0_0_8px_rgba(188,19,254,0.3)]"
+              : "border-gray-800 text-gray-500 hover:text-white hover:border-gray-600"}`}>
+            <PenLine className="w-3 h-3" /> DESENHO
+          </button>
+
+          {/* Fit bounds */}
+          <button onClick={fitBounds} title="Enquadrar todos os alvos"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black rounded-lg border transition border-gray-800 text-gray-500 hover:text-white hover:border-gray-600">
+            <Target className="w-3 h-3" />
+          </button>
+
+          {/* Geolocate */}
+          <button onClick={geolocate} disabled={geolocLoading} title="Minha localização"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black rounded-lg border transition ${geolocLoading ? "border-[#00f3ff]/40 text-[#00f3ff] animate-pulse" : "border-gray-800 text-gray-500 hover:text-[#00f3ff] hover:border-[#00f3ff]/30"}`}>
+            <Crosshair className="w-3 h-3" />
+          </button>
+
+          {/* Proximity rings */}
+          <button onClick={() => setProximityAtivo(v => !v)} title="Anéis de proximidade (500m/1km/5km)"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black rounded-lg border transition ${proximityAtivo ? "bg-[#00f3ff]/10 border-[#00f3ff]/40 text-[#00f3ff]" : "border-gray-800 text-gray-500 hover:text-white"}`}>
+            <Radio className="w-3 h-3" />
+          </button>
+
           <button onClick={exportarJSON}
             className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-gray-400 border border-gray-800 rounded-lg hover:border-gray-600 hover:text-white transition">
             <Download className="w-3 h-3" /> Exportar
@@ -356,7 +863,13 @@ export default function MapaAlvosPage() {
                     className="flex-1 bg-transparent text-[11px] text-white outline-none placeholder-gray-700" />
                 </div>
                 <button
-                  onClick={() => { setModoAdicionar(v => !v); setSelecionado(null); setEditando(false); }}
+                  onClick={() => {
+                    const next = !modoAdicionar;
+                    setModoAdicionar(next);
+                    if (next) { setModoRota(false); setModoDesenho(false); }
+                    setSelecionado(null);
+                    setEditando(false);
+                  }}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black rounded-lg border transition ${modoAdicionar
                     ? "bg-[#bc13fe]/20 border-[#bc13fe]/50 text-[#bc13fe] shadow-[0_0_10px_rgba(188,19,254,0.3)] animate-pulse"
                     : "border-[#bc13fe]/30 text-[#bc13fe] hover:bg-[#bc13fe]/10"}`}>
@@ -461,6 +974,89 @@ export default function MapaAlvosPage() {
             </div>
           )}
 
+          {/* Mode badge */}
+          {currentMode && mapCarregado && (
+            <div
+              className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-4 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest animate-pulse border"
+              style={{
+                background: modeColor + "20",
+                borderColor: modeColor + "60",
+                color: modeColor,
+                boxShadow: `0 0 12px ${modeColor}40`,
+              }}>
+              {currentMode}
+            </div>
+          )}
+
+          {/* Drawing toolbar */}
+          {modoDesenho && mapCarregado && (
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#bc13fe]/30 backdrop-blur-md"
+              style={{ background: "rgba(0,0,0,0.85)" }}>
+              {/* Tool selector */}
+              <div className="flex items-center gap-1 border-r border-gray-800 pr-2">
+                {(["polygon", "circle", "rectangle", "polyline"] as const).map(tool => (
+                  <button key={tool} onClick={() => setDrawTool(tool)}
+                    className={`px-2 py-1 text-[9px] font-bold rounded uppercase tracking-wider transition border ${drawTool === tool
+                      ? "bg-[#bc13fe]/20 border-[#bc13fe]/40 text-[#bc13fe]"
+                      : "border-gray-800 text-gray-600 hover:text-gray-300"}`}>
+                    {tool === "polygon" ? "Polígono" : tool === "circle" ? "Círculo" : tool === "rectangle" ? "Retângulo" : "Linha"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Color picker */}
+              <div className="flex items-center gap-1.5 border-r border-gray-800 pr-2">
+                <span className="text-[9px] text-gray-600 uppercase">Cor</span>
+                <input type="color" value={drawColor} onChange={e => setDrawColor(e.target.value)}
+                  className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent" />
+              </div>
+
+              {/* Opacity slider */}
+              <div className="flex items-center gap-1.5 border-r border-gray-800 pr-2">
+                <span className="text-[9px] text-gray-600 uppercase">Op</span>
+                <input type="range" min={0.1} max={0.9} step={0.05} value={drawOpacity}
+                  onChange={e => setDrawOpacity(parseFloat(e.target.value))}
+                  className="w-16 accent-[#bc13fe]" />
+                <span className="text-[9px] text-gray-500 w-6">{Math.round(drawOpacity * 100)}%</span>
+              </div>
+
+              {/* Clear all */}
+              <button onClick={limparDesenhos}
+                className="flex items-center gap-1 px-2 py-1 text-[9px] font-bold text-red-500 border border-red-900/40 rounded hover:bg-red-950/30 transition">
+                <Trash2 className="w-3 h-3" /> Limpar tudo
+              </button>
+            </div>
+          )}
+
+          {/* Route distance panel */}
+          {rotaDistancias && mapCarregado && (
+            <div className="absolute bottom-14 left-3 z-20 rounded-xl border border-yellow-500/30 backdrop-blur-md overflow-hidden"
+              style={{ background: "rgba(0,0,0,0.88)", minWidth: 200 }}>
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-yellow-500/20">
+                <div className="flex items-center gap-1.5">
+                  <Navigation2 className="w-3 h-3 text-yellow-400" />
+                  <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest">ROTA</span>
+                </div>
+                <button onClick={limparRota}
+                  className="text-[8px] font-bold text-red-500 hover:text-red-400 border border-red-900/40 rounded px-1.5 py-0.5 hover:bg-red-950/30 transition">
+                  Limpar
+                </button>
+              </div>
+              <div className="px-3 py-2 space-y-1">
+                {rotaDistancias.seg.map((d, i) => (
+                  <div key={i} className="flex items-center justify-between gap-4">
+                    <span className="text-[9px] text-gray-500 font-mono">P{i + 1}→P{i + 2}</span>
+                    <span className="text-[9px] font-bold text-yellow-300">{formatDist(d)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between gap-4 pt-1 border-t border-yellow-500/20 mt-1">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Total</span>
+                  <span className="text-[10px] font-black text-yellow-400">{formatDist(rotaDistancias.total)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Coordenadas bottom */}
           {mapCarregado && (
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2 bg-black/80 border border-gray-800 rounded-full backdrop-blur-sm z-10">
@@ -470,6 +1066,117 @@ export default function MapaAlvosPage() {
               </span>
               <span className="text-gray-800">·</span>
               <span className="text-[9px] font-mono text-gray-600">NCFN GEOINT v1.0</span>
+            </div>
+          )}
+
+          {/* Geocoding search bar */}
+          {mapCarregado && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 z-20"
+              style={{ maxWidth: 320, width: "calc(100% - 40px)" }}>
+              <div className="flex-1 flex items-center gap-2 bg-black/90 border border-gray-700 rounded-lg px-3 py-1.5 backdrop-blur-sm">
+                <Search className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                <input
+                  value={geocodeBusca}
+                  onChange={e => setGeocodeBusca(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && geocodeSearch()}
+                  placeholder="Buscar endereço ou cidade..."
+                  className="bg-transparent text-[11px] text-white outline-none w-full placeholder-gray-600"
+                />
+                {geocodeBusca && (
+                  <button onClick={() => setGeocodeBusca("")}>
+                    <X className="w-3 h-3 text-gray-600 hover:text-gray-300" />
+                  </button>
+                )}
+              </div>
+              <button onClick={geocodeSearch} disabled={geocodeLoading}
+                className="px-3 py-1.5 bg-black/90 border border-gray-700 rounded-lg text-[10px] font-bold text-gray-400 hover:text-white hover:border-gray-500 transition disabled:opacity-50">
+                {geocodeLoading ? "..." : "Ir"}
+              </button>
+            </div>
+          )}
+
+          {/* Heading dial (visible when 3D active) */}
+          {mapCarregado && tilt3d && (
+            <div className="absolute bottom-14 right-3 z-20 flex flex-col items-center gap-1 bg-black/80 border border-gray-700 rounded-xl p-2 backdrop-blur-sm">
+              <span className="text-[8px] font-mono text-gray-500 uppercase tracking-widest">Bússola</span>
+              <div className="relative w-10 h-10">
+                <div className="absolute inset-0 rounded-full border border-gray-700" style={{ background: "rgba(0,0,0,0.5)" }} />
+                <div className="absolute inset-0 flex items-center justify-center" style={{ transform: `rotate(${heading}deg)`, transition: "transform 0.2s" }}>
+                  <div className="w-0.5 h-4 rounded-full" style={{ background: "linear-gradient(to bottom, #ef4444 50%, #6b7280 50%)" }} />
+                </div>
+                <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[7px] font-bold text-red-400">N</span>
+              </div>
+              <input type="range" min={0} max={360} value={heading} onChange={e => setHeading(Number(e.target.value))}
+                className="w-16 accent-[#bc13fe]" style={{ writingMode: "horizontal-tb" }} />
+              <span className="text-[8px] font-mono text-gray-600">{heading}°</span>
+            </div>
+          )}
+
+          {/* Proximity rings legend */}
+          {proximityAtivo && selecionado && mapCarregado && (
+            <div className="absolute bottom-14 left-3 z-20 bg-black/80 border border-gray-700 rounded-xl p-2.5 backdrop-blur-sm">
+              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Raios de proximidade</p>
+              {[["500m", "#00f3ff"], ["1 km", "#f59e0b"], ["5 km", "#ef4444"]].map(([label, color]) => (
+                <div key={label} className="flex items-center gap-2 mb-1">
+                  <div className="w-3 h-0.5 rounded" style={{ background: color }} />
+                  <span className="text-[9px] font-mono" style={{ color }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Right-click context menu */}
+          {contextMenu && (
+            <div ref={contextMenuRef}
+              className="absolute z-50 bg-black/95 border border-gray-700 rounded-xl overflow-hidden shadow-2xl backdrop-blur-sm"
+              style={{ left: contextMenu.x + 8, top: contextMenu.y + 8, minWidth: 180 }}>
+              <div className="px-3 py-2 border-b border-gray-800">
+                <p className="text-[9px] font-mono text-gray-500">
+                  {contextMenu.lat.toFixed(6)}, {contextMenu.lng.toFixed(6)}
+                </p>
+              </div>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-gray-300 hover:bg-white/5 hover:text-white transition text-left"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${contextMenu.lat.toFixed(6)}, ${contextMenu.lng.toFixed(6)}`);
+                  setContextMenu(null);
+                }}>
+                <Lock className="w-3 h-3 text-gray-600" /> Copiar coordenadas
+              </button>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-gray-300 hover:bg-white/5 hover:text-white transition text-left"
+                onClick={() => {
+                  setFormAlvo({ lat: contextMenu.lat, lng: contextMenu.lng, prioridade: "ALTA", status: "ATIVO", notas: "", visivel: true });
+                  setCoordPendente({ lat: contextMenu.lat, lng: contextMenu.lng });
+                  setEditando(true);
+                  setModoAdicionar(false);
+                  setContextMenu(null);
+                }}>
+                <Plus className="w-3 h-3 text-[#bc13fe]" /> Adicionar alvo aqui
+              </button>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-gray-300 hover:bg-white/5 hover:text-white transition text-left"
+                onClick={() => {
+                  window.open(`https://www.google.com/maps?q=${contextMenu.lat},${contextMenu.lng}`, "_blank");
+                  setContextMenu(null);
+                }}>
+                <MapPin className="w-3 h-3 text-green-400" /> Abrir no Google Maps
+              </button>
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] text-gray-300 hover:bg-white/5 hover:text-white transition text-left"
+                onClick={() => {
+                  if (modoRotaRef.current || modoRota) {
+                    // Add as route point
+                    const fakeEvent = { latLng: { lat: () => contextMenu.lat, lng: () => contextMenu.lng } };
+                    // trigger route add manually
+                  }
+                  setModoRota(true);
+                  setModoAdicionar(false);
+                  setModoDesenho(false);
+                  setContextMenu(null);
+                }}>
+                <Navigation className="w-3 h-3 text-[#f59e0b]" /> Iniciar rota daqui
+              </button>
             </div>
           )}
         </div>
