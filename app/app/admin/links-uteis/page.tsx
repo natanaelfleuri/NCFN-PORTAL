@@ -2,8 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     NotebookPen, Plus, Trash2, Save,
-    Search, X, FileText, AlertTriangle, CheckCircle, Clock,
-    Columns2, AlignLeft,
+    Search, X, FileText, AlertTriangle, CheckCircle,
+    Columns2, AlignLeft, Eye,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -101,7 +101,7 @@ export default function LinksUteisPage() {
     const [selected, setSelected] = useState<Note | null>(null);
     const [title, setTitle]       = useState('');
     const [content, setContent]   = useState('');
-    const [split, setSplit]       = useState(true);   // true = split, false = editor only
+    const [mode, setMode]         = useState<'preview' | 'edit' | 'split'>('preview');
     const [search, setSearch]     = useState('');
     const [saving, setSaving]     = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -131,11 +131,13 @@ export default function LinksUteisPage() {
     const handleSelect = (note: Note) => {
         setSelected(note); setTitle(note.title); setContent(note.content);
         setConfirmDel(false);
+        setMode('preview');  // abre sempre em visualização full-screen
     };
 
     const handleNew = () => {
         setSelected(null); setTitle(''); setContent('');
         setConfirmDel(false);
+        setMode('edit');     // nova nota abre no editor
         setTimeout(() => textareaRef.current?.focus(), 50);
     };
 
@@ -355,14 +357,27 @@ export default function LinksUteisPage() {
                             onKeyDown={e => e.key === 'Enter' && textareaRef.current?.focus()}
                         />
 
-                        {/* split toggle */}
+                        {/* mode toggles */}
                         <button
-                            className={`obs-btn ${split ? 'active' : ''}`}
-                            onClick={() => setSplit(s => !s)}
-                            title={split ? 'Modo editor' : 'Modo split'}
+                            className={`obs-btn ${mode === 'preview' ? 'active' : ''}`}
+                            onClick={() => setMode('preview')}
+                            title="Visualização"
                         >
-                            {split ? <Columns2 size={12} /> : <AlignLeft size={12} />}
-                            {split ? 'Split' : 'Editor'}
+                            <Eye size={12} /> Ver
+                        </button>
+                        <button
+                            className={`obs-btn ${mode === 'edit' ? 'active' : ''}`}
+                            onClick={() => { setMode('edit'); setTimeout(() => textareaRef.current?.focus(), 50); }}
+                            title="Editar"
+                        >
+                            <AlignLeft size={12} /> Editar
+                        </button>
+                        <button
+                            className={`obs-btn ${mode === 'split' ? 'active' : ''}`}
+                            onClick={() => setMode('split')}
+                            title="Split"
+                        >
+                            <Columns2 size={12} /> Split
                         </button>
 
                         {/* save */}
@@ -390,40 +405,42 @@ export default function LinksUteisPage() {
 
                     {/* content */}
                     <div className="obs-content">
-                        {/* textarea */}
-                        <div className={`obs-textarea-wrap ${!split ? 'flex-1' : ''}`} style={{ flex: 1 }}>
-                            <textarea
-                                ref={textareaRef}
-                                className="obs-textarea"
-                                value={content}
-                                onChange={e => setContent(e.target.value)}
-                                spellCheck={false}
-                                placeholder={`# Título\n\nEscreva em Markdown...\n\n| Coluna 1 | Coluna 2 |\n| --- | --- |\n| valor | valor |\n\n[Link](https://exemplo.com)`}
-                                onKeyDown={e => {
-                                    if (e.key === 'Tab') {
-                                        e.preventDefault();
-                                        const s = e.currentTarget.selectionStart;
-                                        const end = e.currentTarget.selectionEnd;
-                                        const v = content.substring(0, s) + '  ' + content.substring(end);
-                                        setContent(v);
-                                        requestAnimationFrame(() => {
-                                            if (textareaRef.current) {
-                                                textareaRef.current.selectionStart = s + 2;
-                                                textareaRef.current.selectionEnd = s + 2;
-                                            }
-                                        });
-                                    }
-                                    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                                        e.preventDefault();
-                                        handleSave();
-                                    }
-                                }}
-                            />
-                        </div>
+                        {/* textarea — visível em edit e split */}
+                        {(mode === 'edit' || mode === 'split') && (
+                            <div className="obs-textarea-wrap" style={{ flex: 1, borderRight: mode === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                                <textarea
+                                    ref={textareaRef}
+                                    className="obs-textarea"
+                                    value={content}
+                                    onChange={e => setContent(e.target.value)}
+                                    spellCheck={false}
+                                    placeholder={`# Título\n\nEscreva em Markdown...\n\n| Coluna 1 | Coluna 2 |\n| --- | --- |\n| valor | valor |\n\n[Link](https://exemplo.com)`}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Tab') {
+                                            e.preventDefault();
+                                            const s = e.currentTarget.selectionStart;
+                                            const end = e.currentTarget.selectionEnd;
+                                            const v = content.substring(0, s) + '  ' + content.substring(end);
+                                            setContent(v);
+                                            requestAnimationFrame(() => {
+                                                if (textareaRef.current) {
+                                                    textareaRef.current.selectionStart = s + 2;
+                                                    textareaRef.current.selectionEnd = s + 2;
+                                                }
+                                            });
+                                        }
+                                        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                                            e.preventDefault();
+                                            handleSave();
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
 
-                        {/* live preview */}
-                        {split && (
-                            <div className="obs-preview-wrap">
+                        {/* preview — visível em preview e split */}
+                        {(mode === 'preview' || mode === 'split') && (
+                            <div className="obs-preview-wrap" style={{ flex: 1 }}>
                                 {content || title ? (
                                     <>
                                         {title && <h1 className="obs-h1" style={{ marginTop: 0 }}>{title}</h1>}
