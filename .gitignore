@@ -67,3 +67,7 @@ k8s/secrets.yaml
 *.png
 *.jpg
 DESCRIPTO/
+
+# Exceção: assets de branding no public
+!app/public/branding/*.png
+!app/public/branding/*.jpg

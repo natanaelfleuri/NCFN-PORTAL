@@ -48,10 +48,17 @@ export default function DocPage() {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
-                        className={`group relative overflow-hidden rounded-2xl border transition-all duration-500 aspect-[4/3] bg-black ${activeTab === tab.id ? 'border-[#00f3ff] ring-2 ring-[#00f3ff]/20 scale-[1.02] shadow-[0_0_30px_rgba(0,243,255,0.1)]' : 'border-white/10 hover:border-white/30 hover:bg-gray-950'}`}
+                        className={`group relative overflow-hidden rounded-2xl border transition-all duration-500 aspect-[4/3] bg-black ${activeTab === tab.id ? 'border-[#00f3ff] ring-2 ring-[#00f3ff]/20 scale-[1.02] shadow-[0_0_30px_rgba(0,243,255,0.1)]' : 'border-white/10 hover:border-white/30'}`}
                     >
+                        {/* NCFN background image — 80% transparent, 50% on hover */}
+                        <img
+                            src="/branding/ncfn-bg.png"
+                            alt=""
+                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${activeTab === tab.id ? 'opacity-60' : 'opacity-20 group-hover:opacity-50'}`}
+                        />
+                        {/* colour gradient overlay */}
                         <div
-                            className={`absolute inset-0 w-full h-full bg-gradient-to-br ${tab.color} opacity-20 group-hover:opacity-40 transition-opacity duration-700 ${activeTab === tab.id ? 'opacity-50' : ''}`}
+                            className={`absolute inset-0 w-full h-full bg-gradient-to-br ${tab.color} transition-opacity duration-700 ${activeTab === tab.id ? 'opacity-60' : 'opacity-30 group-hover:opacity-50'}`}
                         />
                         <div className="absolute bottom-4 left-4 right-4 flex flex-col items-start gap-1">
                             <div className={`p-2 rounded-lg ${activeTab === tab.id ? 'bg-[#00f3ff] text-black' : 'bg-white/10 text-white group-hover:bg-white/20'}`}>
