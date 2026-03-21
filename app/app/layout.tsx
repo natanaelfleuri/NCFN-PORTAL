@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 import type { Metadata } from 'next'
 import './globals.css'
+import { Michroma } from 'next/font/google'
 import Navigation from './components/Navigation'
+
+const michroma = Michroma({ weight: '400', subsets: ['latin'], display: 'swap' })
 import AuthProvider from './components/AuthProvider'
 import GuestHeartbeat from './components/GuestHeartbeat'
 import LoadingOverlay from './components/LoadingOverlay'
@@ -57,18 +60,30 @@ export default function RootLayout({
                 }}
               ></div>
 
-              <header className="w-full py-3 lg:py-5 px-6 flex justify-between items-center border-b border-white/5 bg-black/60 backdrop-blur-xl sticky top-0 z-50 shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.4)]">
-                <Link href="/" className="shrink-0 group flex items-center gap-2.5">
-                  {/* Logo mark — square shield */}
-                  <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-md flex items-center justify-center border border-[#00f3ff]/40 bg-[#00f3ff]/5 group-hover:border-[#00f3ff]/70 group-hover:bg-[#00f3ff]/10 transition-all shadow-[0_0_10px_rgba(0,243,255,0.15)] group-hover:shadow-[0_0_18px_rgba(0,243,255,0.35)]" style={{fontFamily:'monospace', fontSize:'1.1rem', color:'#00f3ff', fontWeight:900, lineHeight:1, userSelect:'none'}}>
-                    ■
+              <header className="w-full py-2.5 lg:py-3.5 px-6 flex justify-between items-center border-b border-white/5 bg-black/60 backdrop-blur-xl sticky top-0 z-50 shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.4)]">
+                <Link href="/" className="shrink-0 group flex items-center gap-3">
+                  {/* Logo mark */}
+                  <div className="w-10 h-10 lg:w-11 lg:h-11 rounded-lg flex items-center justify-center border border-[#00f3ff]/40 bg-[#00f3ff]/5 group-hover:border-[#00f3ff]/70 group-hover:bg-[#00f3ff]/10 transition-all shadow-[0_0_12px_rgba(0,243,255,0.18)] group-hover:shadow-[0_0_24px_rgba(0,243,255,0.4)]" style={{userSelect:'none', flexShrink:0}}>
+                    {/* Hexagon / circuit symbol */}
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <polygon points="12,2 21,7 21,17 12,22 3,17 3,7" stroke="#00f3ff" strokeWidth="1.5" fill="rgba(0,243,255,0.06)" strokeLinejoin="round"/>
+                      <circle cx="12" cy="12" r="3" fill="#00f3ff" opacity="0.9"/>
+                      <line x1="12" y1="2"  x2="12" y2="9"  stroke="#00f3ff" strokeWidth="1" opacity="0.4"/>
+                      <line x1="12" y1="15" x2="12" y2="22" stroke="#00f3ff" strokeWidth="1" opacity="0.4"/>
+                      <line x1="3"  y1="7"  x2="9"  y2="10.5" stroke="#00f3ff" strokeWidth="1" opacity="0.4"/>
+                      <line x1="15" y1="13.5" x2="21" y2="17" stroke="#00f3ff" strokeWidth="1" opacity="0.4"/>
+                      <line x1="21" y1="7"  x2="15" y2="10.5" stroke="#00f3ff" strokeWidth="1" opacity="0.4"/>
+                      <line x1="9"  y1="13.5" x2="3"  y2="17" stroke="#00f3ff" strokeWidth="1" opacity="0.4"/>
+                    </svg>
                   </div>
                   {/* Wordmark */}
-                  <div className="flex flex-col leading-none">
-                    <span className="text-white font-black tracking-tighter text-base lg:text-lg" style={{fontFamily:'"Rajdhani","Share Tech Mono",ui-monospace,monospace', letterSpacing:'-0.02em'}}>
-                      NCFN<span className="text-[#00f3ff]">.NET</span>
+                  <div className="flex flex-col leading-none gap-0.5">
+                    <span className={`${michroma.className} text-white text-lg lg:text-xl tracking-wide`} style={{letterSpacing:'0.05em'}}>
+                      NCFN<span style={{color:'#00f3ff', marginLeft:2}}>.</span>
                     </span>
-                    <span className="text-[8px] lg:text-[9px] text-gray-600 font-mono uppercase tracking-[0.15em] hidden sm:block" style={{letterSpacing:'0.12em'}}>Nexus Cyber Forensic Network</span>
+                    <span className={`${michroma.className} hidden sm:block text-[#00f3ff]/40 text-[8px] lg:text-[9px] tracking-[0.18em] uppercase`}>
+                      Nexus Cyber Forensic Network
+                    </span>
                   </div>
                 </Link>
                 <Navigation />
