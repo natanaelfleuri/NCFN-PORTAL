@@ -332,6 +332,19 @@
 .graph-modal-enter { animation: graph-modal-in  0.25s ease forwards; }
 .graph-modal-exit  { animation: graph-modal-out 0.2s  ease forwards; }
 
+/* Hide system header + bottom nav when map is in fullscreen */
+body.ncfn-map-fullscreen header {
+  display: none !important;
+}
+body.ncfn-map-fullscreen nav.fixed {
+  display: none !important;
+}
+body.ncfn-map-fullscreen main {
+  padding: 0 !important;
+  max-width: 100% !important;
+  flex-grow: 0 !important;
+}
+
 .module-cursor::after {
   content: '_';
   display: inline-block;

@@ -53,6 +53,28 @@ declare global {
   }
 }
 
+const DARK_MAP_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#0d0d0d" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#374151" }] },
+  { featureType: "administrative.country", elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d1d5db" }] },
+  { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#111827" }] },
+  { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#4b5563" }] },
+  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2d3748" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#374151" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#4b5563" }] },
+  { featureType: "road.highway.controlled_access", elementType: "geometry", stylers: [{ color: "#374151" }] },
+  { featureType: "road.local", elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
+  { featureType: "transit", elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0f172a" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#374151" }] },
+];
+
 export default function MapaAlvosPage() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -83,6 +105,9 @@ export default function MapaAlvosPage() {
   const rotaMarkersRef = useRef<any[]>([]);
   const rotaPolylineRef = useRef<any>(null);
   const [rotaDistancias, setRotaDistancias] = useState<{ seg: number[]; total: number } | null>(null);
+  const carMarkerRef = useRef<any>(null);
+  const carAnimRef = useRef<any>(null);
+  const [animatingCar, setAnimatingCar] = useState(false);
 
   // Drawing
   const drawingManagerRef = useRef<any>(null);
@@ -384,6 +409,8 @@ export default function MapaAlvosPage() {
       scaleControl: true,
       fullscreenControl: false,
       tilt: 0,
+      styles: DARK_MAP_STYLE,
+      backgroundColor: "#0d0d0d",
     });
     mapInstanceRef.current = map;
     infoWindowRef.current = new window.google.maps.InfoWindow();
@@ -555,10 +582,15 @@ export default function MapaAlvosPage() {
     mapInstanceRef.current.setOptions({ draggableCursor: cursor });
   }, [modoAdicionar, modoRota]);
 
-  // Tipo de mapa
+  // Tipo de mapa — always re-apply dark style (styles only apply to roadmap/terrain)
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     mapInstanceRef.current.setMapTypeId(tipoMapa);
+    if (tipoMapa === "roadmap" || tipoMapa === "terrain") {
+      mapInstanceRef.current.setOptions({ styles: DARK_MAP_STYLE });
+    } else {
+      mapInstanceRef.current.setOptions({ styles: [] });
+    }
   }, [tipoMapa]);
 
   // 3D tilt
@@ -566,6 +598,16 @@ export default function MapaAlvosPage() {
     if (!mapInstanceRef.current) return;
     mapInstanceRef.current.setTilt(tilt3d ? 45 : 0);
   }, [tilt3d]);
+
+  // Fullscreen → hide system navigation header
+  useEffect(() => {
+    if (mapFullscreen) {
+      document.body.classList.add("ncfn-map-fullscreen");
+    } else {
+      document.body.classList.remove("ncfn-map-fullscreen");
+    }
+    return () => document.body.classList.remove("ncfn-map-fullscreen");
+  }, [mapFullscreen]);
 
   // Drawing manager options sync
   useEffect(() => {
@@ -705,6 +747,19 @@ export default function MapaAlvosPage() {
     URL.revokeObjectURL(url);
   };
 
+  const limparTodosAlvos = async () => {
+    if (!window.confirm(`Remover todos os ${alvos.length} alvos do mapa? Esta ação não pode ser desfeita.`)) return;
+    // Remove markers from map
+    markersRef.current.forEach(m => m.setMap(null));
+    markersRef.current.clear();
+    // Delete each from server
+    for (const a of alvos) {
+      await fetch(`/api/admin/relatorios?id=${a.id}`, { method: "DELETE" }).catch(() => {});
+    }
+    setAlvos([]);
+    setSelecionado(null);
+  };
+
   const salvarRota = () => {
     localStorage.setItem("ncfn_rota_mapa", JSON.stringify(rotaWaypointsRef.current));
   };
@@ -719,6 +774,64 @@ export default function MapaAlvosPage() {
     rotaWaypointsRef.current = [];
     setRotaDistancias(null);
     localStorage.removeItem("ncfn_rota_mapa");
+  };
+
+  const handleAnimateCar = () => {
+    const points = rotaWaypointsRef.current;
+    if (points.length < 2 || !mapInstanceRef.current) return;
+
+    // Stop if already running
+    if (animatingCar) {
+      clearInterval(carAnimRef.current);
+      if (carMarkerRef.current) { carMarkerRef.current.setMap(null); carMarkerRef.current = null; }
+      setAnimatingCar(false);
+      return;
+    }
+
+    const POLICE_SVG = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="17" fill="#1e3a5f" stroke="#00f3ff" stroke-width="1.5"/>
+      <text x="18" y="24" text-anchor="middle" font-size="20">🚔</text>
+    </svg>`);
+
+    // Create car marker
+    const car = new window.google.maps.Marker({
+      position: points[0],
+      map: mapInstanceRef.current,
+      icon: {
+        url: "data:image/svg+xml;charset=UTF-8," + POLICE_SVG,
+        scaledSize: new window.google.maps.Size(36, 36),
+        anchor: new window.google.maps.Point(18, 18),
+      },
+      title: "Viatura NCFN",
+      zIndex: 9999,
+    });
+    carMarkerRef.current = car;
+    setAnimatingCar(true);
+
+    // Interpolate along all segments
+    const STEPS_PER_SEGMENT = 120;
+    const INTERVAL_MS = 30;
+    let segIdx = 0;
+    let step = 0;
+
+    carAnimRef.current = setInterval(() => {
+      if (segIdx >= points.length - 1) {
+        clearInterval(carAnimRef.current);
+        setTimeout(() => {
+          if (carMarkerRef.current) { carMarkerRef.current.setMap(null); carMarkerRef.current = null; }
+          setAnimatingCar(false);
+        }, 800);
+        return;
+      }
+      const p1 = points[segIdx];
+      const p2 = points[segIdx + 1];
+      const t = step / STEPS_PER_SEGMENT;
+      const lat = p1.lat + (p2.lat - p1.lat) * t;
+      const lng = p1.lng + (p2.lng - p1.lng) * t;
+      car.setPosition({ lat, lng });
+      step++;
+      if (step > STEPS_PER_SEGMENT) { step = 0; segIdx++; }
+    }, INTERVAL_MS);
   };
 
   const limparDesenhos = () => {
@@ -781,7 +894,7 @@ export default function MapaAlvosPage() {
         </div>
 
         {/* Controles */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-shrink-0 max-w-[55vw]">
           {/* Tipo de mapa */}
           <div className="flex items-center gap-1 bg-black/60 border border-gray-800 rounded-lg p-1">
             {(["satellite", "hybrid", "roadmap", "terrain"] as const).map(t => (
@@ -851,13 +964,21 @@ export default function MapaAlvosPage() {
           </button>
 
           <button onClick={exportarJSON}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-gray-400 border border-gray-800 rounded-lg hover:border-gray-600 hover:text-white transition">
-            <Download className="w-3 h-3" /> Exportar
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-gray-400 border border-gray-800 rounded-lg hover:border-gray-600 hover:text-white transition">
+            <Download className="w-3 h-3" />
           </button>
 
+          {alvos.length > 0 && (
+            <button onClick={limparTodosAlvos}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-red-600 border border-red-900/40 rounded-lg hover:border-red-600/50 hover:text-red-400 transition"
+              title="Limpar todos os pontos do mapa">
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+
           <button onClick={() => setPainelAberto(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border rounded-lg transition border-gray-800 text-gray-400 hover:text-white">
-            <Layers className="w-3 h-3" /> {painelAberto ? "Ocultar" : "Painel"}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold border rounded-lg transition border-gray-800 text-gray-400 hover:text-white">
+            <Layers className="w-3 h-3" />
           </button>
         </div>
       </div>
@@ -1064,10 +1185,17 @@ export default function MapaAlvosPage() {
                   <Navigation2 className="w-3 h-3 text-yellow-400" />
                   <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest">ROTA</span>
                 </div>
-                <button onClick={limparRota}
-                  className="text-[8px] font-bold text-red-500 hover:text-red-400 border border-red-900/40 rounded px-1.5 py-0.5 hover:bg-red-950/30 transition">
-                  Limpar
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={handleAnimateCar}
+                    className={`text-[8px] font-bold border rounded px-1.5 py-0.5 transition ${animatingCar ? "text-[#00f3ff] border-[#00f3ff]/40 bg-[#00f3ff]/10 animate-pulse" : "text-[#00f3ff]/70 border-[#00f3ff]/30 hover:bg-[#00f3ff]/10 hover:text-[#00f3ff]"}`}
+                    title="Animar viatura percorrendo a rota">
+                    {animatingCar ? "⏹ Parar" : "🚔 Animar"}
+                  </button>
+                  <button onClick={limparRota}
+                    className="text-[8px] font-bold text-red-500 hover:text-red-400 border border-red-900/40 rounded px-1.5 py-0.5 hover:bg-red-950/30 transition">
+                    Limpar
+                  </button>
+                </div>
               </div>
               <div className="px-3 py-2 space-y-1">
                 {rotaDistancias.seg.map((d, i) => (
@@ -1435,20 +1563,21 @@ export default function MapaAlvosPage() {
       </div>
 
       {/* Footer */}
-      <div className="flex-shrink-0 px-4 py-2 border-t border-gray-900 bg-black/95 flex items-center justify-between gap-4 flex-wrap">
-        <p className="text-[9px] text-gray-700 font-mono leading-relaxed">
-          Para visualizar um mapa com limites de Estados, Municípios e Bairros de Cidades acesse:{" "}
+      <div className="flex-shrink-0 px-4 py-2.5 border-t border-gray-900 bg-black/95 flex items-center justify-between gap-4 flex-wrap">
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          <span className="text-gray-400 font-semibold">Dica:</span> Para visualizar limites de{" "}
+          <span className="text-gray-300">Estados, Municípios e Bairros</span> de cidades brasileiras, acesse{" "}
           <a
             href="https://wikimapia.org/#lang=pt&lat=-13.368243&lon=-49.702148&z=5&m=w"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[#00f3ff]/50 hover:text-[#00f3ff] transition underline underline-offset-2"
+            className="text-[#00f3ff] hover:text-white transition font-semibold underline underline-offset-2"
           >
             wikimapia.org
           </a>
-          {" "}— layer de bairros, municípios e estados disponível (camada "Wikimapia").
+          {" "}— ative a camada <span className="text-[#00f3ff]/80 font-mono text-[10px]">Wikimapia</span> no menu de layers.
         </p>
-        <p className="text-[8px] text-gray-800 font-mono flex-shrink-0">NCFN · Sistema de Geointeligência</p>
+        <p className="text-[9px] text-gray-700 font-mono flex-shrink-0">NCFN · Geointeligência Operacional</p>
       </div>
     </div>
   );
