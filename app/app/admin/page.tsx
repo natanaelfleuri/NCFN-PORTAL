@@ -936,13 +936,13 @@ function StatCard({ icon: Icon, value, label, color, hover, pulse }: {
     icon: any; value: string; label: string; color: string; hover?: boolean; pulse?: boolean;
 }) {
     return (
-        <div className={`glass-panel p-4 lg:p-5 rounded-2xl flex flex-col items-center text-center gap-2 transition-all duration-300 ${hover ? 'hover:scale-[1.03] cursor-pointer' : ''}`}
+        <div className={`glass-panel px-3 py-2.5 rounded-xl flex flex-col items-center text-center gap-1.5 transition-all duration-300 ${hover ? 'hover:scale-[1.03] cursor-pointer' : ''}`}
             style={{ borderColor: `${color}30` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${color}12`, border: `1px solid ${color}25` }}>
-                <Icon className={`w-5 h-5 ${pulse ? 'animate-pulse' : ''}`} style={{ color }} />
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${color}12`, border: `1px solid ${color}25` }}>
+                <Icon className={`w-3.5 h-3.5 ${pulse ? 'animate-pulse' : ''}`} style={{ color }} />
             </div>
-            <span className="text-xl lg:text-2xl font-black text-white leading-none">{value}</span>
-            <span className="text-[9px] lg:text-[10px] text-gray-500 font-bold uppercase tracking-wider leading-tight">{label}</span>
+            <span className="text-lg lg:text-xl font-black text-white leading-none">{value}</span>
+            <span className="text-[8px] lg:text-[9px] text-gray-500 font-bold uppercase tracking-wider leading-tight">{label}</span>
         </div>
     );
 }
