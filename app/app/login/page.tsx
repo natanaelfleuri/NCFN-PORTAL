@@ -22,7 +22,7 @@ function LoginContent() {
 
         async function tryCfLogin() {
             try {
-                const res  = await fetch('/api/auth/cf-check');
+                const res  = await fetch('/api/cf-check');
                 const data = await res.json().catch(() => ({}));
 
                 if (data.valid && data.token) {

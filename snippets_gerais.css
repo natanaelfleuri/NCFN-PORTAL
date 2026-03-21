@@ -1,0 +1,137 @@
+/* ============================================================
+   1. ESTRUTURA E LARGURA TOTAL
+   ============================================================ */
+:root {
+    --file-line-width: 98% !important;
+    --tech-green: #00ff9f;
+    --tech-purple: #a100ff;
+    --tech-blue: #00b4ff;
+    --neon-purple-glow: #bc13fe;
+    --matte-purple: #6b4f9a;
+}
+
+.markdown-source-view.mod-cm6 .cm-content,
+.markdown-source-view.mod-cm6 .cm-line,
+.markdown-reading-view .markdown-preview-section {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 25px !important;
+}
+
+/* ============================================================
+   2. TÍTULOS - GRADIENTES SEM FUNDO
+   ============================================================ */
+.markdown-rendered h1,
+.cm-header-1,
+.markdown-rendered h2,
+.cm-header-2,
+.markdown-rendered h3,
+.cm-header-3,
+.markdown-rendered h4,
+.cm-header-4 {
+    background-color: transparent !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    font-weight: 800 !important;
+    display: inline-block;
+}
+
+.markdown-rendered h1,
+.cm-header-1 {
+    font-size: 2.2em !important;
+    background-image: linear-gradient(90deg, var(--tech-green), var(--tech-purple), var(--tech-blue)) !important;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    border-left: 5px solid var(--tech-green);
+    padding-left: 20px !important;
+}
+
+.markdown-rendered h2,
+.cm-header-2 {
+    font-size: 1.8em !important;
+    background-image: linear-gradient(90deg, var(--tech-green), var(--tech-blue)) !important;
+}
+
+.markdown-rendered h3,
+.cm-header-3 {
+    font-size: 1.5em !important;
+    background-image: linear-gradient(90deg, var(--tech-purple), var(--tech-blue)) !important;
+}
+
+.markdown-rendered h4,
+.cm-header-4 {
+    font-size: 1.25em !important;
+    background-image: linear-gradient(90deg, var(--tech-blue), var(--tech-green)) !important;
+}
+
+/* ============================================================
+   3. NEGRITO (PRATA NÍTIDO) E ITÁLICO (FOSCO)
+   ============================================================ */
+strong,
+.cm-strong {
+    background: linear-gradient(180deg, #d1d5db 0%, #9ca3af 50%, #6b7280 100%) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    font-weight: 750 !important;
+    filter:
+        drop-shadow(1px 1px 0px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.3)) !important;
+    text-shadow: none !important;
+}
+
+em,
+.markdown-rendered em,
+.cm-em,
+.cm-italic {
+    color: #c8a2c8 !important;
+    /* Lilás */
+    font-style: italic !important;
+    opacity: 0.85;
+}
+
+/* ============================================================
+   4. TAGS (FUNDO ULTRA-APAGADO / GHOST DESIGN)
+   ============================================================ */
+.tag,
+.cm-hashtag {
+    color: #000000 !important;
+    /* Fundo quase invisível (15% de opacidade) */
+    background: rgba(148, 163, 184, 0.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    font-size: 0.82em !important;
+    font-weight: 700 !important;
+    padding: 1px 7px !important;
+    border-radius: 4px !important;
+    opacity: 0.45;
+    /* Deixando a tag bem discreta no ambiente */
+    transition: all 0.3s ease;
+}
+
+/* O efeito de "ligar" continua presente e vibrante */
+.tag:hover,
+.cm-hashtag:hover {
+    color: #ffffff !important;
+    background: var(--tech-blue) !important;
+    opacity: 1;
+    box-shadow: 0 0 10px var(--tech-blue);
+    border-color: transparent !important;
+}
+
+/* ============================================================
+   5. TEXTO JUSTIFICADO E REFINAMENTOS
+   ============================================================ */
+.markdown-reading-view .markdown-preview-section,
+.markdown-rendered p,
+.markdown-rendered li,
+.markdown-source-view.mod-cm6 .cm-line {
+    text-align: justify !important;
+    text-justify: inter-word !important;
+    line-height: 1.75;
+    color: #cbd5e1 !important;
+}
+
+.markdown-source-view.mod-cm6 .HyperMD-header {
+    text-align: left !important;
+}
