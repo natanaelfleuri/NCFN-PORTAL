@@ -36,6 +36,13 @@ COPY . .
 # Copiar schema Prisma (client já gerado no stage deps)
 COPY --from=deps /app/prisma ./prisma
 
+# Variáveis NEXT_PUBLIC_ precisam ser declaradas no build stage
+# pois o Next.js as embute no bundle client-side durante o build
+ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+ARG NEXT_PUBLIC_BUILDER_API_KEY
+ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+ENV NEXT_PUBLIC_BUILDER_API_KEY=$NEXT_PUBLIC_BUILDER_API_KEY
+
 # Build Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production

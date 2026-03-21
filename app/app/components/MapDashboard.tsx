@@ -63,7 +63,7 @@ export default function MapDashboard() {
           </div>
           <div>
             <h3 className="text-2xl lg:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-[#bc13fe] tracking-tighter">
-              CARTOGRAFIA FORENSE
+              LOCALIZAÇÃO RASTREÁVEL DO GERENTE ATIVO E DE AMEAÇAS EM TEMPO REAL
             </h3>
             <p className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">Interceptações locais + operador ativo</p>
           </div>
@@ -182,7 +182,7 @@ export default function MapDashboard() {
       {/* Interceptions table */}
       <div className="glass-panel rounded-2xl border border-[#bc13fe]/20 overflow-hidden shadow-[0_0_20px_rgba(188,19,254,0.05)]">
         <div className="px-6 py-4 border-b border-[#bc13fe]/20 flex items-center justify-between">
-          <h4 className="text-sm font-bold text-gray-300 uppercase tracking-widest">Registro de Interceptações</h4>
+          <h4 className="text-sm font-bold text-gray-300 uppercase tracking-widest">Histórico de Interceptações de Ameaças e Tentativas de Acesso Não Autorizados</h4>
           <span className="text-[10px] font-mono text-gray-600">{records.length} registros</span>
         </div>
         <div className="overflow-x-auto">

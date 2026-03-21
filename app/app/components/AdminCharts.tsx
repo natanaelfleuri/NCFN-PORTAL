@@ -197,7 +197,7 @@ export default function AdminCharts({ files }: { files: FileItem[] }) {
       <div className="glass-panel rounded-2xl p-5 border border-[#bc13fe]/20">
         <div className="flex items-center gap-2 mb-4">
           <BarChart2 className="w-4 h-4 text-[#bc13fe]" />
-          <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">Volume por Zona de Custódia — 12 Pastas</span>
+          <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">Volume de Arquivos por Diretórios</span>
         </div>
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={folderData} margin={{ top: 22, right: 8, left: -10, bottom: 70 }} barCategoryGap="8%">
