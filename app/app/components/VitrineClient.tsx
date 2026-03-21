@@ -339,6 +339,9 @@ function EmailGate({ onAccess }: { onAccess: (email: string) => void }) {
               className="w-full bg-black/40 border border-white/10 focus:border-[#00f3ff]/50 rounded-2xl py-4 pl-12 pr-4 text-white font-mono focus:outline-none transition-all"
             />
           </div>
+          <p className="text-[11px] text-gray-600 font-mono text-center -mt-1">
+            Digite seu primeiro nome
+          </p>
           {error && <p className="text-red-400 text-xs text-center font-mono">{error}</p>}
           <button type="submit" disabled={loading || !email}
             className="w-full py-4 bg-[#00f3ff]/10 hover:bg-[#00f3ff]/20 border border-[#00f3ff]/40 text-[#00f3ff] font-black rounded-2xl transition-all disabled:opacity-40 flex items-center justify-center gap-2 uppercase tracking-widest text-sm">

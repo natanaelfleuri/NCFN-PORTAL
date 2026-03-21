@@ -392,3 +392,15 @@ model VitrinePublish {
   downloadCount Int      @default(0)
   active        Boolean  @default(true)
 }
+
+model ApiConfig {
+  id             String    @id @default(cuid())
+  serviceId      String    @unique  // e.g., 'gemini', 'openai', 'browserless'
+  displayName    String
+  apiKey         String?
+  enabled        Boolean   @default(false)
+  verified       Boolean   @default(false)
+  lastVerifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

@@ -32,6 +32,7 @@ export default function AuditoriaSansaoPage() {
     const [selectedContent, setSelectedContent] = useState<string | null>(null);
     const [loadingSelected, setLoadingSelected] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
+    const [cooldownMs, setCooldownMs]   = useState<number>(0);
 
     const logsEndRef = useRef<HTMLDivElement>(null);
     const idRef = useRef(0);
@@ -58,6 +59,31 @@ export default function AuditoriaSansaoPage() {
     }, []);
 
     useEffect(() => { loadReports(); }, [loadReports]);
+
+    // ── cooldown ticker ──────────────────────────────────────────────────────
+    useEffect(() => {
+        let timer: ReturnType<typeof setInterval>;
+        const checkCooldown = async () => {
+            try {
+                const res = await fetch('/api/admin/auditoria-sansao?action=cooldown');
+                if (res.ok) {
+                    const { remainingMs } = await res.json();
+                    setCooldownMs(remainingMs > 0 ? remainingMs : 0);
+                    if (remainingMs > 0) {
+                        timer = setInterval(() => {
+                            setCooldownMs(prev => {
+                                const next = prev - 1000;
+                                if (next <= 0) { clearInterval(timer); return 0; }
+                                return next;
+                            });
+                        }, 1000);
+                    }
+                }
+            } catch (_) {}
+        };
+        checkCooldown();
+        return () => clearInterval(timer);
+    }, [done]);
 
     // load a historical report
     const openReport = useCallback(async (name: string) => {
@@ -93,6 +119,14 @@ export default function AuditoriaSansaoPage() {
                 body: JSON.stringify({ folder: selectedFolder || null }),
                 signal: abort.signal,
             });
+
+            if (res.status === 429) {
+                const data = await res.json().catch(() => ({}));
+                addLog(data.msg ?? 'Auditoria em cooldown. Aguarde 5 horas entre auditorias.', 'error');
+                setCooldownMs(data.remainingMs ?? 0);
+                setRunning(false);
+                return;
+            }
 
             if (!res.ok || !res.body) {
                 addLog(`Erro HTTP ${res.status}`, 'error');
@@ -198,12 +232,21 @@ export default function AuditoriaSansaoPage() {
                     </div>
                     <button
                         onClick={startAudit}
-                        disabled={running}
-                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#bc13fe]/15 border border-[#bc13fe]/40 text-[#bc13fe] font-black uppercase tracking-wider text-sm hover:bg-[#bc13fe]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(188,19,254,0.15)] hover:shadow-[0_0_30px_rgba(188,19,254,0.3)]"
+                        disabled={running || cooldownMs > 0}
+                        className="flex flex-col items-center gap-1 px-6 py-3 rounded-xl bg-[#bc13fe]/15 border border-[#bc13fe]/40 text-[#bc13fe] font-black uppercase tracking-wider text-sm hover:bg-[#bc13fe]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(188,19,254,0.15)] hover:shadow-[0_0_30px_rgba(188,19,254,0.3)]"
                     >
-                        {running
-                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Auditando...</>
-                            : <><Play className="w-4 h-4" /> Iniciar Auditoria</>}
+                        {running ? (
+                            <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Auditando...</span>
+                        ) : cooldownMs > 0 ? (
+                            <>
+                                <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Cooldown ativo</span>
+                                <span className="text-[10px] font-mono text-[#bc13fe]/60 normal-case tracking-normal">
+                                    {String(Math.floor(cooldownMs / 3_600_000)).padStart(2,'0')}h {String(Math.floor((cooldownMs % 3_600_000) / 60_000)).padStart(2,'0')}m {String(Math.floor((cooldownMs % 60_000) / 1000)).padStart(2,'0')}s
+                                </span>
+                            </>
+                        ) : (
+                            <span className="flex items-center gap-2"><Play className="w-4 h-4" /> Iniciar Auditoria</span>
+                        )}
                     </button>
                 </div>
 

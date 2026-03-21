@@ -1,9 +1,9 @@
-tunnel: c1e9b8f1-5011-40fa-8840-b2212c02abc7
+tunnel: e0423fdb-84ac-4b6c-8a73-0fa4a5765c43
 credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
   - hostname: ncfn.net
-    service: http://portal:3000
+    service: http://127.0.0.1:80
   - hostname: www.ncfn.net
-    service: http://portal:3000
+    service: http://127.0.0.1:80
   - service: http_status:404

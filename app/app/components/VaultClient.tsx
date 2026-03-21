@@ -314,6 +314,16 @@ export default function VaultPage() {
     open: boolean; folder: string; filename: string;
   }>({ open: false, folder: '', filename: '' });
 
+  // Ampliar (fullscreen preview)
+  const [ampliar, setAmpliar] = useState(false);
+  const [ampliarZoom, setAmpliarZoom] = useState(1);
+
+  // Vitrine codes modal
+  const [vitrineCodesModal, setVitrineCodesModal] = useState<{
+    open: boolean; loading: boolean;
+    codes: { id: string; recipientName: string; passwordIndex: number; publishedAt: string; active: boolean }[];
+  }>({ open: false, loading: false, codes: [] });
+
   const fetchFolders = useCallback(async () => {
     setLoading(true);
     try {
@@ -570,6 +580,20 @@ export default function VaultPage() {
       ? selected.name + '.enc'
       : selected.name;
     setVitrineModal({ open: true, folder, filename: actualName });
+  };
+
+  const openVitrineCodesModal = async () => {
+    if (!selected) return;
+    const [folder] = selected.path.split('/');
+    const filename = selected.path.split('/').slice(1).join('/');
+    setVitrineCodesModal({ open: true, loading: true, codes: [] });
+    try {
+      const res = await fetch(`/api/vitrine/publish?folder=${encodeURIComponent(folder)}&filename=${encodeURIComponent(filename)}`);
+      const data = await res.json();
+      setVitrineCodesModal(prev => ({ ...prev, loading: false, codes: Array.isArray(data) ? data : [] }));
+    } catch {
+      setVitrineCodesModal(prev => ({ ...prev, loading: false }));
+    }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1045,6 +1069,100 @@ export default function VaultPage() {
         </div>
       )}
 
+      {/* Ampliar — fullscreen preview with zoom */}
+      {ampliar && selected && (
+        <div className="fixed inset-0 z-[200] bg-black/97 flex items-center justify-center p-4"
+          onClick={() => { setAmpliar(false); setAmpliarZoom(1); }}>
+          <button className="absolute top-4 right-4 text-white/60 hover:text-white z-10" onClick={() => { setAmpliar(false); setAmpliarZoom(1); }}>
+            <X size={32} />
+          </button>
+          <p className="absolute top-4 left-4 text-white/40 text-xs font-mono truncate max-w-[60vw]">{selected.name}</p>
+          {selected.type === 'image' && (
+            <div className="relative flex items-center justify-center w-full h-full overflow-hidden" onClick={e => e.stopPropagation()}>
+              <img
+                src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
+                alt={selected.name}
+                style={{ transform: `scale(${ampliarZoom})`, transformOrigin: 'center', transition: 'transform 0.1s' }}
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                onWheel={e => {
+                  if (e.ctrlKey) {
+                    e.preventDefault();
+                    setAmpliarZoom(prev => Math.min(Math.max(prev - e.deltaY * 0.002, 0.2), 8));
+                  }
+                }}
+              />
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-3 py-1 rounded-full text-xs text-gray-300 font-mono pointer-events-none">
+                {Math.round(ampliarZoom * 100)}% · Ctrl+scroll para zoom
+              </div>
+            </div>
+          )}
+          {selected.type === 'pdf' && (
+            <div className="w-full h-full" onClick={e => e.stopPropagation()}>
+              <iframe src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
+                className="w-full h-full rounded-xl border border-white/10" title={selected.name} />
+            </div>
+          )}
+          {selected.type === 'video' && (
+            <div className="flex items-center justify-center w-full h-full" onClick={e => e.stopPropagation()}>
+              <video controls autoPlay className="max-w-full max-h-full rounded-xl border border-white/10"
+                src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`} />
+            </div>
+          )}
+          {selected.type === 'text' && (
+            <div className="w-full h-full overflow-auto bg-black/50 rounded-xl border border-white/10 p-6" onClick={e => e.stopPropagation()}>
+              <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap break-words leading-relaxed">{textContent}</pre>
+            </div>
+          )}
+          {(selected.type !== 'image' && selected.type !== 'pdf' && selected.type !== 'video' && selected.type !== 'text') && (
+            <div className="text-center text-gray-400 space-y-3" onClick={e => e.stopPropagation()}>
+              <File size={64} className="mx-auto text-gray-600" />
+              <p className="text-sm">Prévia ampliada não disponível para este tipo de arquivo.</p>
+              <p className="text-xs font-mono text-gray-600 break-all max-w-md">SHA256: {selected.hash}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Vitrine Codes Modal */}
+      {vitrineCodesModal.open && (
+        <div className="fixed inset-0 z-[120] bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-violet-500/40 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div className="bg-violet-950/40 border-b border-violet-500/30 px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Key size={16} className="text-violet-400 flex-shrink-0" />
+                <h3 className="text-violet-200 font-black text-sm uppercase tracking-widest">Códigos de Vitrine</h3>
+              </div>
+              <button onClick={() => setVitrineCodesModal(prev => ({ ...prev, open: false }))} className="text-gray-600 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              {vitrineCodesModal.loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw size={20} className="animate-spin text-violet-400" />
+                </div>
+              ) : vitrineCodesModal.codes.length === 0 ? (
+                <p className="text-center text-gray-500 text-sm py-8 font-mono">Nenhum código publicado para este arquivo.</p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {vitrineCodesModal.codes.map(code => (
+                    <div key={code.id} className={`flex items-center gap-3 p-3 rounded-xl border ${code.active ? 'border-violet-500/30 bg-violet-950/20' : 'border-white/5 bg-black/20 opacity-60'}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-white font-medium truncate">{code.recipientName}</p>
+                        <p className="text-[10px] text-gray-500 font-mono">Código #{code.passwordIndex} · {new Date(code.publishedAt).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded flex-shrink-0 ${code.active ? 'bg-green-500/15 text-green-400 border border-green-500/30' : 'bg-gray-800 text-gray-600 border border-gray-700'}`}>
+                        {code.active ? 'ATIVO' : 'INATIVO'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile sidebar overlay */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
@@ -1112,7 +1230,7 @@ export default function VaultPage() {
                     {folderName !== '7_NCFN-CAPTURAS-WEB_OSINT' && (
                       <button onClick={() => { setUploadFolder(folderName); uploadRef.current?.click(); }}
                         disabled={actionLoading === 'upload'}
-                        className="w-full flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-gray-600 hover:text-[#00f3ff] hover:bg-white/5 transition-all border border-dashed border-transparent hover:border-[#00f3ff]/20">
+                        className="w-full flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] text-[#00f3ff]/80 hover:text-[#00f3ff] bg-[#00f3ff]/5 hover:bg-[#00f3ff]/10 transition-all border border-dashed border-[#00f3ff]/25 hover:border-[#00f3ff]/50 font-semibold shadow-[0_0_8px_rgba(0,243,255,0.05)]">
                         <Upload size={10} /> {actionLoading === 'upload' && uploadFolder === folderName ? 'Enviando...' : 'Enviar arquivo aqui'}
                       </button>
                     )}
@@ -1170,16 +1288,14 @@ export default function VaultPage() {
                   title={hasReport ? 'Abre análise forense completa deste arquivo' : 'Gere o Relatório / Perícia primeiro'}>
                   <FileSearch size={12} /> Ver Perícia
                 </button>
-                <button onClick={() => router.push('/admin/laudo-forense')}
+                <button onClick={() => router.push('/admin/laudo-forense?from=' + encodeURIComponent(selected.path))}
                   className="flex items-center gap-1 px-3 py-1.5 bg-violet-900/30 hover:bg-violet-800/40 text-violet-400 rounded-lg text-xs transition-all border border-violet-700/30">
                   <FileText size={12} /> Ver Histórico de Perícias e Relatórios
                 </button>
-                {selected.type === 'image' && (
-                  <button onClick={() => setLightbox(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/40 text-blue-400 rounded-lg text-xs transition-all border border-blue-700/30">
-                    <ZoomIn size={12} /> Ampliar
-                  </button>
-                )}
+                <button onClick={() => { setAmpliar(true); setAmpliarZoom(1); }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/40 text-blue-400 rounded-lg text-xs transition-all border border-blue-700/30">
+                  <ZoomIn size={12} /> Ampliar
+                </button>
                 {selected.path.startsWith('100_BURN') && (
                   <button onClick={createBurnToken}
                     className="flex items-center gap-1 px-3 py-1.5 bg-orange-900/30 hover:bg-orange-800/40 text-orange-400 rounded-lg text-xs transition-all border border-orange-700/30">
@@ -1219,13 +1335,6 @@ export default function VaultPage() {
                 }
                 return (
                   <div className="flex justify-center gap-2 flex-wrap mb-3">
-                    {selected.path.split('/')[0] !== '7_NCFN-CAPTURAS-WEB_OSINT' && (
-                      <button onClick={() => { setUploadFolder(selected.path.split('/')[0]); uploadRef.current?.click(); }}
-                        disabled={actionLoading === 'upload'}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-sky-900/30 hover:bg-sky-800/40 text-sky-400 rounded-lg text-xs transition-all border border-sky-700/30 disabled:opacity-50">
-                        <Upload size={12} /> Upload
-                      </button>
-                    )}
                     <button onClick={handleTrash} disabled={actionLoading === 'trash'}
                       className="flex items-center gap-1 px-3 py-1.5 bg-yellow-900/30 hover:bg-yellow-800/40 text-yellow-400 rounded-lg text-xs transition-all border border-yellow-700/30 disabled:opacity-50">
                       <Trash2 size={12} /> {actionLoading === 'trash' ? '...' : 'Lixeira'}
@@ -1234,7 +1343,7 @@ export default function VaultPage() {
                       className="flex items-center gap-1 px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 text-red-400 rounded-lg text-xs transition-all border border-red-700/30 disabled:opacity-50">
                       <X size={12} /> {actionLoading === 'delete' ? '...' : 'Excluir'}
                     </button>
-                    <button onClick={() => router.push(`/admin/cofre?custody=${encodeURIComponent(selected.path)}`)}
+                    <button onClick={() => router.push(`/admin/cofre?custody=${encodeURIComponent(selected.path)}&from=${encodeURIComponent(selected.path)}`)}
                       className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg text-xs transition-all border border-slate-600/30">
                       <Shield size={12} /> Registro de Custódia
                     </button>
@@ -1267,26 +1376,39 @@ export default function VaultPage() {
                     )}
                     <button
                       onClick={handleGeneratePericia}
-                      disabled={actionLoading === 'pericia'}
+                      disabled={actionLoading === 'pericia' || hasReport}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         hasReport
-                          ? 'border-white/8 text-gray-600 bg-black hover:bg-white/5'
+                          ? 'border-white/8 text-gray-600 bg-black'
                           : 'border-blue-500/50 text-blue-100 bg-blue-600/20 hover:bg-blue-600/35'
                       }`}
                     >
                       <FileCheck2 size={11} />
-                      {actionLoading === 'pericia' ? 'Gerando...' : hasReport ? 'Gerar relatório atualizado' : 'Gerar agora'}
+                      {actionLoading === 'pericia' ? 'Gerando...' : hasReport ? 'Relatório gerado' : 'Gerar agora'}
                     </button>
                   </div>
 
                   {/* LINHA 2 — Encriptar (ou Decriptar) */}
                   {selected.name.endsWith('.enc') ? (
-                    <div className="flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 border-white/5 border-l-emerald-500/60 bg-black transition-all">
-                      <CheckCircle size={13} className="text-emerald-400 flex-shrink-0" />
-                      <span className="text-xs font-bold text-gray-600 line-through flex-1">2 · Encriptar AES-256</span>
-                      <button disabled={processing} onClick={() => handleEncryption('decrypt')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border bg-black hover:bg-blue-950/40 text-emerald-300 border-emerald-600/30 transition-all disabled:opacity-50">
-                        <Unlock size={11} /> Decriptar
+                    <div className="flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 border-emerald-500/30 border-l-emerald-500/60 bg-emerald-950/10 transition-all">
+                      <Unlock size={13} className="text-emerald-400 flex-shrink-0" />
+                      <span className="text-xs font-bold text-emerald-300 flex-1">2 · Decriptar AES-256</span>
+                      <div className="relative flex-shrink-0">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={e => setPassword(e.target.value)}
+                          placeholder="Chave AES-256..."
+                          className="bg-black border border-emerald-600/40 focus:border-emerald-400 text-white text-xs px-2 py-1.5 pr-7 rounded-lg focus:outline-none w-28 transition-all"
+                        />
+                        <button type="button" onClick={() => setShowPassword(v => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-emerald-400 transition-colors">
+                          {showPassword ? <EyeOff size={10} /> : <Eye size={10} />}
+                        </button>
+                      </div>
+                      <button disabled={processing || !password} onClick={() => handleEncryption('decrypt')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border bg-emerald-900/20 hover:bg-emerald-800/30 text-emerald-300 border-emerald-600/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                        {processing ? <><span className="animate-spin text-xs">⟳</span> Decriptando...</> : <><Unlock size={11} /> Decriptar</>}
                       </button>
                     </div>
                   ) : (
@@ -1404,6 +1526,13 @@ export default function VaultPage() {
                 >
                   <Share2 size={13} />
                   PUBLICAR NA VITRINE
+                </button>
+                <button
+                  onClick={openVitrineCodesModal}
+                  className="mt-1 w-full flex items-center justify-center gap-2 py-1.5 rounded-xl font-bold text-xs transition-all border border-violet-700/20 bg-violet-950/10 hover:bg-violet-950/25 text-violet-500 hover:text-violet-300"
+                >
+                  <Key size={11} />
+                  Ver Códigos de Compartilhamento na Vitrine
                 </button>
               </div>
 

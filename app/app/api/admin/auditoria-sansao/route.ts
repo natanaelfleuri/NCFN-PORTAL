@@ -196,6 +196,25 @@ async function askOllama(systemPrompt: string, fileData: string, filename: strin
     }
 }
 
+// ─── Cooldown (5 h) ───────────────────────────────────────────────────────────
+const COOLDOWN_FILE = path.resolve('/arquivos', 'audit-cooldown.json');
+const COOLDOWN_MS   = 5 * 60 * 60 * 1000; // 5 hours
+
+async function getCooldownInfo(): Promise<{ blocked: boolean; remainingMs: number; lastAudit: string | null }> {
+    try {
+        if (!fs.existsSync(COOLDOWN_FILE)) return { blocked: false, remainingMs: 0, lastAudit: null };
+        const { lastAudit } = await fs.readJson(COOLDOWN_FILE);
+        const elapsed = Date.now() - new Date(lastAudit).getTime();
+        const remaining = COOLDOWN_MS - elapsed;
+        return { blocked: remaining > 0, remainingMs: Math.max(0, remaining), lastAudit };
+    } catch { return { blocked: false, remainingMs: 0, lastAudit: null }; }
+}
+
+async function saveCooldown() {
+    await fs.ensureDir(path.dirname(COOLDOWN_FILE));
+    await fs.writeJson(COOLDOWN_FILE, { lastAudit: new Date().toISOString() });
+}
+
 // ─── Auth guard ───────────────────────────────────────────────────────────────
 async function adminGuard() {
     const session = await getSession();
@@ -211,6 +230,12 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action');
+
+    // cooldown status
+    if (action === 'cooldown') {
+        const info = await getCooldownInfo();
+        return NextResponse.json(info);
+    }
 
     // list reports
     if (action === 'list') {
@@ -240,10 +265,24 @@ export async function GET(req: Request) {
     return new NextResponse('Ação desconhecida', { status: 400 });
 }
 
+// ─── GET – also expose cooldown status ────────────────────────────────────────
+// (merged below into existing GET handler via action=cooldown)
+
 // ─── POST – start SSE audit ───────────────────────────────────────────────────
 export async function POST(req: Request) {
     const user = await adminGuard();
     if (!user) return new NextResponse('Não autorizado', { status: 401 });
+
+    // ── cooldown check ──
+    const cooldown = await getCooldownInfo();
+    if (cooldown.blocked) {
+        const h = Math.floor(cooldown.remainingMs / 3_600_000);
+        const m = Math.floor((cooldown.remainingMs % 3_600_000) / 60_000);
+        return new NextResponse(
+            JSON.stringify({ error: 'cooldown', remainingMs: cooldown.remainingMs, msg: `Aguarde ${h}h ${m}min para a próxima auditoria.` }),
+            { status: 429, headers: { 'Content-Type': 'application/json' } }
+        );
+    }
 
     let targetFolder: string | null = null;
     try {
@@ -261,7 +300,14 @@ export async function POST(req: Request) {
                 } catch (_) {}
             };
 
+            // ── keepalive ping every 20s to prevent Cloudflare 502 ──
+            const keepaliveInterval = setInterval(() => {
+                try { controller.enqueue(enc.encode(`: keepalive\n\n`)); } catch (_) {}
+            }, 20_000);
+
             try {
+                await saveCooldown(); // register start time immediately
+
                 send({ type: 'log', msg: targetFolder
                     ? `🔍 Iniciando varredura da pasta: ${targetFolder}...`
                     : '🔍 Iniciando varredura forense completa...' });
@@ -448,6 +494,7 @@ export async function POST(req: Request) {
             } catch (err: any) {
                 send({ type: 'error', msg: `Erro fatal: ${err?.message ?? err}` });
             } finally {
+                clearInterval(keepaliveInterval);
                 controller.close();
             }
         },

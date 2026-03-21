@@ -453,27 +453,35 @@ function PericiaArquivoInner() {
                   const v = sortedVersions[i];
                   if (v) {
                     return (
-                      <button
-                        key={i}
-                        onClick={() => loadVersion(v.version)}
-                        disabled={loadingVersion === v.version}
-                        className="flex flex-col items-center gap-1.5 p-2.5 bg-[#bc13fe]/8 border border-[#bc13fe]/25 rounded-xl hover:border-[#bc13fe]/60 hover:bg-[#bc13fe]/15 transition-all group relative"
-                        title={`Versão ${v.version} — ${fmtDate(v.savedAt)}`}
-                      >
-                        {loadingVersion === v.version
-                          ? <Loader2 size={18} className="text-[#bc13fe] animate-spin" />
-                          : <FileText size={18} className="text-[#bc13fe] group-hover:text-white transition-colors" />
-                        }
-                        <span className="text-[11px] font-black text-[#bc13fe] group-hover:text-white transition-colors">
-                          V{v.version}
-                        </span>
-                        <span className="text-[8px] text-gray-600 font-mono text-center leading-tight">
-                          {new Date(v.savedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                        </span>
-                        <span className="text-[7px] text-gray-700 font-mono">
-                          {new Date(v.savedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </button>
+                      <div key={i} className="flex flex-col gap-1">
+                        <button
+                          onClick={() => loadVersion(v.version)}
+                          disabled={loadingVersion === v.version}
+                          className="flex flex-col items-center gap-1.5 p-2.5 bg-[#bc13fe]/8 border border-[#bc13fe]/25 rounded-xl hover:border-[#bc13fe]/60 hover:bg-[#bc13fe]/15 transition-all group relative"
+                          title={`Versão ${v.version} — ${fmtDate(v.savedAt)}`}
+                        >
+                          {loadingVersion === v.version
+                            ? <Loader2 size={18} className="text-[#bc13fe] animate-spin" />
+                            : <FileText size={18} className="text-[#bc13fe] group-hover:text-white transition-colors" />
+                          }
+                          <span className="text-[11px] font-black text-[#bc13fe] group-hover:text-white transition-colors">
+                            V{v.version}
+                          </span>
+                          <span className="text-[8px] text-gray-600 font-mono text-center leading-tight">
+                            {new Date(v.savedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          </span>
+                          <span className="text-[7px] text-gray-700 font-mono">
+                            {new Date(v.savedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => router.push(`/admin/laudo-forense?highlight=${encodeURIComponent(selectedPath)}&highlightVersion=${v.version}`)}
+                          className="w-full flex items-center justify-center gap-1 px-1.5 py-1 bg-[#bc13fe]/5 hover:bg-[#bc13fe]/15 border border-[#bc13fe]/15 hover:border-[#bc13fe]/40 text-[#bc13fe]/60 hover:text-[#bc13fe] rounded-lg text-[8px] font-bold transition-all"
+                          title="Ver este relatório em destaque no Histórico"
+                        >
+                          <ExternalLink size={8} /> Ver no Histórico
+                        </button>
+                      </div>
                     );
                   }
                   return (

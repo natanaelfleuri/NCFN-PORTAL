@@ -12,11 +12,45 @@ function LoginContent() {
     const [passEmail, setPassEmail] = useState('');
     const [passphrase, setPassphrase] = useState('');
     const [passLoading, setPassLoading] = useState(false);
+    const [cfChecking, setCfChecking] = useState(true);
 
+    // Redireciona se já autenticado
     useEffect(() => {
         if (status === 'authenticated') {
             router.push('/admin');
         }
+    }, [status, router]);
+
+    // Tenta auto-login via Cloudflare Access JWT
+    useEffect(() => {
+        if (status !== 'unauthenticated') return;
+
+        async function tryCfLogin() {
+            try {
+                const res = await fetch('/api/auth/cf-check');
+                const data = await res.json();
+
+                if (data.valid && data.token) {
+                    const result = await signIn('cloudflare-access', {
+                        cfToken: data.token,
+                        redirect: false,
+                        callbackUrl: '/admin',
+                    });
+                    if (result?.ok) {
+                        router.push('/admin');
+                        return;
+                    }
+                    // Token CF válido mas email não autorizado no app
+                    setErrorMsg(`Acesso não autorizado para ${data.email}.`);
+                }
+            } catch (e) {
+                // Sem CF Access — mostra formulário normalmente
+            } finally {
+                setCfChecking(false);
+            }
+        }
+
+        tryCfLogin();
     }, [status, router]);
 
     async function handlePassphraseLogin(e: React.FormEvent) {
@@ -42,7 +76,7 @@ function LoginContent() {
         }
     }
 
-    if (status === 'loading' || status === 'authenticated') {
+    if (status === 'loading' || status === 'authenticated' || cfChecking) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <Loader2 className="w-8 h-8 text-[#bc13fe] animate-spin" />

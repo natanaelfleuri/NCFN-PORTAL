@@ -5,6 +5,7 @@ import {
     ShieldAlert, Lock, File, Folder, FolderOpen, ChevronDown, ChevronRight,
     ChevronsDown, ChevronsUp, Hash, HardDrive, Clock, Eye, FileText,
     FileCheck2, Shield, AlertTriangle, Activity, Menu, X, BookOpen, HelpCircle,
+    ArrowLeft,
 } from 'lucide-react';
 
 interface VaultFile {
@@ -77,6 +78,7 @@ function CofreAuditInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const initCustody = searchParams.get('custody');
+    const fromPath = searchParams.get('from');
 
     const [folders, setFolders] = useState<Record<string, VaultFolder>>({});
     const [loadingFolders, setLoadingFolders] = useState(true);
@@ -170,6 +172,22 @@ function CofreAuditInner() {
                         <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 uppercase">IMUTÁVEL</span>
                     </div>
                     <p className="text-[10px] text-gray-600 font-mono">{totalFiles} ativos · somente leitura</p>
+                    <button
+                        onClick={() => {
+                            if (fromPath) {
+                                const parts = fromPath.split('/');
+                                const folder = parts[0];
+                                const file = parts.slice(1).join('/');
+                                router.push(`/vault?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(file)}`);
+                            } else {
+                                router.push('/vault');
+                            }
+                        }}
+                        className="flex items-center gap-2 text-xs text-cyan-400 hover:text-white border border-cyan-700/40 hover:border-cyan-500/60 bg-cyan-900/10 hover:bg-cyan-900/25 px-3 py-2 rounded-xl transition-all mt-2 w-full justify-center"
+                    >
+                        <ArrowLeft size={13} />
+                        {fromPath ? 'Voltar ao Cofre de Arquivos' : 'Ir ao Cofre de Arquivos'}
+                    </button>
                     <button onClick={() => setShowHelp(true)}
                         className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all mt-2">
                         <HelpCircle size={14} /> Como funciona

@@ -25,7 +25,7 @@
     }
 }
 
-ncfn.net {
+http://ncfn.net {
     import security_headers
 
     # ── Bloquear paths sensíveis ────────────────────────────────
@@ -52,7 +52,7 @@ ncfn.net {
 
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Proto https
         header_up Host {host}
 
         transport http {
@@ -71,13 +71,9 @@ ncfn.net {
         level INFO
     }
 
-    # TLS: apenas TLS 1.2/1.3
-    tls {
-        protocols tls1.2 tls1.3
-    }
 }
 
-# Redirecionar www → apex
-www.ncfn.net {
+# Redirecionar www → apex (CF faz upgrade para HTTPS)
+http://www.ncfn.net {
     redir https://ncfn.net{uri} permanent
 }

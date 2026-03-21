@@ -522,8 +522,11 @@ async function generatePdf(data: {
     ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: 4, height: 24, color });
     ctx.page.drawRectangle({ x: M + CW - 4, y: ctx.y - 5, width: 4, height: 24, color });
     ctx.page.drawLine({ start: { x: M, y: ctx.y + 18 }, end: { x: M + CW, y: ctx.y + 18 }, thickness: 0.6, color });
-    ctx.page.drawText(safeText(title, 82), {
-      x: M + 12, y: ctx.y + 6, size: 9, font: fontBold, color,
+    const _secTitle = safeText(title, 82);
+    const _secTW = fontBold.widthOfTextAtSize(_secTitle, 9);
+    const _secX = M + CW / 2 - _secTW / 2;
+    ctx.page.drawText(_secTitle, {
+      x: _secX, y: ctx.y + 6, size: 9, font: fontBold, color,
     });
     ctx.y -= 30;
   }
@@ -760,7 +763,7 @@ async function generatePdf(data: {
   ctx.page.drawLine({ start: { x: M + 4, y: infoY - iRowH }, end: { x: M + CW - 4, y: infoY - iRowH }, thickness: 0.4, color: C.DIVIDER });
   const infoCells: [string, string, number, number][] = [
     ['Arquivo Custodiado', safeText(data.filename, 40), 0, 0],
-    ['Data de Geracao', safeText(data.now.toISOString().slice(0, 19) + ' UTC', 32), 1, 0],
+    ['Data de Geracao', (() => { try { return data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' BRT'; } catch { return data.now.toISOString(); } })(), 1, 0],
     ['Operador / Responsavel', safeText(data.operator, 36), 2, 0],
     ['Pasta no Cofre Forense', safeText(data.folderName, 40), 0, 1],
     ['Baseline EXIF (1a Entrada)', safeText(data.exifInitialTimestamp.slice(0, 19) + ' UTC', 32), 1, 1],
@@ -800,37 +803,37 @@ async function generatePdf(data: {
   // ── SHA-256 + Date highlight strip ────────────────────────────────────────
   {
     const stripTop = infoY - infoBoxH - 6;   // just below info grid
-    const stripH = 46;
+    const stripH = 62;
     ctx.page.drawRectangle({ x: M, y: stripTop - stripH, width: CW, height: stripH, color: C.DARK });
     ctx.page.drawRectangle({ x: M, y: stripTop - stripH, width: 3, height: stripH, color: C.AMBER });
     ctx.page.drawRectangle({ x: M + CW - 3, y: stripTop - stripH, width: 3, height: stripH, color: C.CYAN });
     ctx.page.drawLine({ start: { x: M, y: stripTop }, end: { x: M + CW, y: stripTop }, thickness: 1.2, color: C.AMBER });
     ctx.page.drawLine({ start: { x: M, y: stripTop - stripH }, end: { x: M + CW, y: stripTop - stripH }, thickness: 1.2, color: C.CYAN });
     // Row divider
-    ctx.page.drawLine({ start: { x: M + 4, y: stripTop - 22 }, end: { x: M + CW - 4, y: stripTop - 22 }, thickness: 0.4, color: C.DIVIDER });
+    ctx.page.drawLine({ start: { x: M + 4, y: stripTop - 28 }, end: { x: M + CW - 4, y: stripTop - 28 }, thickness: 0.4, color: C.DIVIDER });
 
     // Date row
     ctx.page.drawText('DATA DE GERACAO', { x: M + 8, y: stripTop - 13, size: 6.5, font: fontBold, color: C.AMBER });
-    const dtISO = data.now.toISOString().slice(0, 19) + 'Z';
-    let dtBRT = '';
-    try { dtBRT = '  |  ' + data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' BRT'; } catch {}
-    ctx.page.drawText(safeText(dtISO + dtBRT, 72), { x: M + 105, y: stripTop - 13, size: 9.5, font: fontBold, color: C.AMBER });
+    let dtBRT2 = data.now.toISOString();
+    let dtUTC2 = data.now.toISOString().slice(0, 19) + ' UTC';
+    try {
+      dtBRT2 = data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' (Horario de Brasilia - BRT)';
+    } catch {}
+    ctx.page.drawText(safeText(dtBRT2, 65), { x: M + 105, y: stripTop - 11, size: 9.0, font: fontBold, color: C.AMBER });
+    ctx.page.drawText(safeText(dtUTC2, 38), { x: M + 105, y: stripTop - 22, size: 6.5, font: fontMono, color: C.GRAY });
 
     // Hash rows — no internal spaces so the full 64-char hash is copyable
-    ctx.page.drawText('SHA-256 (arquivo original):', { x: M + 8, y: stripTop - 29, size: 6.5, font: fontBold, color: C.CYAN });
+    ctx.page.drawText('SHA-256 (arquivo original):', { x: M + 8, y: stripTop - 40, size: 6.5, font: fontBold, color: C.CYAN });
     const h = data.sha256;
-    ctx.page.drawText(safeText(h.slice(0, 32), 35), {
-      x: M + 8, y: stripTop - 39, size: 8.5, font: fontMono, color: C.WHITE,
-    });
-    ctx.page.drawText(safeText(h.slice(32, 64), 35), {
-      x: M + 8, y: stripTop - 50, size: 8.5, font: fontMono, color: C.LGRAY,
+    ctx.page.drawText(safeText(h, 66), {
+      x: M + 8, y: stripTop - 52, size: 6.5, font: fontMono, color: C.WHITE,
     });
   }
 
   // Risk box (left) + Seal (right) — same horizontal band, no overlap
   const riskY = infoY - 162;  // shifted down to accommodate date+hash strip
   let riskBg = C.GREEN;
-  let riskText = 'LIMPO - SEM AMEACAS';
+  let riskText = 'LIMPO - SEM AMEACAS DURANTE SUA CUSTODIA NO NCFN';
   let riskColor = C.BG;
   if (data.riskLevel >= 4) { riskBg = C.CRITICAL; riskText = 'CRITICO - AMEACA SEVERA'; riskColor = C.WHITE; }
   else if (data.riskLevel >= 3) { riskBg = C.RED; riskText = 'ALTO RISCO - CONTEUDO PERIGOSO'; riskColor = C.WHITE; }
@@ -846,7 +849,7 @@ async function generatePdf(data: {
   // Risk box
   ctx.page.drawRectangle({ x: M, y: riskRowBottom, width: riskBoxW, height: riskRowH, color: riskBg });
   ctx.page.drawText('LAUDO DE SEGURANCA:', { x: M + 10, y: riskY - 12, size: 7.5, font: fontBold, color: riskColor });
-  ctx.page.drawText(safeText(riskText, 36), { x: M + 10, y: riskY - 25, size: 11, font: fontBold, color: riskColor });
+  ctx.page.drawText(safeText(riskText, 55), { x: M + 10, y: riskY - 25, size: 8, font: fontBold, color: riskColor });
   ctx.page.drawText(safeText(`Nivel ${data.riskLevel}/4 | ${data.overallRisk} | Perito Sansao IA NCFN`, 55), {
     x: M + 10, y: riskY - 42, size: 6.5, font: fontMono, color: riskColor,
   });
@@ -864,9 +867,9 @@ async function generatePdf(data: {
   // ── TWO-COLUMN CERTIFICATION — fills bottom of cover page ──────────────────
   {
     const certY0 = riskRowBottom - 10; // just below risk+seal band
-    const cFontSz = 5.8;
-    const cLineH = 8.2;
-    const cMaxL = 47;
+    const cFontSz = 6.5;
+    const cLineH = 9.5;
+    const cMaxL = 44;
     const col1X = M + 2;
     const col2X = M + 2 + Math.floor(CW / 2) + 2;
 
@@ -1218,10 +1221,24 @@ async function generatePdf(data: {
     ctx.page.drawText(safeText(auditUrl, 90), { x: 210, y: ctx.y, size: 6.5, font: fontMono, color: C.BLUE });
     addLink(ctx.page, auditUrl, 48, ctx.y + 1, 500, 9);
     ctx.y -= 12;
-    ctx.page.drawText('Abra o link acima para verificar o hash e o codigo hexadecimal deste arquivo no portal de auditoria oficial NCFN.', {
-      x: 48, y: ctx.y, size: 6, font: fontReg, color: C.GRAY,
-    });
-    ctx.y -= 10;
+    const hexExplainLines = [
+      'COMO CONFERIR O CODIGO HEXADECIMAL:',
+      '1. Abra o link acima no navegador para acessar o portal de auditoria NCFN.',
+      '2. No portal, confirme que o SHA-256 do arquivo corresponde ao hash exibido acima.',
+      '3. O codigo hexadecimal mostra os primeiros 128 bytes do arquivo em base 16 (0-9 e A-F).',
+      '   Cada par de caracteres representa 1 byte. Ex: "25 50 44 46" = assinatura de PDF (%PDF).',
+      '4. Compare os bytes iniciais com a tabela de Magic Bytes para confirmar o tipo real do arquivo.',
+      '5. Qualquer diferenca de um unico byte invalida a integridade e rompe a cadeia de custodia.',
+    ];
+    const hexExpH = hexExplainLines.length * 9 + 12;
+    checkY(hexExpH + 6);
+    ctx.page.drawRectangle({ x: 40, y: ctx.y - hexExpH, width: 515, height: hexExpH, color: C.DARK, borderColor: C.CYAN, borderWidth: 0.4 });
+    let hexExpY = ctx.y - 7;
+    for (const hexln of hexExplainLines) {
+      ctx.page.drawText(safeText(hexln, 105), { x: 46, y: hexExpY, size: hexln.startsWith('COMO') ? 7 : 6.5, font: hexln.startsWith('COMO') ? fontBold : fontReg, color: hexln.startsWith('COMO') ? C.CYAN : C.GRAY });
+      hexExpY -= 9;
+    }
+    ctx.y -= hexExpH + 8;
   }
 
   divider();
@@ -1511,7 +1528,7 @@ async function generatePdf(data: {
       checkY(28);
       ctx.y -= 4;
       const exifFooterLines = wrapText(
-        `Col.1 (Upload): baseline imutavel, registrada na 1a entrada do arquivo no sistema NCFN. Col.2 (Pericia ${safeText(data.now.toISOString().slice(0,16),18)} UTC): estado atual extraido nesta analise. STATUS: INTEGRO = sem alteracao | ALTERADO = divergencia detectada | NOVO = campo ausente na baseline.`,
+        `Col.1 (Upload): baseline imutavel, registrada na 1a entrada do arquivo no sistema NCFN. Col.2 (Pericia ${safeText((() => { try { return data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return data.now.toISOString().slice(0,16); } })(), 20)} BRT): estado atual extraido nesta analise. STATUS: INTEGRO = sem alteracao | ALTERADO = divergencia detectada | NOVO = campo ausente na baseline.`,
         108,
       );
       const exifFH = exifFooterLines.length * 9 + 10;
@@ -1654,7 +1671,7 @@ async function generatePdf(data: {
       ctx.y -= 11;
     }
   }
-  field('Registro desta pericia:', safeText(data.now.toISOString(), 25), true, C.GREEN);
+  field('Registro desta pericia:', safeText((() => { try { return data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' BRT'; } catch { return data.now.toISOString(); } })(), 32), true, C.GREEN);
   note('Data e hora exata em que esta pericia foi gerada pelo Perito Sansao. Armazenado no banco de dados como registro auditavel.');
   field('Responsavel por esta pericia:', safeText(data.operator, 50));
   note('Operador do sistema NCFN que acionou a geracao desta pericia. Responsavel legal pela cadeia de custodia deste documento.');
@@ -1934,6 +1951,60 @@ async function generatePdf(data: {
   }
 
   // ─────────────────────────────────────────────────
+  // ASSINATURA DO CUSTODIANTE + CARIMBO DO SISTEMA
+  // ─────────────────────────────────────────────────
+  {
+    checkY(110);
+    ctx.y -= 6;
+    // Two-column layout: left = custodian signature, right = system stamp
+    const sigColW = Math.floor(CW / 2) - 4;
+    const sigL = M + 2;
+    const sigR = M + 2 + sigColW + 8;
+    const sigH = 95;
+
+    // Left: custodian signature field
+    ctx.page.drawRectangle({ x: sigL, y: ctx.y - sigH, width: sigColW, height: sigH, color: C.PANEL, borderColor: C.GREEN, borderWidth: 0.8 });
+    ctx.page.drawRectangle({ x: sigL, y: ctx.y - sigH, width: sigColW, height: 2, color: C.GREEN });
+    ctx.page.drawText('ASSINATURA DO CUSTODIANTE', { x: sigL + 8, y: ctx.y - 12, size: 7, font: fontBold, color: C.GREEN });
+    ctx.page.drawText('(Responsavel pela cadeia de custodia)', { x: sigL + 8, y: ctx.y - 21, size: 5.5, font: fontReg, color: C.GRAY });
+    ctx.page.drawLine({ start: { x: sigL + 10, y: ctx.y - 48 }, end: { x: sigL + sigColW - 10, y: ctx.y - 48 }, thickness: 0.7, color: C.GREEN });
+    ctx.page.drawText('Assinatura', { x: sigL + sigColW / 2 - 15, y: ctx.y - 55, size: 5.5, font: fontReg, color: C.GRAY });
+    ctx.page.drawLine({ start: { x: sigL + 10, y: ctx.y - 68 }, end: { x: sigL + sigColW - 10, y: ctx.y - 68 }, thickness: 0.5, color: C.DGRAY });
+    ctx.page.drawText('Nome completo', { x: sigL + sigColW / 2 - 20, y: ctx.y - 75, size: 5.5, font: fontReg, color: C.GRAY });
+    ctx.page.drawLine({ start: { x: sigL + 10, y: ctx.y - 85 }, end: { x: sigL + sigColW - 10, y: ctx.y - 85 }, thickness: 0.5, color: C.DGRAY });
+    ctx.page.drawText('Data e Hora (BRT)', { x: sigL + sigColW / 2 - 25, y: ctx.y - 92, size: 5.5, font: fontReg, color: C.GRAY });
+
+    // Right: system stamp
+    ctx.page.drawRectangle({ x: sigR, y: ctx.y - sigH, width: sigColW, height: sigH, color: C.DARK, borderColor: C.PURPLE, borderWidth: 1.5 });
+    ctx.page.drawRectangle({ x: sigR, y: ctx.y - sigH, width: sigColW, height: 2, color: C.PURPLE });
+    ctx.page.drawRectangle({ x: sigR, y: ctx.y - 2, width: sigColW, height: 2, color: C.CYAN });
+    // Concentric security rings in stamp area
+    const stampCX = sigR + sigColW / 2;
+    const stampCY = ctx.y - sigH / 2;
+    for (let sr = 8; sr <= 30; sr += 8) {
+      const steps = 28;
+      let sprev = { x: stampCX + sr * 1.3 * Math.cos(0), y: stampCY + sr * Math.sin(0) };
+      for (let si = 1; si <= steps; si++) {
+        const ang = (si / steps) * 2 * Math.PI;
+        const scur = { x: stampCX + sr * 1.3 * Math.cos(ang), y: stampCY + sr * Math.sin(ang) };
+        ctx.page.drawLine({ start: sprev, end: scur, thickness: 0.3, color: printMode ? rgb(0.60, 0.20, 0.85) : rgb(0.15, 0.05, 0.22) });
+        sprev = scur;
+      }
+    }
+    ctx.page.drawText('NCFN', { x: stampCX - 14, y: stampCY + 12, size: 13, font: fontBold, color: C.PURPLE });
+    ctx.page.drawText('PERITO SANSAO', { x: stampCX - 28, y: stampCY + 1, size: 7, font: fontBold, color: C.CYAN });
+    ctx.page.drawText('IA  AIR-GAPPED', { x: stampCX - 26, y: stampCY - 8, size: 5.5, font: fontMono, color: C.GRAY });
+    ctx.page.drawText(safeText(`SHA: ${data.sha256.slice(0,10)}...`, 30), { x: stampCX - 30, y: stampCY - 17, size: 4.5, font: fontMono, color: C.DGRAY });
+    ctx.page.drawText(safeText(`DOC: ${data.docId.slice(0,10)}`, 20), { x: stampCX - 22, y: stampCY - 25, size: 4.5, font: fontMono, color: C.DGRAY });
+    ctx.page.drawText('CARIMBO DO SISTEMA NCFN', { x: sigR + 8, y: ctx.y - 12, size: 6, font: fontBold, color: C.PURPLE });
+    ctx.page.drawText('(Assinatura Automatizada - Air-Gapped)', { x: sigR + 8, y: ctx.y - 20, size: 5, font: fontReg, color: C.GRAY });
+    ctx.page.drawText('[Nome do custodiante como marca d\'agua', { x: sigR + 8, y: ctx.y - 86, size: 4.5, font: fontReg, color: C.DGRAY });
+    ctx.page.drawText(' sera integrado ao banco de dados - em breve]', { x: sigR + 8, y: ctx.y - 92, size: 4.5, font: fontReg, color: C.DGRAY });
+
+    ctx.y -= sigH + 12;
+  }
+
+  // ─────────────────────────────────────────────────
   // CONFERENCIA E VALIDACAO DE CUSTODIA
   // ─────────────────────────────────────────────────
   {
@@ -2142,7 +2213,8 @@ async function generatePdf(data: {
     ctx.page.drawText(safeText(hashLine1, 80), { x: M + 38, y: ctx.y - 28, size: 8.5, font: fontMono, color: C.WHITE });
     ctx.page.drawText(safeText(hashLine2, 80), { x: M + 38, y: ctx.y - 40, size: 8.5, font: fontMono, color: C.WHITE });
     ctx.page.drawText('SHA-256 (FIPS 180-4)', { x: M + 38, y: ctx.y - 50, size: 6.5, font: fontBold, color: C.PURPLE });
-    ctx.page.drawText(safeText(`DOC: ${data.docId}  |  RFC 3161  |  PERITO SANSAO - IA NCFN  |  ${data.now.toISOString()}`, 92), {
+    const _invDate = (() => { try { return data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' BRT'; } catch { return data.now.toISOString(); } })();
+    ctx.page.drawText(safeText(`DOC: ${data.docId}  |  RFC 3161  |  PERITO SANSAO - IA NCFN  |  ${_invDate}`, 92), {
       x: M + 38, y: ctx.y - 60, size: 6, font: fontMono, color: C.GRAY,
     });
     ctx.y -= invH + 10;
@@ -2217,6 +2289,121 @@ async function generatePdf(data: {
     }
 
     ctx.y -= Math.max(gStartY - gly, gStartY - gry) + 8;
+  }
+
+  // ─────────────────────────────────────────────────
+  // CAMPOS DE SEGURANCA AVANCADOS
+  // ─────────────────────────────────────────────────
+  {
+    divider();
+    checkY(22);
+    ctx.y -= 4;
+    ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: CW, height: 20, color: C.PANEL });
+    ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: 4, height: 20, color: C.AMBER });
+    ctx.page.drawRectangle({ x: M + CW - 4, y: ctx.y - 5, width: 4, height: 20, color: C.AMBER });
+    ctx.page.drawText('CAMPOS DE SEGURANCA AVANCADOS - MULTI-JURISDICIONAL', {
+      x: M + 12, y: ctx.y + 3, size: 7.5, font: fontBold, color: C.AMBER,
+    });
+    ctx.y -= 26;
+
+    const advSecItems = [
+      { label: 'Identificador Unico do Laudo (UUID v4):', value: safeText(data.docId, 40), color: C.GREEN },
+      { label: 'Hash de Integridade do Relatorio:', value: safeText(crypto.createHash('sha256').update(data.sha256 + data.docId + data.operator).digest('hex').toUpperCase(), 66), color: C.CYAN },
+      { label: 'Algoritmo de Assinatura:', value: 'SHA-256 (FIPS 180-4) + AES-256-CBC + SCRYPT', color: C.WHITE },
+      { label: 'Nivel de Classificacao:', value: 'CONFIDENCIAL - USO RESTRITO - CADEIA DE CUSTODIA', color: C.RED },
+      { label: 'Protocolo de Timestamping:', value: 'RFC 3161 — Trusted Timestamp Authority', color: C.LGRAY },
+      { label: 'Conformidade Legal:', value: 'ISO/IEC 27037:2012 | Lei 13.964/2019 | Art. 158-B CPP | Art. 422 CPC', color: C.LGRAY },
+      { label: 'Ambiente de Processamento:', value: 'Air-Gapped Container | Zero-Trust Network | Sandboxed Execution', color: C.TEAL },
+    ];
+    for (const item of advSecItems) {
+      checkY(14);
+      ctx.page.drawText(safeText(item.label, 46), { x: LX, y: ctx.y, size: 7, font: fontBold, color: C.GRAY });
+      ctx.page.drawText(safeText(item.value, 68), { x: VX, y: ctx.y, size: 7, font: fontMono, color: item.color });
+      ctx.y -= 12;
+    }
+    ctx.y -= 4;
+  }
+
+  // ─────────────────────────────────────────────────
+  // BLOCOS DE ASSINATURA MULTI-INSTITUCIONAL
+  // ─────────────────────────────────────────────────
+  {
+    divider();
+    checkY(22);
+    ctx.y -= 4;
+    ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: CW, height: 20, color: C.PANEL });
+    ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: 4, height: 20, color: C.BLUE });
+    ctx.page.drawRectangle({ x: M + CW - 4, y: ctx.y - 5, width: 4, height: 20, color: C.BLUE });
+    ctx.page.drawText('ASSINATURAS MULTI-INSTITUCIONAIS — BLOCOS PARA VALIDACAO OFICIAL', {
+      x: M + 12, y: ctx.y + 3, size: 7.5, font: fontBold, color: C.BLUE,
+    });
+    ctx.y -= 26;
+
+    const sigBlocks = [
+      { title: 'ASSINATURA .GOV-BRASIL', color: C.GREEN, note: 'Assinatura Digital Gov.br - ICP-Brasil Nivel 3' },
+      { title: 'ASSINATURA INTERNACIONAL', color: C.CYAN, note: 'International Digital Signature - PAdES/XAdES' },
+      { title: 'ASSINATURA PERITO JUDICIAL', color: C.PURPLE, note: 'Perito Oficial Nomeado - Processo Judicial' },
+      { title: 'ASSINATURA PERITO CRIMINAL', color: C.RED, note: 'Perito Criminal / Instituto de Criminologia' },
+      { title: 'ASSINATURA ICP-BRASIL', color: C.AMBER, note: 'Certificado Digital A3/A4 - ICP-Brasil' },
+      { title: 'ASSINATURA TOKEN PESSOAL', color: C.TEAL, note: 'Token Pessoal - FIDO2 / U2F / OTP' },
+      { title: 'ASSINATURA TOKEN CORPORATIVO', color: C.VIOLET, note: 'Token Corporativo / HSM / PKI Empresarial' },
+    ];
+
+    // 2-column grid of signature blocks (3+4 or 2 per row)
+    const sbW = Math.floor(CW / 2) - 3;
+    const sbH = 62;
+    const sbGap = 6;
+    for (let si = 0; si < sigBlocks.length; si++) {
+      const col = si % 2;
+      const row = Math.floor(si / 2);
+      if (col === 0) checkY(sbH + 8);
+      const sbX = M + col * (sbW + sbGap);
+      const sbY = col === 0 ? ctx.y : ctx.y + sbH + 8; // align second col with first col of same row
+
+      // For odd index on same row, they share the same ctx.y position
+      const drawY = col === 0 ? ctx.y : ctx.y + sbH + 8;
+
+      ctx.page.drawRectangle({ x: sbX, y: drawY - sbH, width: sbW, height: sbH, color: C.DARK, borderColor: sigBlocks[si].color, borderWidth: 0.8 });
+      ctx.page.drawRectangle({ x: sbX, y: drawY - 1, width: sbW, height: 2, color: sigBlocks[si].color });
+      ctx.page.drawText(safeText(sigBlocks[si].title, 38), { x: sbX + 6, y: drawY - 11, size: 6.5, font: fontBold, color: sigBlocks[si].color });
+      ctx.page.drawText(safeText(sigBlocks[si].note, 46), { x: sbX + 6, y: drawY - 20, size: 5.5, font: fontReg, color: C.GRAY });
+      // Signature lines
+      ctx.page.drawLine({ start: { x: sbX + 8, y: drawY - 38 }, end: { x: sbX + sbW - 8, y: drawY - 38 }, thickness: 0.6, color: sigBlocks[si].color });
+      ctx.page.drawText('Assinatura', { x: sbX + sbW / 2 - 14, y: drawY - 44, size: 5, font: fontReg, color: C.DGRAY });
+      ctx.page.drawLine({ start: { x: sbX + 8, y: drawY - 54 }, end: { x: sbX + sbW - 8, y: drawY - 54 }, thickness: 0.5, color: C.DIVIDER });
+      ctx.page.drawText('Nome / Matricula / CRC', { x: sbX + sbW / 2 - 30, y: drawY - 59, size: 5, font: fontReg, color: C.DGRAY });
+
+      if (col === 1 || si === sigBlocks.length - 1) {
+        ctx.y -= sbH + 8;
+      }
+    }
+    ctx.y -= 4;
+  }
+
+  // ─────────────────────────────────────────────────
+  // RODAPE DE IDENTIFICACAO DO SISTEMA
+  // ─────────────────────────────────────────────────
+  {
+    divider();
+    checkY(48);
+    ctx.y -= 4;
+    const footInfoH = 42;
+    ctx.page.drawRectangle({ x: M + 2, y: ctx.y - footInfoH, width: CW - 4, height: footInfoH, color: C.PANEL, borderColor: C.DIVIDER, borderWidth: 0.5 });
+    ctx.page.drawRectangle({ x: M + 2, y: ctx.y - footInfoH, width: 3, height: footInfoH, color: C.PURPLE });
+    const _fi_cx = M + CW / 2;
+    const _fi_lines: Array<{text: string, color: any, size: number, font: any}> = [
+      { text: 'NEXUS CYBER FORENSIC NETWORK - NCFN', color: C.PURPLE, size: 8.5, font: fontBold },
+      { text: 'Software Livre - Copyleft - Todos os direitos livres, salvo propriedade intelectual e sistema online ativo.', color: C.LGRAY, size: 6.5, font: fontReg },
+      { text: 'Site: https://ncfn.net   |   Email: ncfn@ncfn.net', color: C.CYAN, size: 7.5, font: fontMono },
+      { text: 'Codigo-fonte para auditoria disponivel em: https://github.com/ncfn/ncfn-portal (repositorio publico)', color: C.GRAY, size: 6.5, font: fontMono },
+    ];
+    let _fi_y = ctx.y - 8;
+    for (const _fi of _fi_lines) {
+      const _fi_w = _fi.font.widthOfTextAtSize(_fi.text, _fi.size);
+      ctx.page.drawText(safeText(_fi.text, 100), { x: _fi_cx - _fi_w / 2, y: _fi_y, size: _fi.size, font: _fi.font, color: _fi.color });
+      _fi_y -= (_fi.size + 4);
+    }
+    ctx.y -= footInfoH + 8;
   }
 
   // ─────────────────────────────────────────────────

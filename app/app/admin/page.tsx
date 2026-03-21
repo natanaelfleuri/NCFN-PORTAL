@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, Bot, Search, FileSearch, Trash2, Users, FileText, Globe, Cpu, TrendingUp, Clock, BookOpen, Archive, KeyRound, Home, FileCode2, NotebookPen, Binoculars, AlertTriangle, HelpCircle, X, ShieldCheck, UserCog, BarChart3, MessageSquare, Handshake, Play, CheckCircle, Loader2, Lock, FileBarChart, HardDriveDownload, Shield } from 'lucide-react';
+import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, Bot, Search, FileSearch, Trash2, Users, FileText, Globe, Cpu, TrendingUp, Clock, BookOpen, Archive, KeyRound, Home, FileCode2, NotebookPen, Binoculars, AlertTriangle, HelpCircle, X, ShieldCheck, UserCog, BarChart3, MessageSquare, Handshake, Play, CheckCircle, Loader2, Lock, FileBarChart, HardDriveDownload, Shield, Plug } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { formatBytes } from '../utils';
@@ -30,49 +30,99 @@ type ScanProgress = { i: number; total: number; file: string; protocol: string }
 // ── COFRE – superbotão (span 4 colunas) ──────────────────────────────────────
 const VAULT_MODULE = { href: '/vault', icon: Archive, label: 'COFRE DE ARQUIVOS PROTEGIDOS', color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)' };
 
+// ── Cor por grupo de filtro ────────────────────────────────────────────────────
+const FILTER_COLORS: Record<string, string> = {
+    'TODOS':        '#bc13fe',
+    'DOCUMENTOS':   '#3b82f6',
+    'SISTEMA':      '#00f3ff',
+    'INVESTIGAÇÃO': '#f59e0b',
+    'FERRAMENTAS':  '#22c55e',
+    'UTILIDADES':   '#f97316',
+};
+
+// ── Filtros de categoria (índices 0-based dos MODULES) ────────────────────────
+const FILTER_SETS: Record<string, number[] | null> = {
+    'TODOS':        null,
+    'DOCUMENTOS':   [2, 4, 5, 8, 10, 15],
+    'SISTEMA':      [3, 12, 13, 14, 20, 21, 22, 23],
+    'INVESTIGAÇÃO': [9, 16, 17, 18, 19],
+    'FERRAMENTAS':  [6, 7, 24, 25, 27],
+    'UTILIDADES':   [0, 1, 11, 26],
+};
+
+// Helpers de cor por grupo
+const D = { color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.25)'  }; // DOCUMENTOS
+const S = { color: '#00f3ff', bg: 'rgba(0,243,255,0.08)',   border: 'rgba(0,243,255,0.25)'   }; // SISTEMA
+const I = { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)'  }; // INVESTIGAÇÃO
+const F = { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.25)'   }; // FERRAMENTAS
+const U = { color: '#f97316', bg: 'rgba(249,115,22,0.08)',  border: 'rgba(249,115,22,0.25)'  }; // UTILIDADES
+
 const MODULES = [
-    // Linha 1
-    { href: '/home', icon: Home, label: 'HUB PÚBLICO', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
-    { href: '/admin/links-uteis', icon: NotebookPen, label: 'LINKS ÚTEIS', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)' },
-    { href: '/admin/pericia-arquivo', icon: FileSearch, label: 'GERAR NOVO RELATÓRIO / PERÍCIA DIGITAL', color: '#a855f7', bg: 'rgba(168,85,247,0.08)', border: 'rgba(168,85,247,0.25)' },
-    { href: '/admin/auditoria-sansao', icon: FileSearch, label: 'AUDITORIA FORENSE', color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)' },
-    // Linha 2
-    { href: '/admin/cofre', icon: BookOpen, label: "LOG'S E INFORMAÇÕES IMUTÁVEIS DOS ATIVOS", color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.25)' },
-    { href: '/admin/laudo-forense', icon: TrendingUp, label: 'CENTRAL DE RELATÓRIOS / PERÍCIAS DIGITAIS', color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)' },
-    { href: '/admin/descriptar', icon: KeyRound, label: 'DESCRIPTAR ATIVO / REVERTER CRIPTOGRAFIA AES', color: '#f97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.25)' },
-    { href: '/auditor', icon: ShieldCheck, label: 'VERIFICAR INTEGRIDADE / CALCULAR HASH DO ATIVO', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.25)' },
-    // Linha 3
-    { href: '/vitrine', icon: Archive, label: 'CENTRAL DE ATIVOS DISPONIBILIZADOS PARA TERCEIROS', color: '#06b6d4', bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.25)' },
-    { href: '/admin/forensics', icon: Eye, label: 'DETECÇÕES DE CONTRAINTELIGÊNCIA E MONITORAMENTO DE HACKERS E ROBÔS', color: '#22c55e', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.25)' },
-    { href: '/admin/lixeira', icon: Trash2, label: 'LIXEIRA VIRTUAL', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)' },
-    { href: '/doc', icon: FileCode2, label: "DOC'S E MANUAIS DO SISTEMA NCFN", color: '#84cc16', bg: 'rgba(132,204,22,0.08)', border: 'rgba(132,204,22,0.25)' },
-    // Linha 4
-    { href: '/admin/convidados', icon: Users, label: 'GERENCIAMENTO DE CONVIDADOS', color: '#ec4899', bg: 'rgba(236,72,153,0.08)', border: 'rgba(236,72,153,0.25)' },
-    { href: '/admin/teste', icon: Cpu, label: 'CENTRAL DE MONITORAMENTO E DIAGNÓSTICO DO SISTEMA NCFN', color: '#6b7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.25)' },
-    { href: '/admin/ia-config', icon: Bot, label: 'CENTRAL DE CONFIGURAÇÕES E MONITORAMENTO DA [I.A.] LOCAL - PERITO SANSÃO', color: '#00f3ff', bg: 'rgba(0,243,255,0.08)', border: 'rgba(0,243,255,0.25)' },
-    { href: '/admin/logs', icon: Database, label: 'CENTRAL DE REGISTRO E MONITORAMENTO DE LOGS DE SESSÕES', color: '#14b8a6', bg: 'rgba(20,184,166,0.08)', border: 'rgba(20,184,166,0.25)' },
-    // Linha 5
-    { href: '/admin/captura-web', icon: Globe, label: 'SISTEMA DE COLETA DE ATIVOS EM TEMPO REAL NA INTERNET', color: '#3b82f6', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.25)' },
-    { href: '/admin/investigar', icon: Search, label: 'SISTEMA DE CUSTÓDIA DE DADOS E INVESTIGAÇÕES EM FONTES ABERTAS COLETADOS FORA DO NCFN', color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.25)' },
-    { href: '/admin/varreduras', icon: Binoculars, label: 'SISTEMA ATIVO DE INVESTIGAÇÕES EM FONTES ABERTAS E NA DEEP/DARK WEB', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
-    { href: '/admin/relatorios', icon: FileText, label: 'MAPA DE PLANEJAMENTO E LOCALIZAÇÃO DE ALVOS', color: '#f97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.25)' },
-    // Linha 6
-    { href: '/admin/canary', icon: AlertTriangle, label: 'DISPOSITIVO PARA CRIAÇÃO DE ARQUIVOS DE CONTRAINTELIGÊNCIA DO NCFN', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)' },
-    { href: '/admin/security', icon: ShieldAlert, label: 'DISPOSITIVO EXTREMO DE SEGURANÇA DOS ATIVOS CUSTODIADOS', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)' },
-    { href: '/admin/perfil', icon: UserCog, label: 'GERENCIAR PERFIL', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.25)' },
-    { href: '/admin/relatorio-geral', icon: BarChart3, label: 'RELATÓRIOS E AUDITORIAS GLOBAIS DO SISTEMA', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)' },
-    // Linha 7
-    { href: '/admin/perfil', icon: UserCog, label: 'ATIVAR/DESATIVAR DISPOSITIVO MÓVEL', color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.25)' },
-    { href: '/admin/chat', icon: MessageSquare, label: 'CENTRAL DE COMUNICAÇÃO INTERNA PROTEGIDA', color: '#06b6d4', bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.25)' },
-    { href: '/colaborar', icon: Handshake, label: 'TORNE-SE MEMBRO DO NCFN E/OU COLABORE COM O SISTEMA', color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.25)' },
+    // idx 0 — UTILIDADES
+    { href: '/home',                  icon: Home,        label: 'HUB PÚBLICO',                                                                         ...U },
+    // idx 1 — UTILIDADES
+    { href: '/admin/links-uteis',     icon: NotebookPen, label: 'LINKS ÚTEIS',                                                                         ...U },
+    // idx 2 — DOCUMENTOS
+    { href: '/admin/pericia-arquivo', icon: FileSearch,  label: 'GERAR NOVO RELATÓRIO / PERÍCIA DIGITAL',                                              ...D },
+    // idx 3 — SISTEMA
+    { href: '/admin/auditoria-sansao',icon: FileSearch,  label: 'AUDITORIA FORENSE',                                                                   ...S },
+    // idx 4 — DOCUMENTOS
+    { href: '/admin/cofre',           icon: BookOpen,    label: "LOG'S E INFORMAÇÕES IMUTÁVEIS DOS ATIVOS",                                            ...D },
+    // idx 5 — DOCUMENTOS
+    { href: '/admin/laudo-forense',   icon: TrendingUp,  label: 'CENTRAL DE RELATÓRIOS / PERÍCIAS DIGITAIS',                                          ...D },
+    // idx 6 — FERRAMENTAS
+    { href: '/admin/descriptar',      icon: KeyRound,    label: 'DESCRIPTAR ATIVO / REVERTER CRIPTOGRAFIA AES',                                       ...F },
+    // idx 7 — FERRAMENTAS
+    { href: '/auditor',               icon: ShieldCheck, label: 'VERIFICAR INTEGRIDADE / CALCULAR HASH DO ATIVO',                                     ...F },
+    // idx 8 — DOCUMENTOS
+    { href: '/vitrine',               icon: Archive,     label: 'CENTRAL DE ATIVOS DISPONIBILIZADOS PARA TERCEIROS',                                  ...D },
+    // idx 9 — INVESTIGAÇÃO
+    { href: '/admin/forensics',       icon: Eye,         label: 'DETECÇÕES DE CONTRAINTELIGÊNCIA E MONITORAMENTO DE HACKERS E ROBÔS',                 ...I },
+    // idx 10 — DOCUMENTOS
+    { href: '/admin/lixeira',         icon: Trash2,      label: 'LIXEIRA VIRTUAL',                                                                    ...D },
+    // idx 11 — UTILIDADES
+    { href: '/doc',                   icon: FileCode2,   label: "DOC'S E MANUAIS DO SISTEMA NCFN",                                                    ...U },
+    // idx 12 — SISTEMA
+    { href: '/admin/convidados',      icon: Users,       label: 'GERENCIAMENTO DE CONVIDADOS',                                                        ...S },
+    // idx 13 — SISTEMA
+    { href: '/admin/teste',           icon: Cpu,         label: 'CENTRAL DE MONITORAMENTO E DIAGNÓSTICO DO SISTEMA NCFN',                             ...S },
+    // idx 14 — SISTEMA
+    { href: '/admin/ia-config',       icon: Bot,         label: 'CENTRAL DE CONFIGURAÇÕES E MONITORAMENTO DA [I.A.] LOCAL - PERITO SANSÃO',           ...S },
+    // idx 15 — DOCUMENTOS
+    { href: '/admin/logs',            icon: Database,    label: 'CENTRAL DE REGISTRO E MONITORAMENTO DE LOGS DE SESSÕES',                             ...D },
+    // idx 16 — INVESTIGAÇÃO
+    { href: '/admin/captura-web',     icon: Globe,       label: 'SISTEMA DE COLETA DE ATIVOS EM TEMPO REAL NA INTERNET',                              ...I },
+    // idx 17 — INVESTIGAÇÃO
+    { href: '/admin/investigar',      icon: Search,      label: 'SISTEMA DE CUSTÓDIA DE DADOS E INVESTIGAÇÕES EM FONTES ABERTAS COLETADOS FORA DO NCFN', ...I },
+    // idx 18 — INVESTIGAÇÃO
+    { href: '/admin/varreduras',      icon: Binoculars,  label: 'SISTEMA ATIVO DE INVESTIGAÇÕES EM FONTES ABERTAS E NA DEEP/DARK WEB',                ...I },
+    // idx 19 — INVESTIGAÇÃO
+    { href: '/admin/relatorios',      icon: FileText,    label: 'MAPA DE PLANEJAMENTO E LOCALIZAÇÃO DE ALVOS',                                        ...I },
+    // idx 20 — SISTEMA
+    { href: '/admin/canary',          icon: AlertTriangle,label: 'DISPOSITIVO PARA CRIAÇÃO DE ARQUIVOS DE CONTRAINTELIGÊNCIA DO NCFN',                ...S },
+    // idx 21 — SISTEMA
+    { href: '/admin/security',        icon: ShieldAlert, label: 'DISPOSITIVO EXTREMO DE SEGURANÇA DOS ATIVOS CUSTODIADOS',                            ...S },
+    // idx 22 — SISTEMA
+    { href: '/admin/perfil',          icon: UserCog,     label: 'GERENCIAR PERFIL',                                                                   ...S },
+    // idx 23 — SISTEMA
+    { href: '/admin/relatorio-geral', icon: BarChart3,   label: 'RELATÓRIOS E AUDITORIAS GLOBAIS DO SISTEMA',                                         ...S },
+    // idx 24 — FERRAMENTAS
+    { href: '/admin/perfil',          icon: UserCog,     label: 'ATIVAR/DESATIVAR DISPOSITIVO MÓVEL',                                                 ...F },
+    // idx 25 — FERRAMENTAS
+    { href: '/admin/chat',            icon: MessageSquare,label: 'CENTRAL DE COMUNICAÇÃO INTERNA PROTEGIDA',                                          ...F },
+    // idx 26 — UTILIDADES
+    { href: '/colaborar',             icon: Handshake,   label: 'TORNE-SE MEMBRO DO NCFN E/OU COLABORE COM O SISTEMA',                               ...U },
+    // idx 27 — FERRAMENTAS
+    { href: '/admin/api-central',     icon: Plug,        label: "CENTRAL DE GERENCIAMENTO DE API'S DE TERCEIROS",                                     ...F },
 ];
 
 export default function AdminDashboard() {
     const [files, setFiles]           = useState<FileItem[]>([]);
     const [loading, setLoading]       = useState(true);
     const [vaultSize, setVaultSize]   = useState<number | null>(null);
-    const [showHelp, setShowHelp]     = useState(false);
-    const [sysStats, setSysStats]     = useState<SysStats | null>(null);
+    const [showHelp, setShowHelp]         = useState(false);
+    const [sysStats, setSysStats]         = useState<SysStats | null>(null);
+    const [activeFilter, setActiveFilter] = useState<string>('TODOS');
 
     // ── global scan state ────────────────────────────────────────────────────
     const [scanRunning, setScanRunning]     = useState(false);
@@ -307,7 +357,58 @@ export default function AdminDashboard() {
             <SectionTitle title="Módulos do Sistema" subtitle="Ferramentas operacionais" color="#bc13fe" />
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4 px-1">
-                {/* COFRE — superbotão spanning 4 colunas */}
+
+                {/* ── Barra de filtros ── */}
+                <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-1.5 flex-wrap">
+                    {Object.keys(FILTER_SETS).map(filter => {
+                        const checked = activeFilter === filter;
+                        const fc = FILTER_COLORS[filter] ?? '#bc13fe';
+                        const fcRgb = fc === '#bc13fe' ? '188,19,254'
+                                    : fc === '#3b82f6' ? '59,130,246'
+                                    : fc === '#00f3ff' ? '0,243,255'
+                                    : fc === '#f59e0b' ? '245,158,11'
+                                    : fc === '#22c55e' ? '34,197,94'
+                                    : '249,115,22';
+                        return (
+                            <button
+                                key={filter}
+                                onClick={() => setActiveFilter(filter === activeFilter ? 'TODOS' : filter)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md border transition-all duration-150 select-none"
+                                style={{
+                                    borderColor: checked ? `rgba(${fcRgb},0.45)` : 'rgba(255,255,255,0.08)',
+                                    background:  checked ? `rgba(${fcRgb},0.12)` : 'rgba(255,255,255,0.03)',
+                                }}
+                            >
+                                {/* checkbox visual */}
+                                <span
+                                    className="flex items-center justify-center rounded-sm flex-shrink-0 transition-all duration-150"
+                                    style={{
+                                        width: 10, height: 10,
+                                        border: `1px solid ${checked ? fc : 'rgba(255,255,255,0.2)'}`,
+                                        background: checked ? fc : 'transparent',
+                                    }}
+                                >
+                                    {checked && (
+                                        <svg width="7" height="5" viewBox="0 0 7 5" fill="none">
+                                            <path d="M1 2.5L2.8 4L6 1" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                    )}
+                                </span>
+                                <span
+                                    className="font-bold uppercase tracking-wider leading-none"
+                                    style={{
+                                        fontSize: 9,
+                                        color: checked ? fc : 'rgba(255,255,255,0.3)',
+                                    }}
+                                >
+                                    {filter}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* COFRE — superbotão spanning 4 colunas (nunca muda) */}
                 <Link href={VAULT_MODULE.href} className="group col-span-2 sm:col-span-3 lg:col-span-4">
                     <div
                         className="cofre-border-scan rounded-2xl p-4 lg:p-5 cursor-pointer flex items-center gap-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] border backdrop-blur-xl"
@@ -319,30 +420,39 @@ export default function AdminDashboard() {
                             style={{ background: `${VAULT_MODULE.color}15`, border: `1px solid ${VAULT_MODULE.color}30` }}>
                             <VAULT_MODULE.icon className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: VAULT_MODULE.color }} />
                         </div>
-                        <Lock
-                            className="w-5 h-5 lg:w-6 lg:h-6 flex-shrink-0 text-red-400 animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        />
+                        <Lock className="w-5 h-5 lg:w-6 lg:h-6 flex-shrink-0 text-red-400 animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         <h3 className="text-sm lg:text-base font-black text-white/90 tracking-wider uppercase">{VAULT_MODULE.label}</h3>
                     </div>
                 </Link>
 
                 {/* Demais módulos */}
-                {MODULES.map((mod, idx) => (
-                    <Link key={`${mod.href}-${idx}`} href={mod.href} className="group">
-                        <div
-                            className="rounded-2xl p-3 lg:p-4 cursor-pointer h-36 flex flex-col items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] border backdrop-blur-xl"
-                            style={{ background: mod.bg, borderColor: mod.border }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px ${mod.color}20`; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
+                {MODULES.map((mod, idx) => {
+                    const visible = activeFilter === 'TODOS' || (FILTER_SETS[activeFilter]?.includes(idx) ?? false);
+                    return (
+                        <Link
+                            key={`${mod.href}-${idx}`}
+                            href={visible ? mod.href : '#'}
+                            className={`group transition-all duration-300 ${!visible ? 'pointer-events-none' : ''}`}
+                            style={{ opacity: visible ? 1 : 0.2 }}
+                            tabIndex={visible ? undefined : -1}
                         >
-                            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                style={{ background: `${mod.color}15`, border: `1px solid ${mod.color}30` }}>
-                                <mod.icon className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: mod.color }} />
+                            <div
+                                className={`rounded-2xl p-3 lg:p-4 h-36 flex flex-col items-center justify-center gap-2 transition-all duration-300 border backdrop-blur-xl ${visible ? 'cursor-pointer hover:scale-[1.03] hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)]' : 'cursor-default grayscale'}`}
+                                style={{ background: mod.bg, borderColor: visible ? mod.border : 'rgba(255,255,255,0.05)' }}
+                                onMouseEnter={e => { if (visible) (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px ${mod.color}20`; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
+                            >
+                                <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    style={{ background: `${mod.color}15`, border: `1px solid ${mod.color}30` }}>
+                                    <mod.icon className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: mod.color }} />
+                                </div>
+                                <h3 className={`module-cursor text-[9px] lg:text-[10px] font-bold text-center leading-tight line-clamp-4 px-1 transition-colors duration-200 ${visible ? 'text-gray-500 group-hover:text-white' : 'text-gray-600'}`}>
+                                    {mod.label}
+                                </h3>
                             </div>
-                            <h3 className="module-cursor text-[9px] lg:text-[10px] font-bold text-center text-gray-500 group-hover:text-white leading-tight line-clamp-4 px-1 transition-colors duration-200">{mod.label}</h3>
-                        </div>
-                    </Link>
-                ))}
+                        </Link>
+                    );
+                })}
             </div>
 
             {/* ─── Custody Zones ─── */}

@@ -12,7 +12,7 @@ services:
       - ./COFRE_NCFN:/COFRE_NCFN
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "3002:3000"
+      - "127.0.0.1:3002:3000"
     environment:
       - NODE_ENV=development
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3002}
@@ -50,8 +50,7 @@ services:
     container_name: caddy_ncfn
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "127.0.0.1:80:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
@@ -59,14 +58,16 @@ services:
 
   # ─── Cloudflare Tunnel ──────────────────────────────────────────────────────
   # Conecta o portal à edge da Cloudflare sem expor portas públicas
-  # O roteamento é configurado no dashboard CF → tunnel → ncfn.net → http://portal:3000
+  # Usa config file (/etc/cloudflared/config.yml) com ingress rules locais
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: ncfn_cloudflared
     restart: unless-stopped
-    # network_mode: host → localhost:3002 resolve para o host (onde portal expõe a porta)
+    # network_mode: host → 127.0.0.1:3002 resolve para o host (onde portal expõe a porta)
     network_mode: host
-    command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiYzhhOGQ5NTctNmRjNy00YWYwLWEwNGQtOTAwYzM3ODRiNDY2IiwicyI6Ik9HSXdaRGszWVdJdFpHTXlPQzAwWXprMkxXSTRPVGd0WVRRNFptSTJaRE0xWXpCaiJ9
+    volumes:
+      - ./cloudflared:/etc/cloudflared
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
 
   # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
   # Ativar: docker compose --profile whisper up -d
