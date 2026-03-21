@@ -610,32 +610,26 @@ export default function AdminDashboard() {
                     const size = hasFiles ? groupedFiles[folder].reduce((a, f) => a + f.size, 0) : 0;
 
                     const card = (
-                        <div className={`glass-panel p-3 lg:p-4 rounded-xl flex flex-col items-center justify-center gap-2 transition-all duration-300
+                        <div className={`glass-panel px-3 py-2 rounded-xl flex flex-row items-center gap-2.5 transition-all duration-300
                             ${hasFiles
                                 ? `cursor-pointer hover:scale-[1.02] ${isUltra ? 'border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.08)]' : 'border-[#bc13fe]/25 hover:border-[#bc13fe]/50'}`
                                 : 'cursor-not-allowed border-white/5'}`}
                             style={{ opacity: hasFiles ? 1 : 0.5 }}>
-                            <div className={`w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0
                                 ${isUltra ? 'bg-red-500/10 border border-red-500/20' : 'bg-[#bc13fe]/8 border border-[#bc13fe]/20'}`}>
                                 {isUltra
-                                    ? <ShieldAlert className="text-red-400 w-5 h-5 lg:w-6 lg:h-6 animate-pulse" />
-                                    : <Folder className="text-[#bc13fe] w-5 h-5 lg:w-6 lg:h-6" />}
+                                    ? <ShieldAlert className="text-red-400 w-3.5 h-3.5 animate-pulse" />
+                                    : <Folder className="text-[#bc13fe] w-3.5 h-3.5" />}
                             </div>
-                            <div className="text-center w-full">
-                                <h3 className={`text-xs font-bold capitalize truncate max-w-full px-1 transition-colors duration-200
-                                    ${isUltra ? 'text-red-400' : hasFiles ? 'text-gray-500 group-hover:text-white' : 'text-gray-600'}`}>
+                            <div className="flex-1 min-w-0">
+                                <h3 className={`text-[9px] font-bold leading-tight line-clamp-1 transition-colors duration-200
+                                    ${isUltra ? 'text-red-400' : hasFiles ? 'text-gray-400 group-hover:text-white' : 'text-gray-600'}`}>
                                     {folder.replace(/_/g, ' ')}
                                 </h3>
-                                <p className="text-[9px] text-gray-600 font-mono mt-0.5">
-                                    {hasFiles ? formatBytes(size) : 'vazio'}
+                                <p className="text-[8px] text-gray-600 font-mono">
+                                    {hasFiles ? `${count} arq${count !== 1 ? 's' : ''}. · ${formatBytes(size)}` : 'vazio'}
                                 </p>
                             </div>
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold
-                                ${isUltra ? 'bg-red-500/15 text-red-400 border border-red-500/20'
-                                : hasFiles ? 'bg-[#bc13fe]/10 text-[#bc13fe] border border-[#bc13fe]/20'
-                                : 'bg-white/5 text-gray-600 border border-white/10'}`}>
-                                {hasFiles ? `${count} ${count === 1 ? 'arq.' : 'arqs.'}` : '0 arqs.'}
-                            </span>
                         </div>
                     );
 
