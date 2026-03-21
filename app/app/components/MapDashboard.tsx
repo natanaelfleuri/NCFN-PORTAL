@@ -55,21 +55,16 @@ export default function MapDashboard() {
 
   return (
     <div className="space-y-6 mt-12 w-full">
-      {/* Section header */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-[#bc13fe]/10 border border-[#bc13fe]/30 rounded-lg">
-            <Globe className="w-5 h-5 text-[#bc13fe]" />
-          </div>
-          <div>
-            <h3 className="text-2xl lg:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-[#bc13fe] tracking-tighter">
-              LOCALIZAÇÃO RASTREÁVEL DO GERENTE ATIVO E DE AMEAÇAS EM TEMPO REAL
-            </h3>
-            <p className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">Interceptações locais + operador ativo</p>
-          </div>
+      {/* Section header — padrão SectionTitle */}
+      <div className="flex items-center gap-4 px-1">
+        <div>
+          <h3 className="text-base lg:text-lg font-black uppercase tracking-wider" style={{ color: '#bc13fe' }}>
+            Localização Rastreável do Gerente Ativo e de Ameaças em Tempo Real
+          </h3>
+          <p className="text-[10px] text-gray-600 font-mono mt-0.5">Interceptações locais + operador ativo</p>
         </div>
-        <div className="h-px bg-gradient-to-r from-[#bc13fe]/30 to-transparent flex-grow" />
-        <div className="flex items-center gap-2 px-3 py-1 bg-[#00f3ff]/5 border border-[#00f3ff]/20 rounded-full">
+        <div className="h-px flex-grow" style={{ background: 'linear-gradient(to right, rgba(188,19,254,0.3), transparent)' }} />
+        <div className="flex items-center gap-2 px-3 py-1 bg-[#00f3ff]/5 border border-[#00f3ff]/20 rounded-full flex-shrink-0">
           <div className="w-1.5 h-1.5 rounded-full bg-[#00f3ff] animate-pulse" />
           <span className="text-[#00f3ff] text-[10px] font-mono">{records.length} interceptações</span>
         </div>

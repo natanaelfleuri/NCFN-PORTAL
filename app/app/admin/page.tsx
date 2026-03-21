@@ -695,33 +695,21 @@ export default function AdminDashboard() {
             </div>
 
             {/* ─── Mapa / Interceptações ─── */}
-            <hr className="border-[#bc13fe]/10 my-8" />
             <MapDashboard />
 
-            {/* ─── DIAGNÓSTICO DO SISTEMA (ex /admin/teste) ─── */}
-            <hr className="border-white/5 my-8" />
-
-            {/* Diagnóstico header */}
-            <div className="flex items-center gap-4 flex-wrap">
-                <div>
-                    <h1 className="text-2xl font-black text-white tracking-tighter uppercase flex items-center gap-2">
-                        <Cpu className="w-6 h-6 text-gray-400" />
-                        Diagnóstico do Sistema
-                    </h1>
-                    <p className="text-[10px] text-gray-600 font-mono tracking-widest uppercase mt-1">
-                        NOC — Verificação técnica do ecossistema Portal NCFN
-                    </p>
-                </div>
+            {/* ─── DIAGNÓSTICO DO SISTEMA ─── */}
+            <SectionTitle title="Diagnóstico do Sistema" subtitle="NOC — Verificação técnica do ecossistema Portal NCFN" color="#9ca3af" />
+            <div className="flex items-center gap-2 flex-wrap">
+                {lastRun && <span className="text-[10px] font-mono text-gray-600">Último: {lastRun}</span>}
                 <div className="ml-auto flex items-center gap-2">
-                    {lastRun && <span className="text-[10px] font-mono text-gray-600">Último: {lastRun}</span>}
                     <button onClick={runChecks} disabled={diagLoading}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 border border-gray-700 text-gray-300 text-xs font-bold hover:border-gray-500 transition disabled:opacity-50">
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-900 border border-gray-700 text-gray-300 text-xs font-bold hover:border-gray-500 transition disabled:opacity-50">
                         <RefreshCw className={`w-3.5 h-3.5 ${diagLoading ? "animate-spin" : ""}`} />
                         Retestar Tudo
                     </button>
                     <button onClick={() => setShowReversal(true)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-950/40 border border-red-700/40 text-red-400 text-xs font-bold hover:bg-red-950/60 hover:border-red-600 transition">
-                        <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ REVERSÃO CRÍTICA
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950/40 border border-red-700/40 text-red-400 text-xs font-bold hover:bg-red-950/60 hover:border-red-600 transition">
+                        <AlertTriangle className="w-3.5 h-3.5" /> REVERSÃO CRÍTICA
                     </button>
                 </div>
             </div>
