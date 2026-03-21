@@ -63,6 +63,7 @@ export default function MapaAlvosPage() {
   const [selecionado, setSelecionado] = useState<Alvo | null>(null);
   const [modoAdicionar, setModoAdicionar] = useState(false);
   const [mapCarregado, setMapCarregado] = useState(false);
+  const [mapError, setMapError]         = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [filtroPrioridade, setFiltroPrioridade] = useState<Priority | "TODOS">("TODOS");
   const [filtroStatus, setFiltroStatus] = useState<Status | "TODOS">("TODOS");
@@ -231,11 +232,16 @@ export default function MapaAlvosPage() {
 
   // Carregar Google Maps
   useEffect(() => {
+    if (!GOOGLE_MAPS_API_KEY) {
+      setMapError("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY não configurada. Configure a variável de ambiente e reconstrua a aplicação.");
+      return;
+    }
     if (window.google?.maps) { initMap(); return; }
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=drawing,geometry&callback=initMap&v=weekly`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=drawing,geometry&callback=initMap&loading=async&v=weekly`;
     script.async = true;
     script.defer = true;
+    script.onerror = () => setMapError("Falha ao carregar a API do Google Maps. Verifique a chave de API, as restrições de domínio e a conectividade com maps.googleapis.com.");
     window.initMap = initMap;
     document.head.appendChild(script);
     return () => {
@@ -480,31 +486,33 @@ export default function MapaAlvosPage() {
       }
     });
 
-    // Drawing manager
-    const dm = new window.google.maps.drawing.DrawingManager({
-      drawingMode: null,
-      drawingControl: false,
-      polygonOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
-      circleOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
-      rectangleOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
-      polylineOptions: { strokeColor: "#bc13fe", strokeWeight: 3, clickable: true, editable: false },
-    });
-    dm.setMap(map);
-    drawingManagerRef.current = dm;
-
-    window.google.maps.event.addListener(dm, "overlaycomplete", (e: any) => {
-      // apply current colors from refs
-      const color = drawColorRef.current;
-      const opacity = drawOpacityRef.current;
-      if (e.type !== "polyline") {
-        e.overlay.setOptions({ fillColor: color, fillOpacity: opacity, strokeColor: color });
-      } else {
-        e.overlay.setOptions({ strokeColor: color });
-      }
-      drawnShapesRef.current.push(e.overlay);
-      saveDrawings();
-      dm.setDrawingMode(null);
-    });
+    // Drawing manager (biblioteca deprecated ago/2025 — envolver em try-catch)
+    try {
+      const dm = new window.google.maps.drawing.DrawingManager({
+        drawingMode: null,
+        drawingControl: false,
+        polygonOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
+        circleOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
+        rectangleOptions: { fillColor: "#bc13fe", fillOpacity: 0.3, strokeColor: "#bc13fe", strokeWeight: 2, clickable: true, editable: false },
+        polylineOptions: { strokeColor: "#bc13fe", strokeWeight: 3, clickable: true, editable: false },
+      });
+      dm.setMap(map);
+      drawingManagerRef.current = dm;
+      window.google.maps.event.addListener(dm, "overlaycomplete", (e: any) => {
+        const color = drawColorRef.current;
+        const opacity = drawOpacityRef.current;
+        if (e.type !== "polyline") {
+          e.overlay.setOptions({ fillColor: color, fillOpacity: opacity, strokeColor: color });
+        } else {
+          e.overlay.setOptions({ strokeColor: color });
+        }
+        drawnShapesRef.current.push(e.overlay);
+        saveDrawings();
+        dm.setDrawingMode(null);
+      });
+    } catch (err) {
+      console.warn("[NCFN] Drawing library indisponível (deprecated/removida). Modo de desenho desabilitado.", err);
+    }
 
     loadDrawings(map);
     loadRota(map);
@@ -962,8 +970,19 @@ export default function MapaAlvosPage() {
         <div className="flex-1 relative">
           <div ref={mapRef} className="w-full h-full" />
 
+          {/* Error overlay */}
+          {mapError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-20 gap-4 px-8">
+              <AlertTriangle className="w-12 h-12 text-red-500 animate-pulse" />
+              <div className="text-center space-y-1">
+                <p className="text-red-400 font-black text-sm uppercase tracking-widest">Falha ao Carregar Mapa</p>
+                <p className="text-gray-500 text-xs font-mono leading-relaxed max-w-md">{mapError}</p>
+              </div>
+            </div>
+          )}
+
           {/* Loading overlay */}
-          {!mapCarregado && (
+          {!mapCarregado && !mapError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-20">
               <div className="relative mb-6">
                 <Crosshair className="w-12 h-12 text-[#bc13fe] animate-pulse" />
