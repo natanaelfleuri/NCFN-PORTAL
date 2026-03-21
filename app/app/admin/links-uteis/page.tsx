@@ -836,15 +836,31 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                             <button
                                 className="obs-icon-btn"
                                 onClick={() => { setAddingFolder(true); setTimeout(() => newFolderRef.current?.focus(), 50); }}
-                                title="Nova pasta"
-                                style={{ color: 'rgba(74,222,128,0.5)' }}
+                                title="Nova pasta (Ctrl+Shift+N)"
+                                style={{ color: 'rgba(74,222,128,0.6)' }}
                             >
                                 <FolderPlus size={13} />
                             </button>
-                            <button className="obs-icon-btn" onClick={() => handleNew()} title="Nova nota">
+                            <button className="obs-icon-btn" onClick={() => {
+                                // Default to the first open folder if any
+                                const openId = Array.from(openFolders)[0] ?? null;
+                                handleNew(openId);
+                            }} title="Nova nota (Ctrl+N)">
                                 <Plus size={14} />
                             </button>
                         </div>
+                    </div>
+
+                    {/* Quick-action hint */}
+                    <div style={{ padding: '4px 12px 0', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button onClick={() => { setAddingFolder(true); setTimeout(() => newFolderRef.current?.focus(), 50); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(74,222,128,0.5)', background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600 }}>
+                            <FolderPlus size={10} /> Nova Pasta
+                        </button>
+                        <button onClick={() => { const openId = Array.from(openFolders)[0] ?? null; handleNew(openId); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(167,139,250,0.5)', background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600 }}>
+                            <Plus size={10} /> Nova Nota
+                        </button>
                     </div>
 
                     <div className="obs-search">
@@ -923,17 +939,22 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                                                             ) : (<span className="obs-folder-name">{folder.name}</span>)}
                                                             <span className="obs-folder-count">{fNotes.length}</span>
                                                             <div className="obs-folder-actions" onClick={e => e.stopPropagation()}>
+                                                                <button className="obs-folder-act-btn" onClick={() => { if (!isOpen) toggleFolder(folder.id); handleNew(folder.id); }} title="Nova nota nesta pasta" style={{ color: 'rgba(74,222,128,0.6)' }}><Plus size={9} /></button>
                                                                 <button className="obs-folder-act-btn" onClick={() => { setRenamingFolder(folder.id); setRenameFolderVal(folder.name); }} title="Renomear"><Pencil size={9} /></button>
                                                                 <button className={`obs-folder-act-btn danger${confirmDelFld === folder.id ? ' confirm' : ''}`} onClick={() => handleDeleteFolder(folder.id)} title={confirmDelFld === folder.id ? 'Confirmar?' : 'Remover'} onBlur={() => setConfirmDelFld(null)}><X size={9} /></button>
                                                             </div>
                                                         </button>
                                                         {isOpen && (
                                                             <div className="obs-folder-notes">
-                                                                {fNotes.length === 0 ? (
-                                                                    <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(74,222,128,0.3)', fontSize: 11, width: '100%' }} onClick={() => handleNew(folder.id)}><Plus size={10} /> Nova nota</button>
-                                                                ) : fNotes.map(note => (
-                                                                    <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={c => handleSetColor(note.id, c)} onDragStart={() => handleDragStart(note.id)} onDragEnd={handleDragEnd} />
-                                                                ))}
+                                                                {fNotes.length === 0
+                                                                    ? <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(74,222,128,0.3)', fontSize: 11, width: '100%' }} onClick={() => handleNew(folder.id)}><Plus size={10} /> Nova nota aqui</button>
+                                                                    : <>
+                                                                        {fNotes.map(note => (
+                                                                            <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={c => handleSetColor(note.id, c)} onDragStart={() => handleDragStart(note.id)} onDragEnd={handleDragEnd} />
+                                                                        ))}
+                                                                        <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(74,222,128,0.2)', fontSize: 10, width: '100%' }} onClick={() => handleNew(folder.id)}><Plus size={9} /> Nova nota</button>
+                                                                    </>
+                                                                }
                                                             </div>
                                                         )}
                                                     </div>
@@ -983,6 +1004,7 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                                                 )}
                                                 <span className="obs-folder-count">{fNotes.length}</span>
                                                 <div className="obs-folder-actions" onClick={e => e.stopPropagation()}>
+                                                    <button className="obs-folder-act-btn" onClick={() => { if (!isOpen) toggleFolder(folder.id); handleNew(folder.id); }} title="Nova nota nesta pasta" style={{ color: 'rgba(74,222,128,0.6)' }}><Plus size={9} /></button>
                                                     {folderIdx > 0 && (
                                                         <button className="obs-folder-act-btn" onClick={() => handleMoveFolderUp(folder.id)} title="Mover para cima"><ChevronUp size={9} /></button>
                                                     )}
@@ -996,15 +1018,15 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
 
                                             {isOpen && (
                                                 <div className="obs-folder-notes">
-                                                    {fNotes.length === 0 ? (
-                                                        <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(74,222,128,0.3)', fontSize: 11, width: '100%' }} onClick={() => handleNew(folder.id)}>
-                                                            <Plus size={10} /> Nova nota aqui
-                                                        </button>
-                                                    ) : (
-                                                        fNotes.map(note => (
-                                                            <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={(c) => handleSetColor(note.id, c)} onDragStart={() => handleDragStart(note.id)} onDragEnd={handleDragEnd} />
-                                                        ))
-                                                    )}
+                                                    {fNotes.length === 0
+                                                        ? <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(74,222,128,0.3)', fontSize: 11, width: '100%' }} onClick={() => handleNew(folder.id)}><Plus size={10} /> Nova nota aqui</button>
+                                                        : <>
+                                                            {fNotes.map(note => (
+                                                                <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={(c) => handleSetColor(note.id, c)} onDragStart={() => handleDragStart(note.id)} onDragEnd={handleDragEnd} />
+                                                            ))}
+                                                            <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(74,222,128,0.2)', fontSize: 10, width: '100%' }} onClick={() => handleNew(folder.id)}><Plus size={9} /> Nova nota</button>
+                                                        </>
+                                                    }
                                                 </div>
                                             )}
                                         </div>
@@ -1084,7 +1106,8 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                         )}
 
                         {/* folder picker */}
-                        <div ref={folderDropRef} style={{ position: 'relative' }}>
+                        <div ref={folderDropRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', whiteSpace: 'nowrap' }}>Pasta:</span>
                             <button className="obs-folder-btn" onClick={() => setFolderDropdown(v => !v)} title="Selecionar pasta">
                                 {folderId ? <FolderOpen size={12} /> : <FolderIcon size={12} />}
                                 <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1408,12 +1431,15 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
             {showMasterDirModal && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
                     <div style={{ background: '#1a1a2e', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 16, padding: 24, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                             <FolderTree size={18} color="#a78bfa" />
                             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'white', textTransform: 'uppercase', letterSpacing: '.06em' }}>
                                 {editingMasterDirId ? 'Editar Diretório Mestre' : 'Novo Diretório Mestre'}
                             </h3>
                         </div>
+                        <p style={{ fontSize: 11, color: 'rgba(167,139,250,0.45)', marginBottom: 16, lineHeight: 1.5, fontFamily: 'monospace' }}>
+                            Diretórios Mestres agrupam pastas na barra lateral — como workspaces no Obsidian. Crie um para organizar pastas relacionadas sob um mesmo tema.
+                        </p>
                         <input
                             value={newMasterDirName}
                             onChange={e => setNewMasterDirName(e.target.value)}

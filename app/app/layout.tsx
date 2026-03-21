@@ -57,7 +57,7 @@ export default function RootLayout({
                 }}
               ></div>
 
-              <header className="w-full max-w-6xl py-3 lg:py-5 px-4 flex justify-between items-center border-b border-white/5 bg-black/60 backdrop-blur-xl sticky top-0 z-50 shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.4)]">
+              <header className="w-full py-3 lg:py-5 px-6 flex justify-between items-center border-b border-white/5 bg-black/60 backdrop-blur-xl sticky top-0 z-50 shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.4)]">
                 <Link href="/" className="shrink-0 group flex items-center gap-2.5">
                   {/* Logo mark — square shield */}
                   <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-md flex items-center justify-center border border-[#00f3ff]/40 bg-[#00f3ff]/5 group-hover:border-[#00f3ff]/70 group-hover:bg-[#00f3ff]/10 transition-all shadow-[0_0_10px_rgba(0,243,255,0.15)] group-hover:shadow-[0_0_18px_rgba(0,243,255,0.35)]" style={{fontFamily:'monospace', fontSize:'1.1rem', color:'#00f3ff', fontWeight:900, lineHeight:1, userSelect:'none'}}>
@@ -74,7 +74,7 @@ export default function RootLayout({
                 <Navigation />
               </header>
 
-              <main className="w-full max-w-6xl p-4 pb-20 md:pb-4 flex-grow relative z-10">
+              <main className="w-full p-4 pb-20 md:pb-4 flex-grow relative z-10">
                 <PolicyGuard>
                   {children}
                 </PolicyGuard>

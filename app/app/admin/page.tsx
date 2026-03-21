@@ -499,11 +499,8 @@ export default function AdminDashboard() {
             )}
 
             {/* ─── Header ─── */}
-            <div className="text-center space-y-3 px-2">
-                <div className="inline-flex items-center justify-center p-3 bg-red-900/20 border border-red-500/30 rounded-2xl mb-2 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
-                    <Activity className="text-red-400 w-6 h-6 animate-pulse" />
-                </div>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-[#bc13fe] tracking-tighter">
+            <div className="text-center space-y-1 px-2 pt-2">
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-[#bc13fe] tracking-tighter">
                     NÚCLEO AVANÇADO DE CUSTÓDIA FORENSE
                 </h2>
                 <p className="text-gray-500 text-xs sm:text-sm uppercase tracking-widest font-mono">Monitoramento Global de Ativos e Diretórios</p>
