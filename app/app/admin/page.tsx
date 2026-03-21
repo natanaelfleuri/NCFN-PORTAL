@@ -562,16 +562,16 @@ export default function AdminDashboard() {
 
                 {/* COFRE superbotão */}
                 <Link href={VAULT_MODULE.href} className="group col-span-2 sm:col-span-3 lg:col-span-4">
-                    <div className="cofre-border-scan rounded-2xl p-4 lg:p-5 cursor-pointer flex items-center gap-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] border backdrop-blur-xl"
+                    <div className="cofre-border-scan rounded-xl px-3 py-2 cursor-pointer flex items-center gap-3 transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)] border backdrop-blur-xl"
                         style={{ background: VAULT_MODULE.bg, borderColor: VAULT_MODULE.border }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = `0 0 30px ${VAULT_MODULE.color}25`; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}>
-                        <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                             style={{ background: `${VAULT_MODULE.color}15`, border: `1px solid ${VAULT_MODULE.color}30` }}>
-                            <VAULT_MODULE.icon className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: VAULT_MODULE.color }} />
+                            <VAULT_MODULE.icon className="w-3.5 h-3.5" style={{ color: VAULT_MODULE.color }} />
                         </div>
-                        <Lock className="w-5 h-5 lg:w-6 lg:h-6 flex-shrink-0 text-red-400 animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        <h3 className="text-sm lg:text-base font-black text-white/90 tracking-wider uppercase">{VAULT_MODULE.label}</h3>
+                        <Lock className="w-3.5 h-3.5 flex-shrink-0 text-red-400 animate-pulse opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <h3 className="text-[10px] font-black text-white/90 tracking-wider uppercase">{VAULT_MODULE.label}</h3>
                     </div>
                 </Link>
 
@@ -583,15 +583,15 @@ export default function AdminDashboard() {
                             className={`group transition-all duration-300 ${!visible ? 'pointer-events-none' : ''}`}
                             style={{ opacity: visible ? 1 : 0.2 }}
                             tabIndex={visible ? undefined : -1}>
-                            <div className={`rounded-2xl p-3 lg:p-4 h-36 flex flex-col items-center justify-center gap-2 transition-all duration-300 border backdrop-blur-xl ${visible ? 'cursor-pointer hover:scale-[1.03] hover:shadow-[0_8px_30px_rgba(0,0,0,0.3)]' : 'cursor-default grayscale'}`}
+                            <div className={`rounded-xl px-3 py-2 flex flex-row items-center gap-2.5 transition-all duration-300 border backdrop-blur-xl ${visible ? 'cursor-pointer hover:scale-[1.02] hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]' : 'cursor-default grayscale'}`}
                                 style={{ background: mod.bg, borderColor: visible ? mod.border : 'rgba(255,255,255,0.05)' }}
-                                onMouseEnter={e => { if (visible) (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px ${mod.color}20`; }}
+                                onMouseEnter={e => { if (visible) (e.currentTarget as HTMLElement).style.boxShadow = `0 0 14px ${mod.color}20`; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}>
-                                <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                                     style={{ background: `${mod.color}15`, border: `1px solid ${mod.color}30` }}>
-                                    <mod.icon className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: mod.color }} />
+                                    <mod.icon className="w-3.5 h-3.5" style={{ color: mod.color }} />
                                 </div>
-                                <h3 className={`module-cursor text-[9px] lg:text-[10px] font-bold text-center leading-tight line-clamp-4 px-1 transition-colors duration-200 ${visible ? 'text-gray-500 group-hover:text-white' : 'text-gray-600'}`}>
+                                <h3 className={`module-cursor text-[9px] font-bold text-left leading-tight line-clamp-2 transition-colors duration-200 ${visible ? 'text-gray-400 group-hover:text-white' : 'text-gray-600'}`}>
                                     {mod.label}
                                 </h3>
                             </div>
