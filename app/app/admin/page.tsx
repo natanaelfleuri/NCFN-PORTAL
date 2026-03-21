@@ -507,14 +507,9 @@ export default function AdminDashboard() {
                     NÚCLEO AVANÇADO DE CUSTÓDIA FORENSE
                 </h2>
                 <p className="text-gray-500 text-xs sm:text-sm uppercase tracking-widest font-mono">Monitoramento Global de Ativos e Diretórios</p>
-                <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
+                <div className="hidden sm:inline-flex items-center px-3 py-1 bg-white/5 border border-white/10 rounded-full">
                     <span className="text-[10px] font-mono text-gray-500">NEXUS CYBER FORENSIC NETWORK</span>
-                    <kbd className="text-[10px] font-mono text-[#bc13fe] bg-black px-1.5 py-0.5 rounded border border-[#bc13fe]/30">⌘ K</kbd>
                 </div>
-                <button onClick={() => setShowHelp(true)}
-                    className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all mx-auto">
-                    <HelpCircle size={14} /> Como funciona
-                </button>
             </div>
 
             {/* VaultGraphDiagram moved to floating modal — see [Ver Grafo] nav button */}
