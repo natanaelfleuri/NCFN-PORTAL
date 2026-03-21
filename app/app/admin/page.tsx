@@ -745,9 +745,7 @@ export default function AdminDashboard() {
             {/* Live Metrics */}
             {diagStats && (
                 <section className="space-y-3">
-                    <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                        <Server className="w-4 h-4" /> Métricas em Tempo Real
-                    </h2>
+                    <SectionTitle title="Métricas em Tempo Real" subtitle="RAM · Disco · CPU · Uptime" color="#9ca3af" />
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className={`glass-panel p-3 rounded-xl border text-center transition-all ${memPct > 90 ? 'border-orange-500 animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.2)]' : 'border-white/5'}`}>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600">RAM Usada</p>
@@ -777,9 +775,7 @@ export default function AdminDashboard() {
 
             {/* Ecossistema */}
             <section className="space-y-6">
-                <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                    <Layers className="w-4 h-4" /> Ecossistema Técnico
-                </h2>
+                <SectionTitle title="Ecossistema Técnico" subtitle="Serviços, segurança e IA do Portal NCFN" color="#9ca3af" />
                 {ECOSYSTEM.map(cat => (
                     <div key={cat.category} className="space-y-2">
                         <div className="flex items-center gap-3">
