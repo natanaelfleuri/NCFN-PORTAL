@@ -87,19 +87,21 @@ export default function Navigation() {
 
       {/* ─── Desktop Navigation (md+) ─── */}
       <nav className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar">
-        {/* Ver Grafo — toggle floating graph modal */}
-        <button
-          onClick={toggleGraph}
-          className={`${linkBase} gap-1.5 transition-all duration-200 ${
-            graphOpen
-              ? 'text-[#00f3ff] bg-[#00f3ff]/10 border border-[#00f3ff]/30 shadow-[0_0_12px_rgba(0,243,255,0.2)]'
-              : 'text-gray-400 hover:text-[#00f3ff] hover:bg-[#00f3ff]/5 border border-transparent hover:border-[#00f3ff]/20'
-          }`}
-          title="Grafo de Custódia Digital"
-        >
-          <GitBranch className="w-3.5 h-3.5" />
-          <span>Ver Grafo</span>
-        </button>
+        {/* Ver Grafo — só aparece em /admin */}
+        {pathname === '/admin' && (
+          <button
+            onClick={toggleGraph}
+            className={`${linkBase} gap-1.5 transition-all duration-200 ${
+              graphOpen
+                ? 'text-[#00f3ff] bg-[#00f3ff]/10 border border-[#00f3ff]/30 shadow-[0_0_12px_rgba(0,243,255,0.2)]'
+                : 'text-gray-400 hover:text-[#00f3ff] hover:bg-[#00f3ff]/5 border border-transparent hover:border-[#00f3ff]/20'
+            }`}
+            title="Grafo de Custódia Digital"
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+            <span>Ver Grafo</span>
+          </button>
+        )}
 
         {/* Main links */}
         <Link href="/vitrine" className={isActive('/vitrine') || isActive('/pasta/')
