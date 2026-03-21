@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import {
   Server, X, RefreshCw, Cpu, HardDrive, MemoryStick,
-  Clock, Network, ChevronUp, Activity
+  Clock, Network, ChevronUp, Activity, GitBranch
 } from "lucide-react";
 
 const SUPERADMIN = "fleuriengenharia@gmail.com";
@@ -61,6 +62,22 @@ export default function VpsMonitor() {
     }
   }, [open, isSuperAdmin, fetchStats]);
 
+  const pathname = usePathname();
+  const isAdminHub = pathname === "/admin";
+  const [graphOpen, setGraphOpen] = useState(false);
+
+  useEffect(() => {
+    const onClosed = () => setGraphOpen(false);
+    window.addEventListener("ncfn:graph-closed", onClosed);
+    return () => window.removeEventListener("ncfn:graph-closed", onClosed);
+  }, []);
+
+  const toggleGraph = () => {
+    const next = !graphOpen;
+    setGraphOpen(next);
+    window.dispatchEvent(new CustomEvent("ncfn:toggle-graph", { detail: { open: next } }));
+  };
+
   if (!isSuperAdmin) return null;
 
   const memPct = data?.memory?.percentUsed ?? 0;
@@ -73,20 +90,40 @@ export default function VpsMonitor() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating buttons row */}
       {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          title="Monitor VPS"
-          className="fixed bottom-6 right-6 z-[300] flex items-center gap-2 px-3 py-2.5 rounded-xl
-            bg-black/90 border border-[#00f3ff]/30 text-[#00f3ff] text-xs font-bold
-            shadow-[0_0_20px_rgba(0,243,255,0.15)] hover:shadow-[0_0_30px_rgba(0,243,255,0.3)]
-            hover:border-[#00f3ff]/60 transition-all backdrop-blur-xl"
-        >
-          <Server className="w-4 h-4" />
-          <span className="hidden sm:inline">VPS</span>
-          <Activity className="w-3 h-3 opacity-60 animate-pulse" />
-        </button>
+        <div className="fixed bottom-6 right-6 z-[300] flex items-center gap-2">
+          {/* Ver Grafo — só em /admin */}
+          {isAdminHub && (
+            <button
+              onClick={toggleGraph}
+              title="Grafo de Custódia Digital"
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold
+                backdrop-blur-xl transition-all
+                ${graphOpen
+                  ? "bg-[#00f3ff]/10 border border-[#00f3ff]/50 text-[#00f3ff] shadow-[0_0_20px_rgba(0,243,255,0.25)]"
+                  : "bg-black/90 border border-[#00f3ff]/20 text-[#00f3ff]/70 shadow-[0_0_12px_rgba(0,243,255,0.08)] hover:border-[#00f3ff]/50 hover:text-[#00f3ff]"
+                }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              <span className="hidden sm:inline">Ver Grafo</span>
+            </button>
+          )}
+
+          {/* VPS Monitor */}
+          <button
+            onClick={() => setOpen(true)}
+            title="Monitor VPS"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl
+              bg-black/90 border border-[#00f3ff]/30 text-[#00f3ff] text-xs font-bold
+              shadow-[0_0_20px_rgba(0,243,255,0.15)] hover:shadow-[0_0_30px_rgba(0,243,255,0.3)]
+              hover:border-[#00f3ff]/60 transition-all backdrop-blur-xl"
+          >
+            <Server className="w-4 h-4" />
+            <span className="hidden sm:inline">VPS</span>
+            <Activity className="w-3 h-3 opacity-60 animate-pulse" />
+          </button>
+        </div>
       )}
 
       {/* Panel */}
