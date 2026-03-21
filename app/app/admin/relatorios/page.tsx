@@ -72,6 +72,7 @@ export default function MapaAlvosPage() {
   const [formAlvo, setFormAlvo] = useState<Partial<Alvo>>({});
   const [coordPendente, setCoordPendente] = useState<{ lat: number; lng: number } | null>(null);
   const [painelAberto, setPainelAberto] = useState(true);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
 
   // 3D tilt
   const [tilt3d, setTilt3d] = useState(false);
@@ -749,7 +750,7 @@ export default function MapaAlvosPage() {
   const modeColor = modoAdicionar ? "#ef4444" : modoRota ? "#f59e0b" : "#bc13fe";
 
   return (
-    <div className="h-screen flex flex-col bg-black overflow-hidden">
+    <div className={`flex flex-col bg-black overflow-hidden ${mapFullscreen ? 'fixed inset-0 z-[500]' : 'h-screen'}`}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[#bc13fe]/20 bg-black/95 z-10 flex-shrink-0">
         <Link href="/admin" className="text-gray-600 hover:text-[#bc13fe] transition">
@@ -791,12 +792,20 @@ export default function MapaAlvosPage() {
             ))}
           </div>
 
+          {/* Fullscreen map */}
+          <button onClick={() => setMapFullscreen(v => !v)} title="Mapa em tela cheia"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black rounded-lg border transition ${mapFullscreen
+              ? "bg-[#00f3ff]/10 border-[#00f3ff]/40 text-[#00f3ff]"
+              : "border-gray-800 text-gray-500 hover:text-[#00f3ff] hover:border-[#00f3ff]/30"}`}>
+            <Maximize2 className="w-3 h-3" />
+          </button>
+
           {/* 3D button */}
           <button onClick={() => setTilt3d(v => !v)}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black rounded-lg border transition ${tilt3d
               ? "bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.3)]"
               : "border-gray-800 text-gray-500 hover:text-white hover:border-gray-600"}`}>
-            <Maximize2 className="w-3 h-3" /> 3D
+            3D
           </button>
 
           {/* Rota button */}
@@ -1423,6 +1432,23 @@ export default function MapaAlvosPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="flex-shrink-0 px-4 py-2 border-t border-gray-900 bg-black/95 flex items-center justify-between gap-4 flex-wrap">
+        <p className="text-[9px] text-gray-700 font-mono leading-relaxed">
+          Para visualizar um mapa com limites de Estados, Municípios e Bairros de Cidades acesse:{" "}
+          <a
+            href="https://wikimapia.org/#lang=pt&lat=-13.368243&lon=-49.702148&z=5&m=w"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#00f3ff]/50 hover:text-[#00f3ff] transition underline underline-offset-2"
+          >
+            wikimapia.org
+          </a>
+          {" "}— layer de bairros, municípios e estados disponível (camada "Wikimapia").
+        </p>
+        <p className="text-[8px] text-gray-800 font-mono flex-shrink-0">NCFN · Sistema de Geointeligência</p>
       </div>
     </div>
   );

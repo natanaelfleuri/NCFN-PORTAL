@@ -7,6 +7,8 @@ import {
     FolderOpen, Folder as FolderIcon, FolderPlus,
     Pin, PinOff, Copy, Download, ChevronUp, ArrowRight,
     Highlighter, Sparkles, Palette, MoveRight, Pencil,
+    Maximize2, ExternalLink, Archive, BarChart2, FolderTree,
+    BookOpen, TrendingUp, Hash, Clock,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -166,6 +168,27 @@ export default function LinksUteisPage() {
     // color picker
     const [colorPickerFor, setColorPickerFor] = useState<string | null>(null);
 
+    // full-screen preview
+    const [fullScreen, setFullScreen] = useState(false);
+
+    // drag & drop
+    const [dragNoteId, setDragNoteId] = useState<string | null>(null);
+    const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+
+    // notebook-level actions
+    const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+    const [deletingAll, setDeletingAll] = useState(false);
+
+    // master directories (localStorage-backed)
+    const [masterDirs, setMasterDirs] = useState<Array<{ id: string; name: string; folderIds: string[] }>>([]);
+    const [showMasterDirModal, setShowMasterDirModal] = useState(false);
+    const [editingMasterDirId, setEditingMasterDirId] = useState<string | null>(null);
+    const [newMasterDirName, setNewMasterDirName] = useState('');
+    const [masterDirFolderSel, setMasterDirFolderSel] = useState<string[]>([]);
+
+    // analytics
+    const [analyticsOpen, setAnalyticsOpen] = useState(false);
+
     const textareaRef   = useRef<HTMLTextAreaElement>(null);
     const folderDropRef = useRef<HTMLDivElement>(null);
     const newFolderRef  = useRef<HTMLInputElement>(null);
@@ -197,6 +220,112 @@ export default function LinksUteisPage() {
     }, []);
 
     useEffect(() => { loadData(); }, [loadData]);
+
+    /* ── Master dirs (localStorage) ── */
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('ncfn-master-dirs');
+            if (saved) setMasterDirs(JSON.parse(saved));
+        } catch {}
+    }, []);
+
+    const saveMasterDirs = (dirs: typeof masterDirs) => {
+        setMasterDirs(dirs);
+        localStorage.setItem('ncfn-master-dirs', JSON.stringify(dirs));
+    };
+
+    const handleAddMasterDir = () => {
+        if (!newMasterDirName.trim()) return;
+        if (editingMasterDirId) {
+            saveMasterDirs(masterDirs.map(d => d.id === editingMasterDirId
+                ? { ...d, name: newMasterDirName.trim(), folderIds: masterDirFolderSel }
+                : d));
+            showMsg('ok', 'Diretório atualizado.');
+        } else {
+            const nd = { id: Date.now().toString(), name: newMasterDirName.trim(), folderIds: masterDirFolderSel };
+            saveMasterDirs([...masterDirs, nd]);
+            showMsg('ok', `Diretório "${nd.name}" criado.`);
+        }
+        setNewMasterDirName(''); setMasterDirFolderSel([]); setEditingMasterDirId(null); setShowMasterDirModal(false);
+    };
+
+    const handleDeleteMasterDir = (id: string) => {
+        saveMasterDirs(masterDirs.filter(d => d.id !== id));
+        showMsg('ok', 'Diretório mestre removido.');
+    };
+
+    /* ── Full-screen / New-window ── */
+    const handleOpenWindow = () => {
+        if (!title && !content) return;
+        const win = window.open('', '_blank');
+        if (!win) return;
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title || 'Nota'}</title>
+<style>body{background:#0d0d0d;color:rgba(255,255,255,0.82);font-family:Inter,system-ui,sans-serif;max-width:820px;margin:40px auto;padding:0 24px;line-height:1.7}
+h1{font-size:22px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;margin-bottom:16px}
+pre{background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:14px;overflow-x:auto}
+code{background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;color:#e2c08d;font-family:monospace}
+a{color:#7c9ef8}table{border-collapse:collapse;width:100%;margin:14px 0}th,td{padding:8px 14px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.08)}
+blockquote{border-left:3px solid #7c3aed;margin:12px 0;padding:4px 14px;background:rgba(124,58,237,0.06);border-radius:0 6px 6px 0}
+p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
+.content{white-space:pre-wrap;font-family:Inter,sans-serif;font-size:14px}</style>
+</head><body><h1>${title.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</h1>
+<div class="content">${content.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></body></html>`);
+        win.document.close();
+    };
+
+    /* ── Save all notebook ── */
+    const handleSaveAllNotebook = () => {
+        const parts: string[] = [`# CADERNO NCFN — ${new Date().toLocaleDateString('pt-BR')}\n\n---\n\n`];
+        const foldersWithNone = [...folders.map(f => ({ id: f.id as string | null, name: f.name })), { id: null, name: 'Sem pasta' }];
+        foldersWithNone.forEach(folder => {
+            const fNotes = folder.id === null ? notes.filter(n => !n.folderId) : notes.filter(n => n.folderId === folder.id);
+            if (!fNotes.length) return;
+            parts.push(`## 📁 ${folder.name}\n\n`);
+            fNotes.forEach(note => { parts.push(`### ${note.title}\n\n${note.content}\n\n---\n\n`); });
+        });
+        const blob = new Blob([parts.join('')], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `caderno-ncfn-${new Date().toISOString().slice(0,10)}.md`; a.click();
+        URL.revokeObjectURL(url);
+        showMsg('ok', `Caderno exportado — ${notes.length} notas.`);
+    };
+
+    /* ── Delete all notebook ── */
+    const handleDeleteAllNotebook = async () => {
+        if (!confirmDeleteAll) {
+            setConfirmDeleteAll(true);
+            setTimeout(() => setConfirmDeleteAll(false), 5000);
+            return;
+        }
+        setDeletingAll(true);
+        try {
+            for (const note of notes) { await fetch(`/api/links-uteis?id=${note.id}`, { method: 'DELETE' }); }
+            for (const folder of folders) { await fetch(`/api/links-uteis?id=${folder.id}&type=folder`, { method: 'DELETE' }); }
+            setNotes([]); setFolders([]); setSelected(null); setTitle(''); setContent(''); setFolderId(null);
+            setConfirmDeleteAll(false);
+            showMsg('ok', 'Caderno apagado.');
+        } catch { showMsg('err', 'Erro ao apagar caderno.'); }
+        setDeletingAll(false);
+    };
+
+    /* ── Drag & drop ── */
+    const handleDragStart = (noteId: string) => setDragNoteId(noteId);
+    const handleDragEnd = () => { setDragNoteId(null); setDragOverFolderId(null); };
+    const handleDragOverFolder = (e: React.DragEvent, fid: string | null) => {
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        setDragOverFolderId(fid === null ? '__none__' : fid);
+    };
+    const handleDropOnFolder = async (e: React.DragEvent, targetFolderId: string | null) => {
+        e.preventDefault();
+        if (!dragNoteId) return;
+        const note = notes.find(n => n.id === dragNoteId);
+        if (!note) return;
+        const currentFid = note.folderId ?? null;
+        if (currentFid === targetFolderId) { setDragNoteId(null); setDragOverFolderId(null); return; }
+        await handleMoveNote(dragNoteId, targetFolderId);
+        setDragNoteId(null); setDragOverFolderId(null);
+    };
 
     /* ── Close dropdowns on outside click ── */
     useEffect(() => {
@@ -522,6 +651,37 @@ export default function LinksUteisPage() {
     const currentHighlights = selected?.highlights ?? [];
     const isRowHighlighted = rowToolbar ? currentHighlights.includes(rowToolbar.fingerprint) : false;
 
+    /* ── Analytics ── */
+    const analytics = useMemo(() => {
+        if (!notes.length) return null;
+        const allText = notes.map(n => `${n.title} ${n.content}`).join(' ');
+        const words = allText.toLowerCase().match(/[a-záàâãéèêíïóôõöúüçñ]+/g) ?? [];
+        const wordFreq: Record<string, number> = {};
+        words.forEach(w => { if (w.length > 3) wordFreq[w] = (wordFreq[w] ?? 0) + 1; });
+        const topWords = Object.entries(wordFreq).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([word, count]) => ({ word, count }));
+        const maxCount = topWords[0]?.count ?? 1;
+        const totalWords = notes.reduce((acc, n) => acc + (n.content.split(/\s+/).filter(Boolean).length), 0);
+        const totalChars = notes.reduce((acc, n) => acc + n.content.length, 0);
+        const pinnedCount = notes.filter(n => n.pinned).length;
+        const notesPerFolder = [
+            ...folders.map(f => ({ name: f.name, count: notes.filter(n => n.folderId === f.id).length, color: '#4ade80' })),
+            { name: 'Sem pasta', count: notes.filter(n => !n.folderId).length, color: 'rgba(255,255,255,0.2)' },
+        ].filter(f => f.count > 0);
+        const maxFolderCount = Math.max(...notesPerFolder.map(f => f.count), 1);
+        const colorDist = NOTE_COLORS.map(c => ({ label: c.label, color: c.value, count: notes.filter(n => n.color === c.value).length })).filter(c => c.count > 0);
+        const avgLength = Math.round(totalWords / notes.length);
+        const recentNote = [...notes].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+        const withContent = notes.filter(n => n.content.trim().length > 50).length;
+        const score = Math.min(100, Math.round((notes.length * 4) + (folders.length * 3) + (pinnedCount * 2) + Math.min(totalWords / 80, 25) + (withContent * 1.5)));
+        return { topWords, maxCount, totalWords, totalChars, pinnedCount, notesPerFolder, maxFolderCount, colorDist, avgLength, recentNote, score, withContent };
+    }, [notes, folders]);
+
+    /* ── Folders grouped by master dir ── */
+    const ungroupedFolders = useMemo(() => {
+        const assignedIds = new Set(masterDirs.flatMap(d => d.folderIds));
+        return folders.filter(f => !assignedIds.has(f.id));
+    }, [folders, masterDirs]);
+
     return (
         <>
             {/* ── Styles ────────────────────────────────────────────── */}
@@ -729,19 +889,78 @@ export default function LinksUteisPage() {
                                     </div>
                                 )}
 
-                                {/* ── Folders ── */}
-                                {folders.length > 0 && (
+                                {/* ── Master Directories ── */}
+                                {masterDirs.map(mdir => {
+                                    const mdFolders = folders.filter(f => mdir.folderIds.includes(f.id));
+                                    if (!mdFolders.length) return null;
+                                    return (
+                                        <div key={mdir.id}>
+                                            <div className="obs-section-label" style={{ background: 'rgba(167,139,250,0.04)', borderRadius: 6, margin: '2px 0' }}>
+                                                <span className="obs-section-label-text" style={{ color: 'rgba(167,139,250,0.5)' }}>
+                                                    <FolderTree size={9} style={{ display: 'inline', marginRight: 4 }} />{mdir.name}
+                                                </span>
+                                                <div style={{ display: 'flex', gap: 2 }}>
+                                                    <button className="obs-folder-act-btn" onClick={() => { setEditingMasterDirId(mdir.id); setNewMasterDirName(mdir.name); setMasterDirFolderSel(mdir.folderIds); setShowMasterDirModal(true); }} title="Editar"><Pencil size={9} /></button>
+                                                    <button className="obs-folder-act-btn danger" onClick={() => handleDeleteMasterDir(mdir.id)} title="Remover"><X size={9} /></button>
+                                                </div>
+                                            </div>
+                                            {mdFolders.map((folder, folderIdx) => {
+                                                const isOpen = openFolders.has(folder.id);
+                                                const fNotes = notesInFolder(folder.id);
+                                                const isRenaming = renamingFolder === folder.id;
+                                                const isDragTarget = dragOverFolderId === folder.id;
+                                                return (
+                                                    <div key={folder.id}
+                                                        onDragOver={e => handleDragOverFolder(e, folder.id)}
+                                                        onDrop={e => handleDropOnFolder(e, folder.id)}
+                                                        style={{ borderRadius: 6, outline: isDragTarget ? '1px dashed rgba(74,222,128,0.5)' : 'none', background: isDragTarget ? 'rgba(74,222,128,0.04)' : 'transparent', transition: 'all .12s' }}
+                                                    >
+                                                        <button className={`obs-folder-row${isOpen ? ' open' : ''}`} onClick={() => !isRenaming && toggleFolder(folder.id)}>
+                                                            {isOpen ? <ChevronDown size={10} className="obs-folder-chevron" /> : <ChevronRight size={10} className="obs-folder-chevron" />}
+                                                            {isOpen ? <FolderOpen size={13} className="obs-folder-icon" /> : <FolderIcon size={13} className="obs-folder-icon" />}
+                                                            {isRenaming ? (
+                                                                <input className="obs-rename-input" value={renameFolderVal} onChange={e => setRenameFolderVal(e.target.value)} autoFocus onClick={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleRenameFolder(folder.id); if (e.key === 'Escape') setRenamingFolder(null); }} onBlur={() => { if (renameFolderVal.trim()) handleRenameFolder(folder.id); else setRenamingFolder(null); }} />
+                                                            ) : (<span className="obs-folder-name">{folder.name}</span>)}
+                                                            <span className="obs-folder-count">{fNotes.length}</span>
+                                                            <div className="obs-folder-actions" onClick={e => e.stopPropagation()}>
+                                                                <button className="obs-folder-act-btn" onClick={() => { setRenamingFolder(folder.id); setRenameFolderVal(folder.name); }} title="Renomear"><Pencil size={9} /></button>
+                                                                <button className={`obs-folder-act-btn danger${confirmDelFld === folder.id ? ' confirm' : ''}`} onClick={() => handleDeleteFolder(folder.id)} title={confirmDelFld === folder.id ? 'Confirmar?' : 'Remover'} onBlur={() => setConfirmDelFld(null)}><X size={9} /></button>
+                                                            </div>
+                                                        </button>
+                                                        {isOpen && (
+                                                            <div className="obs-folder-notes">
+                                                                {fNotes.length === 0 ? (
+                                                                    <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(74,222,128,0.3)', fontSize: 11, width: '100%' }} onClick={() => handleNew(folder.id)}><Plus size={10} /> Nova nota</button>
+                                                                ) : fNotes.map(note => (
+                                                                    <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={c => handleSetColor(note.id, c)} onDragStart={() => handleDragStart(note.id)} onDragEnd={handleDragEnd} />
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })}
+
+                                {/* ── Folders (ungrouped) ── */}
+                                {ungroupedFolders.length > 0 && (
                                     <div className="obs-section-label">
                                         <span className="obs-section-label-text">Pastas</span>
                                     </div>
                                 )}
 
-                                {folders.map((folder, folderIdx) => {
+                                {ungroupedFolders.map((folder, folderIdx) => {
                                     const isOpen = openFolders.has(folder.id);
                                     const fNotes = notesInFolder(folder.id);
                                     const isRenaming = renamingFolder === folder.id;
+                                    const isDragTarget = dragOverFolderId === folder.id;
                                     return (
-                                        <div key={folder.id}>
+                                        <div key={folder.id}
+                                            onDragOver={e => handleDragOverFolder(e, folder.id)}
+                                            onDrop={e => handleDropOnFolder(e, folder.id)}
+                                            style={{ borderRadius: 6, outline: isDragTarget ? '1px dashed rgba(74,222,128,0.5)' : 'none', background: isDragTarget ? 'rgba(74,222,128,0.04)' : 'transparent', transition: 'all .12s' }}
+                                        >
                                             <button className={`obs-folder-row${isOpen ? ' open' : ''}`} onClick={() => !isRenaming && toggleFolder(folder.id)}>
                                                 {isOpen ? <ChevronDown size={10} className="obs-folder-chevron" /> : <ChevronRight size={10} className="obs-folder-chevron" />}
                                                 {isOpen ? <FolderOpen size={13} className="obs-folder-icon" /> : <FolderIcon size={13} className="obs-folder-icon" />}
@@ -767,7 +986,7 @@ export default function LinksUteisPage() {
                                                     {folderIdx > 0 && (
                                                         <button className="obs-folder-act-btn" onClick={() => handleMoveFolderUp(folder.id)} title="Mover para cima"><ChevronUp size={9} /></button>
                                                     )}
-                                                    {folderIdx < folders.length - 1 && (
+                                                    {folderIdx < ungroupedFolders.length - 1 && (
                                                         <button className="obs-folder-act-btn" onClick={() => handleMoveFolderDown(folder.id)} title="Mover para baixo"><ChevronDown size={9} /></button>
                                                     )}
                                                     <button className="obs-folder-act-btn" onClick={() => { setRenamingFolder(folder.id); setRenameFolderVal(folder.name); }} title="Renomear"><Pencil size={9} /></button>
@@ -783,7 +1002,7 @@ export default function LinksUteisPage() {
                                                         </button>
                                                     ) : (
                                                         fNotes.map(note => (
-                                                            <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={(c) => handleSetColor(note.id, c)} />
+                                                            <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={(c) => handleSetColor(note.id, c)} onDragStart={() => handleDragStart(note.id)} onDragEnd={handleDragEnd} />
                                                         ))
                                                     )}
                                                 </div>
@@ -792,14 +1011,23 @@ export default function LinksUteisPage() {
                                     );
                                 })}
 
-                                {/* ── Uncategorized ── */}
-                                {uncategorized.length > 0 && (
-                                    <>
-                                        {folders.length > 0 && <span className="obs-uncategorized-label">Sem pasta</span>}
+                                {/* ── Uncategorized (also a drop zone) ── */}
+                                {(uncategorized.length > 0 || dragNoteId) && (
+                                    <div
+                                        onDragOver={e => handleDragOverFolder(e, null)}
+                                        onDrop={e => handleDropOnFolder(e, null)}
+                                        style={{ borderRadius: 6, outline: dragOverFolderId === '__none__' ? '1px dashed rgba(255,255,255,0.25)' : 'none', background: dragOverFolderId === '__none__' ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'all .12s' }}
+                                    >
+                                        {folders.length > 0 && uncategorized.length > 0 && <span className="obs-uncategorized-label">Sem pasta</span>}
+                                        {dragNoteId && !uncategorized.find(n => n.id === dragNoteId) && (
+                                            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', padding: '4px 10px', fontFamily: 'monospace', display: dragOverFolderId === '__none__' ? 'block' : 'none' }}>
+                                                ↓ Soltar aqui (sem pasta)
+                                            </div>
+                                        )}
                                         {uncategorized.map(note => (
-                                            <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={(c) => handleSetColor(note.id, c)} />
+                                            <NoteItem key={note.id} note={note} isActive={selected?.id === note.id} onSelect={() => handleSelect(note)} onPin={() => handleTogglePin(note.id)} onMove={() => setMoveModal({ noteId: note.id, currentFolderId: note.folderId ?? null })} onColorPick={() => setColorPickerFor(note.id)} colorPickerOpen={colorPickerFor === note.id} onSetColor={(c) => handleSetColor(note.id, c)} onDragStart={() => handleDragStart(note.id)} onDragEnd={handleDragEnd} />
                                         ))}
-                                    </>
+                                    </div>
                                 )}
 
                                 {!loading && notes.length === 0 && (
@@ -812,6 +1040,21 @@ export default function LinksUteisPage() {
                         )}
                     </div>
 
+                    {/* Notebook actions */}
+                    <div style={{ padding: '6px 8px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        <button className="obs-icon-btn" style={{ flex: 1, fontSize: 10, gap: 4, color: 'rgba(74,222,128,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'auto' }} onClick={() => setShowMasterDirModal(true)} title="Diretórios Mestres">
+                            <FolderTree size={12} /> <span style={{ fontSize: 9, fontWeight: 700 }}>Dirs Mestres</span>
+                        </button>
+                        <button className="obs-icon-btn" style={{ flex: 1, fontSize: 10, gap: 4, color: 'rgba(167,139,250,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'auto' }} onClick={() => setAnalyticsOpen(v => !v)} title="Analytics">
+                            <BarChart2 size={12} /> <span style={{ fontSize: 9, fontWeight: 700 }}>Analytics</span>
+                        </button>
+                        <button className="obs-icon-btn" style={{ flex: 1, fontSize: 10, gap: 4, color: 'rgba(59,130,246,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'auto' }} onClick={handleSaveAllNotebook} title="Salvar todo caderno">
+                            <Archive size={12} /> <span style={{ fontSize: 9, fontWeight: 700 }}>Salvar tudo</span>
+                        </button>
+                        <button className={`obs-icon-btn${confirmDeleteAll ? '' : ''}`} style={{ flex: 1, fontSize: 10, gap: 4, color: confirmDeleteAll ? '#f87171' : 'rgba(239,68,68,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'auto', background: confirmDeleteAll ? 'rgba(239,68,68,0.08)' : undefined }} onClick={handleDeleteAllNotebook} disabled={deletingAll} title="Apagar todo caderno">
+                            <Trash2 size={12} /> <span style={{ fontSize: 9, fontWeight: 700 }}>{confirmDeleteAll ? 'Confirmar?' : 'Apagar tudo'}</span>
+                        </button>
+                    </div>
                     <div className="obs-sidebar-footer">{notes.length} nota{notes.length !== 1 ? 's' : ''} · {folders.length} pasta{folders.length !== 1 ? 's' : ''} · {notes.filter(n => n.pinned).length} fixada{notes.filter(n => n.pinned).length !== 1 ? 's' : ''}</div>
                 </aside>
 
@@ -908,6 +1151,16 @@ export default function LinksUteisPage() {
                         {/* export */}
                         {selected && (
                             <button className="obs-btn" onClick={handleExport} title="Exportar como .md"><Download size={12} /></button>
+                        )}
+
+                        {/* full-screen preview */}
+                        {selected && (
+                            <button className="obs-btn" onClick={() => setFullScreen(true)} title="Visualizar em tela cheia"><Maximize2 size={12} /></button>
+                        )}
+
+                        {/* open in new window */}
+                        {selected && (
+                            <button className="obs-btn" onClick={handleOpenWindow} title="Abrir em nova janela"><ExternalLink size={12} /></button>
                         )}
 
                         {/* highlights badge + clear */}
@@ -1010,6 +1263,91 @@ export default function LinksUteisPage() {
                 )}
             </div>
 
+            {/* ── Analytics Dashboard ── */}
+            {analyticsOpen && analytics && (
+                <div style={{ marginTop: 16, background: '#0d0d0d', border: '1px solid rgba(167,139,250,0.15)', borderRadius: 12, padding: 24, fontFamily: 'Inter,system-ui,sans-serif' }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <BarChart2 size={18} color="#a78bfa" />
+                            <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Analytics do Caderno</span>
+                        </div>
+                        <button onClick={() => setAnalyticsOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)' }}><X size={14} /></button>
+                    </div>
+
+                    {/* Score + KPIs */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 10, marginBottom: 20 }}>
+                        {[
+                            { label: 'Score Geral', value: `${analytics.score}/100`, color: analytics.score >= 70 ? '#4ade80' : analytics.score >= 40 ? '#f59e0b' : '#f87171', icon: TrendingUp },
+                            { label: 'Notas', value: notes.length, color: '#a78bfa', icon: BookOpen },
+                            { label: 'Palavras', value: analytics.totalWords.toLocaleString(), color: '#00f3ff', icon: Hash },
+                            { label: 'Caracteres', value: analytics.totalChars.toLocaleString(), color: '#7c9ef8', icon: Hash },
+                            { label: 'Fixadas', value: analytics.pinnedCount, color: '#facc15', icon: Pin },
+                            { label: 'Média palavras/nota', value: analytics.avgLength, color: 'rgba(255,255,255,0.5)', icon: BarChart2 },
+                            { label: 'Com conteúdo', value: analytics.withContent, color: '#34d399', icon: CheckCircle },
+                            { label: 'Última atualização', value: analytics.recentNote ? fmtDate(analytics.recentNote.updatedAt) : '—', color: 'rgba(255,255,255,0.3)', icon: Clock },
+                        ].map(({ label, value, color, icon: Icon }) => (
+                            <div key={label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                    <Icon size={12} color={color} />
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '.1em' }}>{label}</span>
+                                </div>
+                                <div style={{ fontSize: 16, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>{String(value)}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        {/* Top words */}
+                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: 16 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 12px' }}>Palavras mais usadas</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                {analytics.topWords.map(({ word, count }) => (
+                                    <div key={word} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontFamily: 'monospace', width: 100, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{word}</span>
+                                        <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', borderRadius: 2, background: '#a78bfa', width: `${Math.round((count / analytics.maxCount) * 100)}%`, transition: 'width .3s' }} />
+                                        </div>
+                                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace', width: 24, textAlign: 'right' }}>{count}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Notes per folder */}
+                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: 16 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 12px' }}>Notas por pasta</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                {analytics.notesPerFolder.map(({ name, count, color }) => (
+                                    <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', width: 100, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                                        <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', borderRadius: 2, background: color, width: `${Math.round((count / analytics.maxFolderCount) * 100)}%` }} />
+                                        </div>
+                                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace', width: 24, textAlign: 'right' }}>{count}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Color distribution */}
+                            {analytics.colorDist.length > 0 && (
+                                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <p style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 8px' }}>Cores</p>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        {analytics.colorDist.map(c => (
+                                            <div key={c.color} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, display: 'inline-block', flexShrink: 0 }} />
+                                                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{c.label} ({c.count})</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Row Toolbar (floating) ── */}
             {rowToolbar && (
                 <div
@@ -1035,6 +1373,79 @@ export default function LinksUteisPage() {
                     </button>
                     <div className="obs-row-tb-sep" />
                     <button className="obs-row-tb-btn" onClick={() => setRowToolbar(null)} title="Fechar"><X size={11} /></button>
+                </div>
+            )}
+
+            {/* ── Full-screen Preview Modal ── */}
+            {fullScreen && selected && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 800, background: '#0a0a0a', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#111', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <BookOpen size={16} color="#a78bfa" />
+                            <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>{selected.title}</span>
+                            {selected.color && <span style={{ width: 8, height: 8, borderRadius: '50%', background: selected.color, flexShrink: 0, display: 'inline-block' }} />}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleOpenWindow} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 11 }}>
+                                <ExternalLink size={12} /> Nova janela
+                            </button>
+                            <button onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 11 }}>
+                                <Download size={12} /> .md
+                            </button>
+                            <button onClick={() => setFullScreen(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.2)', background: 'transparent', color: 'rgba(239,68,68,0.6)', cursor: 'pointer', fontSize: 11 }}>
+                                <X size={12} /> Fechar
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ flex: 1, overflow: 'auto', padding: '32px 10vw' }} className="obs-preview-wrap">
+                        <h1 className="obs-h1" style={{ marginTop: 0, fontSize: 26 }}>{selected.title}</h1>
+                        <ObsidianPreview content={selected.content} highlights={selected.highlights ?? []} />
+                    </div>
+                </div>
+            )}
+
+            {/* ── Master Directory Modal ── */}
+            {showMasterDirModal && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                    <div style={{ background: '#1a1a2e', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 16, padding: 24, minWidth: 320, maxWidth: 420, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                            <FolderTree size={18} color="#a78bfa" />
+                            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'white', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                                {editingMasterDirId ? 'Editar Diretório Mestre' : 'Novo Diretório Mestre'}
+                            </h3>
+                        </div>
+                        <input
+                            value={newMasterDirName}
+                            onChange={e => setNewMasterDirName(e.target.value)}
+                            placeholder="Nome do diretório..."
+                            autoFocus
+                            style={{ width: '100%', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#a78bfa', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
+                            onKeyDown={e => { if (e.key === 'Enter') handleAddMasterDir(); if (e.key === 'Escape') { setShowMasterDirModal(false); setEditingMasterDirId(null); setNewMasterDirName(''); setMasterDirFolderSel([]); } }}
+                        />
+                        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginBottom: 8, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '.08em' }}>Pastas incluídas neste diretório:</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto', marginBottom: 16 }}>
+                            {folders.length === 0 && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)', fontFamily: 'monospace' }}>Nenhuma pasta criada ainda.</p>}
+                            {folders.map(f => {
+                                const checked = masterDirFolderSel.includes(f.id);
+                                return (
+                                    <button key={f.id} onClick={() => setMasterDirFolderSel(prev => checked ? prev.filter(id => id !== f.id) : [...prev, f.id])}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, border: checked ? '1px solid rgba(74,222,128,0.4)' : '1px solid rgba(255,255,255,0.08)', background: checked ? 'rgba(74,222,128,0.08)' : 'transparent', color: checked ? '#4ade80' : 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 12, textAlign: 'left', fontWeight: checked ? 600 : 400, transition: 'all .12s' }}>
+                                        <FolderIcon size={13} style={{ color: checked ? '#4ade80' : 'rgba(255,255,255,0.2)' }} />
+                                        {f.name}
+                                        {checked && <span style={{ marginLeft: 'auto', fontSize: 9, opacity: 0.7 }}>✓</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleAddMasterDir} style={{ flex: 1, padding: '9px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.4)', background: 'rgba(167,139,250,0.1)', color: '#a78bfa', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                                {editingMasterDirId ? 'Atualizar' : 'Criar Diretório'}
+                            </button>
+                            <button onClick={() => { setShowMasterDirModal(false); setEditingMasterDirId(null); setNewMasterDirName(''); setMasterDirFolderSel([]); }} style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 12 }}>
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -1083,7 +1494,7 @@ export default function LinksUteisPage() {
 
 /* ── Note item with hover actions ── */
 function NoteItem({
-    note, isActive, onSelect, onPin, onMove, onColorPick, colorPickerOpen, onSetColor
+    note, isActive, onSelect, onPin, onMove, onColorPick, colorPickerOpen, onSetColor, onDragStart, onDragEnd
 }: {
     note: Note;
     isActive: boolean;
@@ -1093,13 +1504,18 @@ function NoteItem({
     onColorPick: () => void;
     colorPickerOpen: boolean;
     onSetColor: (c: string | null) => void;
+    onDragStart?: () => void;
+    onDragEnd?: () => void;
 }) {
     const colorInfo = note.color ? NOTE_COLORS.find(c => c.value === note.color) : null;
     return (
         <button
             className={`obs-note-item ${isActive ? 'active' : ''}`}
             onClick={onSelect}
-            style={colorInfo ? { borderLeft: `3px solid ${colorInfo.value}` } : {}}
+            draggable
+            onDragStart={e => { e.stopPropagation(); onDragStart?.(); }}
+            onDragEnd={e => { e.stopPropagation(); onDragEnd?.(); }}
+            style={{ ...(colorInfo ? { borderLeft: `3px solid ${colorInfo.value}` } : {}), cursor: 'grab' }}
         >
             <span className="obs-note-name">
                 {note.pinned && <span style={{ color: '#facc15', marginRight: 4 }}>📌</span>}
