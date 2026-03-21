@@ -5,8 +5,9 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { formatBytes } from '../utils';
 
-const MapDashboard = dynamic(() => import('../components/MapDashboard'), { ssr: false });
-const AdminCharts  = dynamic(() => import('../components/AdminCharts'), { ssr: false });
+const MapDashboard       = dynamic(() => import('../components/MapDashboard'), { ssr: false });
+const AdminCharts        = dynamic(() => import('../components/AdminCharts'), { ssr: false });
+const VaultGraphDiagram  = dynamic(() => import('../components/VaultGraphDiagram'), { ssr: false });
 
 type FileItem = {
     folder: string;
@@ -431,6 +432,9 @@ export default function AdminDashboard() {
                     <HelpCircle size={14} /> Como funciona
                 </button>
             </div>
+
+            {/* ─── GRAFO DE CUSTÓDIA DIGITAL ─── */}
+            <VaultGraphDiagram files={files} />
 
             {/* ─── MÓDULOS DO SISTEMA ─── */}
             <SectionTitle title="Módulos do Sistema" subtitle="Ferramentas operacionais" color="#bc13fe" />
