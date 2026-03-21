@@ -666,25 +666,25 @@ export default function AdminDashboard() {
                 </Link>
                 {/* Botão Varredura Geral */}
                 <button onClick={startGlobalScan} disabled={scanRunning}
-                    className="glass-panel p-4 lg:p-5 rounded-2xl flex flex-col items-center text-center gap-2 transition-all duration-300 border cursor-pointer hover:scale-[1.03] disabled:cursor-not-allowed"
-                    style={{ borderColor: scanDone ? '#22c55e30' : '#bc13fe30' }}>
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    className="glass-panel px-3 rounded-xl flex flex-col items-center justify-center text-center gap-1.5 transition-all duration-300 border cursor-pointer hover:scale-[1.03] disabled:cursor-not-allowed"
+                    style={{ borderColor: scanDone ? '#22c55e30' : '#bc13fe30', height: 90 }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ background: scanDone ? '#22c55e12' : '#bc13fe12', border: `1px solid ${scanDone ? '#22c55e25' : '#bc13fe25'}` }}>
-                        {scanRunning ? <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#bc13fe' }} />
-                            : scanDone ? <CheckCircle className="w-5 h-5" style={{ color: '#22c55e' }} />
-                            : <Play className="w-5 h-5" style={{ color: '#bc13fe' }} />}
+                        {scanRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#bc13fe' }} />
+                            : scanDone ? <CheckCircle className="w-3.5 h-3.5" style={{ color: '#22c55e' }} />
+                            : <Play className="w-3.5 h-3.5" style={{ color: '#bc13fe' }} />}
                     </div>
                     {scanRunning && scanProgress ? (
-                        <div className="w-full space-y-1">
+                        <div className="w-full space-y-0.5">
                             <div className="h-1 bg-gray-900 rounded-full overflow-hidden">
                                 <div className="h-full bg-gradient-to-r from-[#bc13fe] to-[#8b5cf6] rounded-full transition-all duration-500" style={{ width: `${scanPct}%` }} />
                             </div>
-                            <span className="text-[9px] font-mono text-[#bc13fe]">{scanPct}% — {scanProgress.i}/{scanProgress.total}</span>
+                            <span className="text-[7px] font-mono text-[#bc13fe]">{scanPct}%</span>
                         </div>
                     ) : (
-                        <span className="text-xl lg:text-2xl font-black text-white leading-none">{scanDone ? '✓' : '▶'}</span>
+                        <span className="text-lg lg:text-xl font-black text-white leading-none flex-shrink-0">{scanDone ? '✓' : '▶'}</span>
                     )}
-                    <span className="text-[9px] lg:text-[10px] font-bold uppercase tracking-wider leading-tight"
+                    <span className="text-[7px] lg:text-[8px] font-bold uppercase tracking-wider leading-tight line-clamp-2 w-full"
                         style={{ color: scanDone ? '#22c55e' : '#bc13fe' }}>
                         {scanDone ? 'Relatório Gerado!' : scanRunning ? 'Analisando...' : 'Iniciar Varredura Geral'}
                     </span>
@@ -936,13 +936,13 @@ function StatCard({ icon: Icon, value, label, color, hover, pulse }: {
     icon: any; value: string; label: string; color: string; hover?: boolean; pulse?: boolean;
 }) {
     return (
-        <div className={`glass-panel px-3 py-2.5 rounded-xl flex flex-col items-center text-center gap-1.5 transition-all duration-300 ${hover ? 'hover:scale-[1.03] cursor-pointer' : ''}`}
-            style={{ borderColor: `${color}30` }}>
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${color}12`, border: `1px solid ${color}25` }}>
+        <div className={`glass-panel px-3 rounded-xl flex flex-col items-center justify-center text-center gap-1.5 transition-all duration-300 ${hover ? 'hover:scale-[1.03] cursor-pointer' : ''}`}
+            style={{ borderColor: `${color}30`, height: 90 }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}12`, border: `1px solid ${color}25` }}>
                 <Icon className={`w-3.5 h-3.5 ${pulse ? 'animate-pulse' : ''}`} style={{ color }} />
             </div>
-            <span className="text-lg lg:text-xl font-black text-white leading-none">{value}</span>
-            <span className="text-[8px] lg:text-[9px] text-gray-500 font-bold uppercase tracking-wider leading-tight">{label}</span>
+            <span className="text-lg lg:text-xl font-black text-white leading-none flex-shrink-0">{value}</span>
+            <span className="text-[7px] lg:text-[8px] text-gray-500 font-bold uppercase tracking-wider leading-tight line-clamp-2 w-full">{label}</span>
         </div>
     );
 }
