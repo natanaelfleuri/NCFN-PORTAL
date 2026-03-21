@@ -215,6 +215,32 @@ export default function AdminDashboard() {
     const [reversalDragging, setReversalDragging] = useState(false);
     const reversalFileRef = useRef<HTMLInputElement>(null);
     const [ecoFeedback, setEcoFeedback] = useState<Record<string, { msg: string; ok: boolean }>>({});
+    const [showGraph, setShowGraph]     = useState(false);
+    const [graphExiting, setGraphExiting] = useState(false);
+
+    // ── Graph modal — listen for nav toggle event ─────────────────────────────
+    useEffect(() => {
+        const onToggle = (e: Event) => {
+            const open = (e as CustomEvent).detail?.open;
+            if (open) {
+                setGraphExiting(false);
+                setShowGraph(true);
+            } else {
+                closeGraph();
+            }
+        };
+        window.addEventListener('ncfn:toggle-graph', onToggle);
+        return () => window.removeEventListener('ncfn:toggle-graph', onToggle);
+    }, []);
+
+    const closeGraph = useCallback(() => {
+        setGraphExiting(true);
+        setTimeout(() => {
+            setShowGraph(false);
+            setGraphExiting(false);
+            window.dispatchEvent(new CustomEvent('ncfn:graph-closed'));
+        }, 200);
+    }, []);
 
     // ── Initial data fetch ────────────────────────────────────────────────────
     useEffect(() => {
@@ -414,13 +440,71 @@ export default function AdminDashboard() {
     return (
         <div className="mt-6 space-y-10 pb-20 max-w-7xl mx-auto">
 
+            {/* ─── GRAFO DE CUSTÓDIA DIGITAL — floating modal ─── */}
+            {showGraph && (
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget) closeGraph(); }}>
+                    {/* Electron particles background */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                        {[
+                            { cls: 'electron-ltr', dur: '7s',  del: '0s',   top: '12%', color: 'rgba(0,243,255,0.55)',   sz: 3 },
+                            { cls: 'electron-ltr', dur: '11s', del: '2.5s', top: '38%', color: 'rgba(188,19,254,0.5)',   sz: 2 },
+                            { cls: 'electron-ltr', dur: '9s',  del: '5s',   top: '65%', color: 'rgba(0,243,255,0.4)',    sz: 2 },
+                            { cls: 'electron-ltr', dur: '14s', del: '1s',   top: '82%', color: 'rgba(188,19,254,0.45)',  sz: 3 },
+                            { cls: 'electron-rtl', dur: '10s', del: '0.5s', top: '25%', color: 'rgba(34,197,94,0.45)',   sz: 2 },
+                            { cls: 'electron-rtl', dur: '8s',  del: '3s',   top: '55%', color: 'rgba(0,243,255,0.5)',    sz: 3 },
+                            { cls: 'electron-rtl', dur: '13s', del: '6s',   top: '75%', color: 'rgba(188,19,254,0.4)',   sz: 2 },
+                            { cls: 'electron-ttb', dur: '6s',  del: '0s',   top: '0',   color: 'rgba(0,243,255,0.4)',    sz: 2, left: '15%' },
+                            { cls: 'electron-ttb', dur: '9s',  del: '2s',   top: '0',   color: 'rgba(188,19,254,0.45)',  sz: 2, left: '45%' },
+                            { cls: 'electron-ttb', dur: '7s',  del: '4s',   top: '0',   color: 'rgba(34,197,94,0.4)',    sz: 3, left: '78%' },
+                            { cls: 'electron-ttb', dur: '11s', del: '1.5s', top: '0',   color: 'rgba(0,243,255,0.35)',   sz: 2, left: '62%' },
+                        ].map((p, i) => (
+                            <div key={i} className={p.cls} style={{
+                                position: 'absolute',
+                                width:  p.sz,
+                                height: p.sz,
+                                borderRadius: '50%',
+                                background: p.color,
+                                boxShadow: `0 0 ${p.sz * 3}px ${p.color}`,
+                                top: p.top,
+                                left: (p as any).left ?? 0,
+                                animationDuration: p.dur,
+                                animationDelay: p.del,
+                            }} />
+                        ))}
+                    </div>
+
+                    {/* Modal panel */}
+                    <div className={`relative w-full max-w-5xl bg-black border border-[#00f3ff]/20 rounded-2xl shadow-[0_0_60px_rgba(0,243,255,0.1),0_0_120px_rgba(188,19,254,0.08)] overflow-hidden ${graphExiting ? 'graph-modal-exit' : 'graph-modal-enter'}`}>
+                        {/* Header bar */}
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/8">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-[#00f3ff] shadow-[0_0_6px_rgba(0,243,255,0.8)] animate-pulse" />
+                                <span className="text-[11px] font-black font-mono uppercase tracking-[0.2em] text-[#00f3ff]/80">
+                                    Grafo de Custódia Digital
+                                </span>
+                                <span className="text-[9px] font-mono text-gray-600">— {files.filter(f => f.filename !== 'vazio.txt').length} ativos mapeados</span>
+                            </div>
+                            <button onClick={closeGraph}
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-all">
+                                <X size={16} />
+                            </button>
+                        </div>
+                        {/* Graph */}
+                        <div className="p-4">
+                            <VaultGraphDiagram files={files} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ─── Header ─── */}
             <div className="text-center space-y-3 px-2">
                 <div className="inline-flex items-center justify-center p-3 bg-red-900/20 border border-red-500/30 rounded-2xl mb-2 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
                     <Activity className="text-red-400 w-6 h-6 animate-pulse" />
                 </div>
                 <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-[#bc13fe] tracking-tighter">
-                    NÚCLEO DE INTELIGÊNCIA
+                    NÚCLEO AVANÇADO DE CUSTÓDIA FORENSE
                 </h2>
                 <p className="text-gray-500 text-xs sm:text-sm uppercase tracking-widest font-mono">Monitoramento Global de Ativos e Diretórios</p>
                 <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
@@ -433,8 +517,7 @@ export default function AdminDashboard() {
                 </button>
             </div>
 
-            {/* ─── GRAFO DE CUSTÓDIA DIGITAL ─── */}
-            <VaultGraphDiagram files={files} />
+            {/* VaultGraphDiagram moved to floating modal — see [Ver Grafo] nav button */}
 
             {/* ─── MÓDULOS DO SISTEMA ─── */}
             <SectionTitle title="Módulos do Sistema" subtitle="Ferramentas operacionais" color="#bc13fe" />

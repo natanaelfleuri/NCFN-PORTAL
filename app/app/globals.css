@@ -298,6 +298,40 @@
   background: #000 !important;
 }
 
+/* ─── Electron particles (graph modal background) ─────────────────────────── */
+@keyframes electron-x {
+  0%   { transform: translateX(0vw) translateY(0); }
+  25%  { transform: translateX(30vw) translateY(-8vh); }
+  50%  { transform: translateX(60vw) translateY(5vh); }
+  75%  { transform: translateX(85vw) translateY(-3vh); }
+  100% { transform: translateX(100vw) translateY(0); }
+}
+@keyframes electron-x-rev {
+  0%   { transform: translateX(100vw) translateY(0); }
+  50%  { transform: translateX(40vw) translateY(6vh); }
+  100% { transform: translateX(0vw) translateY(0); }
+}
+@keyframes electron-y {
+  0%   { transform: translateX(0) translateY(0vh); }
+  50%  { transform: translateX(4vw) translateY(90vh); }
+  100% { transform: translateX(0) translateY(0vh); }
+}
+.electron-ltr  { animation: electron-x     linear infinite; }
+.electron-rtl  { animation: electron-x-rev linear infinite; }
+.electron-ttb  { animation: electron-y     ease-in-out infinite; }
+
+/* ─── Graph modal overlay transition ───────────────────────────────────────── */
+@keyframes graph-modal-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes graph-modal-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.97); }
+}
+.graph-modal-enter { animation: graph-modal-in  0.25s ease forwards; }
+.graph-modal-exit  { animation: graph-modal-out 0.2s  ease forwards; }
+
 .module-cursor::after {
   content: '_';
   display: inline-block;
