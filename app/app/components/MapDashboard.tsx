@@ -172,6 +172,13 @@ export default function MapDashboard() {
         )}
       </div>
 
+      {/* Legal disclaimer */}
+      <div className="glass-panel rounded-2xl border border-gray-800/40 p-5 shadow-inner">
+        <p className="text-[10px] text-gray-600 font-mono leading-relaxed tracking-wide text-justify">
+          O endereço de Protocolo de Internet (IP) consubstancia identificador técnico atribuído a dispositivo conectado a rede de dados, cuja finalidade precípua é viabilizar a comunicação entre terminais, permitindo a indicação da origem lógica de determinada atividade digital, sem, contudo, possuir aptidão para individualizar, de forma direta e inequívoca, a identidade civil do agente. Nessa senda, os registros de IP ostentam natureza eminentemente indiciária e contextual, revelando-se insuficientes, quando considerados de forma isolada, para a comprovação da autoria delitiva. Sua valoração probatória demanda, imprescindivelmente, a conjugação com outros elementos informativos idôneos, regularmente obtidos mediante autorização judicial, quando exigível, e em estrita observância às garantias constitucionais do devido processo legal, da ampla defesa e do contraditório, de modo a viabilizar a segura imputação da conduta ao respectivo responsável.
+        </p>
+      </div>
+
       {/* Interceptions table */}
       <div className="glass-panel rounded-2xl border border-[#bc13fe]/20 overflow-hidden shadow-[0_0_20px_rgba(188,19,254,0.05)]">
         <div className="px-6 py-4 border-b border-[#bc13fe]/20 flex items-center justify-between">

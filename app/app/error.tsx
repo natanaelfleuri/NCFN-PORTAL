@@ -18,8 +18,12 @@ export default function ErrorBoundary({
         <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4">
             <AlertTriangle className="w-20 h-20 text-red-500 mb-6 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
             <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Falha Crítica no Sistema</h2>
-            <p className="text-gray-400 max-w-md mx-auto mb-8 font-mono text-sm leading-relaxed">
+            <p className="text-gray-400 max-w-md mx-auto mb-4 font-mono text-sm leading-relaxed">
                 O módulo responsável por esta área apresentou instabilidade. Tente recarregar ou contate o administrador.
+            </p>
+            <p className="text-red-400/70 max-w-xl mx-auto mb-8 font-mono text-xs leading-relaxed bg-red-950/20 border border-red-900/30 rounded-lg px-4 py-3 text-left break-all">
+                {error?.message || error?.toString() || "Erro desconhecido"}
+                {error?.digest && <span className="block text-gray-600 mt-1">digest: {error.digest}</span>}
             </p>
             <button
                 onClick={() => reset()}

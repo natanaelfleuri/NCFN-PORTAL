@@ -58,17 +58,17 @@ export default function RootLayout({
               ></div>
 
               <header className="w-full max-w-6xl py-3 lg:py-5 px-4 flex justify-between items-center border-b border-white/5 bg-black/60 backdrop-blur-xl sticky top-0 z-50 shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.4)]">
-                <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-                  <div className="w-9 h-9 lg:w-10 lg:h-10 relative shrink-0">
-                    <img
-                      src="/branding/logo.png"
-                      alt="NCFN Logo"
-                      className="w-full h-full object-contain filter drop-shadow-[0_0_10px_rgba(0,243,255,0.5)] group-hover:drop-shadow-[0_0_16px_rgba(0,243,255,0.8)] transition-all"
-                    />
+                <Link href="/" className="shrink-0 group flex items-center gap-2.5">
+                  {/* Logo mark — square shield */}
+                  <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-md flex items-center justify-center border border-[#00f3ff]/40 bg-[#00f3ff]/5 group-hover:border-[#00f3ff]/70 group-hover:bg-[#00f3ff]/10 transition-all shadow-[0_0_10px_rgba(0,243,255,0.15)] group-hover:shadow-[0_0_18px_rgba(0,243,255,0.35)]" style={{fontFamily:'monospace', fontSize:'1.1rem', color:'#00f3ff', fontWeight:900, lineHeight:1, userSelect:'none'}}>
+                    ■
                   </div>
-                  <div className="hidden sm:block">
-                    <h1 className="text-base lg:text-lg font-black text-white tracking-widest uppercase leading-none">NCFN</h1>
-                    <p className="text-[8px] text-[#00f3ff]/50 font-mono uppercase tracking-[0.12em] leading-none mt-0.5 hidden lg:block">Nexus Cyber Forensic Network</p>
+                  {/* Wordmark */}
+                  <div className="flex flex-col leading-none">
+                    <span className="text-white font-black tracking-tighter text-base lg:text-lg" style={{fontFamily:'"Rajdhani","Share Tech Mono",ui-monospace,monospace', letterSpacing:'-0.02em'}}>
+                      NCFN<span className="text-[#00f3ff]">.NET</span>
+                    </span>
+                    <span className="text-[8px] lg:text-[9px] text-gray-600 font-mono uppercase tracking-[0.15em] hidden sm:block" style={{letterSpacing:'0.12em'}}>Nexus Cyber Forensic Network</span>
                   </div>
                 </Link>
                 <Navigation />

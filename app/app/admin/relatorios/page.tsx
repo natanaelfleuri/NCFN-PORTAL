@@ -370,7 +370,6 @@ export default function MapaAlvosPage() {
     const map = new window.google.maps.Map(mapRef.current, {
       center: { lat: -15.793, lng: -47.882 },
       zoom: 5,
-      mapId: "bc7a2bd22c9e684f343256d5",
       mapTypeId: "hybrid",
       disableDefaultUI: true,
       zoomControl: true,
@@ -595,7 +594,7 @@ export default function MapaAlvosPage() {
 
     // Cria/atualiza markers
     alvos.forEach(alvo => {
-      const cfg = PRIORITY_CONFIG[alvo.prioridade];
+      const cfg = PRIORITY_CONFIG[alvo.prioridade] ?? PRIORITY_CONFIG["ALTA"];
       const svgIcon = `
         <svg xmlns="http://www.w3.org/2000/svg" width="26" height="32" viewBox="0 0 26 32">
           <defs>
@@ -918,8 +917,8 @@ export default function MapaAlvosPage() {
               ) : (
                 <div className="space-y-0">
                   {alvosFiltered.map(alvo => {
-                    const cfg = PRIORITY_CONFIG[alvo.prioridade];
-                    const stCfg = STATUS_CONFIG[alvo.status];
+                    const cfg = PRIORITY_CONFIG[alvo.prioridade] ?? PRIORITY_CONFIG["ALTA"];
+                    const stCfg = STATUS_CONFIG[alvo.status] ?? STATUS_CONFIG["ATIVO"];
                     const isSelected = selecionado?.id === alvo.id;
                     return (
                       <div key={alvo.id}

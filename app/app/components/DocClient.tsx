@@ -52,9 +52,9 @@ export default function DocPage() {
                     >
                         {/* NCFN background image — 80% transparent, 50% on hover */}
                         <img
-                            src="/branding/ncfn-bg.png"
+                            src="/branding/ncfn-btn-bg.svg"
                             alt=""
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${activeTab === tab.id ? 'opacity-60' : 'opacity-20 group-hover:opacity-50'}`}
+                            className="absolute inset-0 w-full h-full object-cover opacity-[0.85]"
                         />
                         {/* colour gradient overlay */}
                         <div
