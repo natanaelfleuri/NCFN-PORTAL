@@ -438,7 +438,7 @@ export default function AdminDashboard() {
     const reversalCanSubmit = reversalPassword.length > 0 && reversalJustification.length > 10 && !!reversalPdf;
 
     return (
-        <div className="mt-6 space-y-10 pb-20 max-w-7xl mx-auto">
+        <div className="mt-0 space-y-10 pb-20 max-w-7xl mx-auto" style={{ zoom: 1.2 }}>
 
             {/* ─── GRAFO DE CUSTÓDIA DIGITAL — floating modal ─── */}
             {showGraph && (
@@ -499,7 +499,7 @@ export default function AdminDashboard() {
             )}
 
             {/* ─── Header ─── */}
-            <div className="text-center space-y-1 px-2 pt-2">
+            <div className="text-center space-y-1 px-2 pt-0">
                 <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-[#bc13fe] tracking-tighter">
                     NÚCLEO AVANÇADO DE CUSTÓDIA FORENSE
                 </h2>
