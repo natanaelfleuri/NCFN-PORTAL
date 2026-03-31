@@ -361,6 +361,10 @@ export default function VaultPage() {
   const [encModalShowConfirm, setEncModalShowConfirm] = useState(false);
   const [autoEncrypting, setAutoEncrypting] = useState(false);
 
+  // Pre-encryption loading (geração do Relatório Inicial antes de encriptar)
+  const [preEncryptLoading, setPreEncryptLoading] = useState(false);
+  const [preEncryptProgress, setPreEncryptProgress] = useState(0);
+
   // Visualizar Original modal
   const [visualizarOriginal, setVisualizarOriginal] = useState(false);
   const [visualizarZoom, setVisualizarZoom] = useState(1);
@@ -467,15 +471,7 @@ export default function VaultPage() {
       setSessionEncrypted(prev => new Set([...prev, `${folder}/${filename}`]));
       logAction(`${folder}/${filename}`, 'encrypt');
 
-      // 2 — Create custody state (T0) if not exists
-      const csRes = await fetch('/api/vault/custody-state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', folder, filename }),
-        credentials: 'include',
-      }).then(r => r.json()).catch(() => null);
-
-      // 3 — Mark encrypted
+      // 2 — Marca como encriptado (custody state e relatório já foram criados antes)
       await fetch('/api/vault/custody-state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -483,24 +479,7 @@ export default function VaultPage() {
         credentials: 'include',
       }).catch(() => {});
 
-      // 4 — Generate initial report automatically
-      const rpt = await fetch('/api/vault/custody-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate_inicial', folder, filename }),
-        credentials: 'include',
-      }).then(r => r.json()).catch(() => null);
-
-      if (rpt?.reportId) {
-        await fetch('/api/vault/custody-state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'set_initial_report', folder, filename, reportId: rpt.reportId }),
-          credentials: 'include',
-        }).catch(() => {});
-      }
-
-      notify('success', `"${filename}" encriptado e Relatório Inicial gerado com sucesso!`);
+      notify('success', `"${filename}" encriptado com sucesso!`);
       setEncryptionModal({ open: false, folder: '', filename: '' });
       setEncModalPassword('');
       setEncModalConfirm('');
@@ -1010,7 +989,53 @@ export default function VaultPage() {
       });
     } catch {}
     setColetaModal(m => ({ ...m, open: false, saving: false }));
-    // After closing custody form → open mandatory encryption modal
+
+    // Mostra barra de carregamento e gera Relatório Inicial ANTES de encriptar
+    setPreEncryptProgress(0);
+    setPreEncryptLoading(true);
+
+    // Anima a barra até 85% enquanto as APIs rodam
+    let prog = 0;
+    const ticker = setInterval(() => {
+      prog = Math.min(prog + (prog < 60 ? 4 : prog < 80 ? 1.5 : 0.3), 85);
+      setPreEncryptProgress(prog);
+    }, 120);
+
+    try {
+      // 1 — Cria custody state (T0)
+      await fetch('/api/vault/custody-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', folder, filename }),
+        credentials: 'include',
+      }).catch(() => {});
+
+      // 2 — Gera Relatório Inicial (arquivo ainda original, não encriptado)
+      const rpt = await fetch('/api/vault/custody-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_inicial', folder, filename }),
+        credentials: 'include',
+      }).then(r => r.json()).catch(() => null);
+
+      if (rpt?.reportId) {
+        await fetch('/api/vault/custody-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_initial_report', folder, filename, reportId: rpt.reportId }),
+          credentials: 'include',
+        }).catch(() => {});
+      }
+    } catch {}
+
+    // Barra vai para 100% e fecha
+    clearInterval(ticker);
+    setPreEncryptProgress(100);
+    await new Promise(r => setTimeout(r, 500));
+    setPreEncryptLoading(false);
+    setPreEncryptProgress(0);
+
+    // Abre modal de encriptação
     setEncModalPassword('');
     setEncModalShowPw(false);
     setEncryptionModal({ open: true, folder, filename });
@@ -2322,6 +2347,55 @@ export default function VaultPage() {
         </div>
       )}
 
+      {/* ── Pre-Encrypt Loading Overlay (Geração do Relatório Inicial) ── */}
+      {preEncryptLoading && (
+        <div className="fixed inset-0 z-[195] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-sm flex flex-col items-center gap-6">
+            {/* Ícone */}
+            <div className="w-16 h-16 rounded-2xl bg-emerald-950/50 border border-emerald-500/30 flex items-center justify-center">
+              <FileCheck2 size={28} className="text-emerald-400" />
+            </div>
+            {/* Título */}
+            <div className="text-center">
+              <p className="text-white font-black text-base tracking-wide uppercase">Gerando Relatório Inicial</p>
+              <p className="text-gray-500 text-xs mt-1 font-mono">Analisando e catalogando o arquivo forense...</p>
+            </div>
+            {/* Barra de progresso */}
+            <div className="w-full">
+              <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-600 to-cyan-400 rounded-full transition-all duration-200 ease-out"
+                  style={{ width: `${preEncryptProgress}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5">
+                <span className="text-[10px] text-gray-600 font-mono">Relatório Inicial</span>
+                <span className="text-[10px] text-emerald-500 font-mono">{Math.round(preEncryptProgress)}%</span>
+              </div>
+            </div>
+            {/* Steps */}
+            <div className="w-full space-y-2">
+              {[
+                { label: 'Calculando hashes SHA-256 / SHA-1 / MD5', done: preEncryptProgress > 20 },
+                { label: 'Extraindo metadados e EXIF', done: preEncryptProgress > 45 },
+                { label: 'Gerando documento forense PDF', done: preEncryptProgress > 70 },
+                { label: 'Registrando na cadeia de custódia', done: preEncryptProgress > 90 },
+              ].map((step, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  {step.done
+                    ? <CheckCircle size={12} className="text-emerald-400 flex-shrink-0" />
+                    : <div className="w-3 h-3 rounded-full border border-gray-700 flex-shrink-0" />
+                  }
+                  <span className={`text-xs font-mono transition-colors ${step.done ? 'text-gray-300' : 'text-gray-600'}`}>
+                    {step.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Mandatory Encryption Modal ── */}
       {encryptionModal.open && (
         <div className="fixed inset-0 z-[200] bg-black/92 backdrop-blur-md flex items-center justify-center p-4">
@@ -2448,37 +2522,59 @@ export default function VaultPage() {
                 NCFN · ARQUIVO SOB CUSTÓDIA FORENSE
               </p>
             </div>
-            {selected.type === 'image' && (
-              <img
-                src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
-                alt={selected.name}
-                style={{ transform: `scale(${visualizarZoom})`, transformOrigin: 'center', transition: 'transform 0.15s' }}
-                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
-                onContextMenu={e => e.preventDefault()}
-                draggable={false}
-              />
-            )}
-            {selected.type === 'pdf' && (
-              <iframe src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
-                className="w-full h-full rounded-xl border border-white/10" title={selected.name} />
-            )}
-            {selected.type === 'video' && (
-              <video controls className="max-w-full max-h-full rounded-xl border border-white/10"
-                src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
-                controlsList="nodownload" onContextMenu={e => e.preventDefault()} />
-            )}
-            {selected.type === 'text' && (
-              <div className="w-full max-w-4xl bg-black/50 rounded-xl border border-white/10 p-6 overflow-auto">
-                <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap break-words leading-relaxed select-none">{textContent}</pre>
-              </div>
-            )}
-            {(selected.type === 'encrypted' || selected.type === 'binary') && (
-              <div className="text-center space-y-3">
-                <Lock size={64} className="text-orange-400/40 mx-auto" />
-                <p className="text-orange-400 font-bold">Arquivo encriptado — visualização bloqueada</p>
-                <p className="text-xs text-gray-600 font-mono">Decripte o arquivo primeiro para visualizar</p>
-              </div>
-            )}
+            {(() => {
+              // Constrói caminho para o original preservado em .originals/
+              const parts = selected.path.split('/');
+              const selFolder = parts[0];
+              const selFile = parts.slice(1).join('/');
+              const plainName = selFile.endsWith('.enc') ? selFile.slice(0, -4) : selFile;
+              const origPath = `${selFolder}/.originals/${plainName}`;
+              const origSrc = `/api/vault/file?path=${encodeURIComponent(origPath)}`;
+              const fallbackSrc = `/api/vault/file?path=${encodeURIComponent(selected.path)}`;
+              // Para encrypted: usa origPath. Para outros: usa path normal
+              const isEnc = selected.type === 'encrypted';
+              const src = isEnc ? origSrc : fallbackSrc;
+              // Tipo efetivo para renderizar (usa extensão do arquivo original)
+              const effectiveType = isEnc
+                ? (() => {
+                    const ext = plainName.split('.').pop()?.toLowerCase() || '';
+                    if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) return 'image';
+                    if (ext === 'pdf') return 'pdf';
+                    if (['mp4','mov','avi','webm'].includes(ext)) return 'video';
+                    if (['txt','md','log','json','xml','csv'].includes(ext)) return 'text';
+                    return 'binary';
+                  })()
+                : selected.type;
+              return (
+                <>
+                  {effectiveType === 'image' && (
+                    <img src={src} alt={selected.name}
+                      style={{ transform: `scale(${visualizarZoom})`, transformOrigin: 'center', transition: 'transform 0.15s' }}
+                      className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                      onContextMenu={e => e.preventDefault()} draggable={false} />
+                  )}
+                  {effectiveType === 'pdf' && (
+                    <iframe src={src} className="w-full h-full rounded-xl border border-white/10" title={selected.name} />
+                  )}
+                  {effectiveType === 'video' && (
+                    <video controls className="max-w-full max-h-full rounded-xl border border-white/10"
+                      src={src} controlsList="nodownload" onContextMenu={e => e.preventDefault()} />
+                  )}
+                  {effectiveType === 'text' && (
+                    <div className="w-full max-w-4xl bg-black/50 rounded-xl border border-white/10 p-6 overflow-auto">
+                      <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap break-words leading-relaxed select-none">{textContent}</pre>
+                    </div>
+                  )}
+                  {effectiveType === 'binary' && (
+                    <div className="text-center space-y-3">
+                      <Lock size={64} className="text-orange-400/40 mx-auto" />
+                      <p className="text-orange-400 font-bold">Tipo de arquivo não suportado para visualização</p>
+                      <p className="text-xs text-gray-600 font-mono">{plainName}</p>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

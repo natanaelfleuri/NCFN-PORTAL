@@ -57,20 +57,13 @@ export async function POST(req: Request) {
                 .on('error', reject);
         });
 
-        // ── Salva cópia plaintext em BURN antes de excluir (se não existir ainda) ──
+        // ── Preserva cópia original em .originals/ para geração futura de relatórios ──
         try {
-          const vaultRoot = path.join(process.cwd(), '../COFRE_NCFN');
-          const burnDir = path.join(vaultRoot, '100_BURN_IMMUTABILITY');
-          await fs.ensureDir(burnDir);
-          const manifestPath = path.join(burnDir, '_burn_manifest.json');
-          let manifest: Record<string, string> = {};
-          try { manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch {}
-          const key = `${folder}/${filename}`;
-          if (!manifest[key]) {
-            const burnFilename = `${Date.now()}_${path.basename(filename)}`;
-            await fs.copyFile(filePath, path.join(burnDir, burnFilename));
-            manifest[key] = burnFilename;
-            await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+          const originalsDir = path.join(process.cwd(), '../COFRE_NCFN', folder, '.originals');
+          await fs.ensureDir(originalsDir);
+          const origDest = path.join(originalsDir, path.basename(filename));
+          if (!fs.existsSync(origDest)) {
+            await fs.copyFile(filePath, origDest);
           }
         } catch {}
 

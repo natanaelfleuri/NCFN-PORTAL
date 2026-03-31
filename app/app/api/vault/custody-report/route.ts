@@ -2486,14 +2486,17 @@ async function generatePdf(data: {
 
 async function generateTypedReport(action: string, folder: string, filename: string, operatorEmail: string) {
   const filePath = `${folder}/${filename}`;
-  let absPath = resolveSafe(filePath);
+  // Ordem de prioridade: .originals/ (original preservado) → original → .enc
+  let absPath = resolveSafe(`${folder}/.originals/${filename}`);
   if (!absPath || !fs.existsSync(absPath)) {
-    // Tenta com sufixo .enc (arquivo já encriptado)
-    const encPath = resolveSafe(`${folder}/${filename}.enc`);
-    if (encPath && fs.existsSync(encPath)) {
-      absPath = encPath;
-    } else {
-      throw new Error('Arquivo nao encontrado');
+    absPath = resolveSafe(filePath);
+    if (!absPath || !fs.existsSync(absPath)) {
+      const encPath = resolveSafe(`${folder}/${filename}.enc`);
+      if (encPath && fs.existsSync(encPath)) {
+        absPath = encPath;
+      } else {
+        throw new Error('Arquivo nao encontrado');
+      }
     }
   }
 
@@ -2826,13 +2829,19 @@ export async function POST(req: NextRequest) {
 
     if (!filePath) return new NextResponse('filePath obrigatorio', { status: 400 });
 
-    let absPath = resolveSafe(filePath);
+    // Ordem de prioridade: .originals/ → original → .enc
+    const folderOfPath = filePath.split('/')[0];
+    const fileOfPath = filePath.split('/').slice(1).join('/');
+    let absPath = resolveSafe(`${folderOfPath}/.originals/${fileOfPath}`);
     if (!absPath || !fs.existsSync(absPath)) {
-      const encPath = resolveSafe(filePath + '.enc');
-      if (encPath && fs.existsSync(encPath)) {
-        absPath = encPath;
-      } else {
-        return new NextResponse('Arquivo nao encontrado', { status: 404 });
+      absPath = resolveSafe(filePath);
+      if (!absPath || !fs.existsSync(absPath)) {
+        const encPath = resolveSafe(filePath + '.enc');
+        if (encPath && fs.existsSync(encPath)) {
+          absPath = encPath;
+        } else {
+          return new NextResponse('Arquivo nao encontrado', { status: 404 });
+        }
       }
     }
 
