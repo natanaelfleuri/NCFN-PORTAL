@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { setFileCtx } from "./FileContextNav";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -10,6 +11,7 @@ import {
   FileSearch, Shield, AlertTriangle, Menu, ChevronsDown, ChevronsUp,
   Trash2, Upload, Globe, FileCheck2, CheckCircle, XCircle, CheckCircle2,
   ArrowRight, PackageCheck, Printer, HelpCircle, Share2, RefreshCw,
+  History, BarChart2, ExternalLink, BookOpen, Layers, Loader2,
 } from "lucide-react";
 import ShareModal from "./ShareModal";
 
@@ -179,6 +181,7 @@ interface VaultFile {
   modifiedAt: string;
   type: string;
   hash: string;
+  r2?: boolean; // true = arquivo armazenado no Cloudflare R2
 }
 
 interface VaultFolder {
@@ -213,9 +216,7 @@ const FOLDER_LABELS: Record<string, string> = {
   '8_NCFN-VIDEOS':                             '8 · Vídeos',
   '9_NCFN-PERFIS-CRIMINAIS_SUSPEITOS_CRIMINOSOS': '9 · Perfis Criminais',
   '10_NCFN-ÁUDIO':                             '10 · Áudio',
-  '11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS':   '11 · Compartilhamento c/ Terceiros',
   '12_NCFN-METADADOS-LIMPOS':                  '12 · Metadados Limpos',
-  '100_BURN_IMMUTABILITY':                     '100 · Burn / Imutabilidade',
 };
 
 function formatBytes(bytes: number) {
@@ -280,6 +281,7 @@ export default function VaultPage() {
   const [burnDeleteAck, setBurnDeleteAck] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploadFolder, setUploadFolder] = useState("");
+  const [r2UploadProgress, setR2UploadProgress] = useState<number | null>(null); // 0-100, null = não está fazendo upload R2
   const [operatorEmail, setOperatorEmail] = useState("Operador NCFN");
 
   // Floating modals for folder internal files
@@ -324,6 +326,56 @@ export default function VaultPage() {
     codes: { id: string; recipientName: string; passwordIndex: number; publishedAt: string; active: boolean }[];
   }>({ open: false, loading: false, codes: [] });
 
+  // Custody lifecycle state
+  const [custodyState, setCustodyState] = useState<{
+    id: string;
+    folder: string;
+    filename: string;
+    custodyStartedAt: string;
+    initialReportId: string | null;
+    initialReportAt: string | null;
+    intermediaryReportId: string | null;
+    intermediaryReportAt: string | null;
+    intermediaryReportDone: boolean;
+    encryptedAt: string | null;
+    finalReportId: string | null;
+    finalReportAt: string | null;
+    finalReportExpiresAt: string | null;
+    manualReportId: string | null;
+    manualReportDone: boolean;
+  } | null>(null);
+  const [custodyStateLoading, setCustodyStateLoading] = useState(false);
+  const [generatingIntermediaryReport, setGeneratingIntermediaryReport] = useState(false);
+  const [generatingFinalReport, setGeneratingFinalReport] = useState(false);
+  const [generatingManualReport, setGeneratingManualReport] = useState(false);
+  const autoIntermediaryFired = useRef(false);
+
+  // Suspicious file modal
+  const [suspiciousFile, setSuspiciousFile] = useState<{ open: boolean; name: string }>({ open: false, name: '' });
+
+  // Mandatory encryption modal (after coleta)
+  const [encryptionModal, setEncryptionModal] = useState<{ open: boolean; folder: string; filename: string }>({ open: false, folder: '', filename: '' });
+  const [encModalPassword, setEncModalPassword] = useState('');
+  const [encModalConfirm, setEncModalConfirm] = useState('');
+  const [encModalShowPw, setEncModalShowPw] = useState(false);
+  const [encModalShowConfirm, setEncModalShowConfirm] = useState(false);
+  const [autoEncrypting, setAutoEncrypting] = useState(false);
+
+  // Visualizar Original modal
+  const [visualizarOriginal, setVisualizarOriginal] = useState(false);
+  const [visualizarZoom, setVisualizarZoom] = useState(1);
+
+  // Report PDF viewer modal (for Inicial/Intermediário/Final)
+  const [reportViewModal, setReportViewModal] = useState<{ open: boolean; url: string | null; title: string }>({ open: false, url: null, title: '' });
+  const [loadingViewReport, setLoadingViewReport] = useState<string | null>(null);
+
+  // Live clock for countdown timers (updates every second)
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   const fetchFolders = useCallback(async () => {
     setLoading(true);
     try {
@@ -359,7 +411,7 @@ export default function VaultPage() {
     const fileObj = folderData.files.find(f => f.name === paramFile);
     if (fileObj) {
       setOpenFolders(prev => new Set([...prev, paramFolder]));
-      setSelected(fileObj);
+      selectFile(fileObj);
     }
   }, [folders, searchParams]);
 
@@ -378,6 +430,95 @@ export default function VaultPage() {
     } catch { /* silent */ }
   };
 
+  // ── Malware / executable detection (client-side magic bytes) ────────────
+  const detectSuspiciousFile = (file: File): Promise<boolean> => {
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const buf = new Uint8Array(e.target?.result as ArrayBuffer);
+        // PE header: MZ (Windows executable)
+        if (buf[0] === 0x4D && buf[1] === 0x5A) { resolve(true); return; }
+        // ELF header (Linux executable)
+        if (buf[0] === 0x7F && buf[1] === 0x45 && buf[2] === 0x4C && buf[3] === 0x46) { resolve(true); return; }
+        // Script shebang #!
+        if (buf[0] === 0x23 && buf[1] === 0x21) { resolve(true); return; }
+        // Mach-O (macOS)
+        if ((buf[0] === 0xFE && buf[1] === 0xED && buf[2] === 0xFA) ||
+            (buf[0] === 0xCE && buf[1] === 0xFA && buf[2] === 0xED && buf[3] === 0xFE) ||
+            (buf[0] === 0xCF && buf[1] === 0xFA && buf[2] === 0xED && buf[3] === 0xFE)) { resolve(true); return; }
+        resolve(false);
+      };
+      reader.readAsArrayBuffer(file.slice(0, 16));
+    });
+  };
+
+  // ── Auto-encrypt + generate initial report (called after encryption modal) ──
+  const handleAutoEncryptAndReport = async (folder: string, filename: string, pwd: string) => {
+    setAutoEncrypting(true);
+    try {
+      // 1 — Encrypt
+      const encRes = await fetch('/api/encrypt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder, filename, password: pwd }),
+        credentials: 'include',
+      });
+      if (!encRes.ok) throw new Error('Falha na encriptação');
+      setSessionEncrypted(prev => new Set([...prev, `${folder}/${filename}`]));
+      logAction(`${folder}/${filename}`, 'encrypt');
+
+      // 2 — Create custody state (T0) if not exists
+      const csRes = await fetch('/api/vault/custody-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', folder, filename }),
+        credentials: 'include',
+      }).then(r => r.json()).catch(() => null);
+
+      // 3 — Mark encrypted
+      await fetch('/api/vault/custody-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'mark_encrypted', folder, filename }),
+        credentials: 'include',
+      }).catch(() => {});
+
+      // 4 — Generate initial report automatically
+      const rpt = await fetch('/api/vault/custody-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_inicial', folder, filename }),
+        credentials: 'include',
+      }).then(r => r.json()).catch(() => null);
+
+      if (rpt?.reportId) {
+        await fetch('/api/vault/custody-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'set_initial_report', folder, filename, reportId: rpt.reportId }),
+          credentials: 'include',
+        }).catch(() => {});
+      }
+
+      notify('success', `"${filename}" encriptado e Relatório Inicial gerado com sucesso!`);
+      setEncryptionModal({ open: false, folder: '', filename: '' });
+      setEncModalPassword('');
+      setEncModalConfirm('');
+      await fetchFolders();
+      await fetchCustodyState(folder, filename);
+      // Select the uploaded file
+      const newFolders = await fetch('/api/vault/browse').then(r => r.json()).catch(() => null);
+      if (newFolders && newFolders[folder]) {
+        const fileObj = newFolders[folder].files.find((f: any) => f.name === filename || f.name === filename + '.enc');
+        if (fileObj) selectFile(fileObj);
+      }
+    } catch (e: any) {
+      notify('error', 'Erro ao encriptar: ' + e.message);
+    } finally {
+      setAutoEncrypting(false);
+    }
+  };
+
   const toggleFolder = (name: string) => {
     setOpenFolders(prev => {
       const next = new Set(prev);
@@ -389,10 +530,109 @@ export default function VaultPage() {
   const openAllFolders = () => setOpenFolders(new Set(Object.keys(folders)));
   const closeAllFolders = () => setOpenFolders(new Set());
 
+  const handleViewReport = async (reportId: string, label: string) => {
+    setLoadingViewReport(reportId);
+    try {
+      const res = await fetch('/api/vault/custody-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'view_typed_report', id: reportId }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Erro ao carregar relatório');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setReportViewModal({ open: true, url, title: label });
+    } catch (e: any) {
+      notify('error', e.message || 'Erro ao visualizar relatório');
+    } finally {
+      setLoadingViewReport(null);
+    }
+  };
+
+  const handleViewReportPrint = async (reportId: string, label: string) => {
+    setLoadingViewReport(reportId);
+    try {
+      const res = await fetch('/api/vault/custody-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'view_typed_report', id: reportId, print: true }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Erro ao carregar relatório');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');
+      if (win) { win.onload = () => { win.focus(); win.print(); }; }
+    } catch (e: any) {
+      notify('error', e.message || 'Erro ao abrir relatório para impressão');
+    } finally {
+      setLoadingViewReport(null);
+    }
+  };
+
+  const fetchCustodyState = async (folder: string, filename: string) => {
+    setCustodyStateLoading(true);
+    try {
+      const res = await fetch('/api/vault/custody-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get', folder, filename }),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCustodyState(data.state || null);
+      }
+    } catch {}
+    finally { setCustodyStateLoading(false); }
+  };
+
+  // Auto-generate Relatório Intermediário when 2h timer completes
+  useEffect(() => {
+    if (!custodyState || custodyState.intermediaryReportDone) {
+      autoIntermediaryFired.current = false;
+      return;
+    }
+    if (autoIntermediaryFired.current || !selected) return;
+    const t0 = new Date(custodyState.custodyStartedAt).getTime();
+    if ((nowMs - t0) / 1000 < 7200) return;
+    autoIntermediaryFired.current = true;
+    const [iFolder] = selected.path.split('/');
+    const iFilename = selected.path.split('/').slice(1).join('/');
+    setGeneratingIntermediaryReport(true);
+    fetch('/api/vault/custody-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'generate_intermediario', folder: iFolder, filename: iFilename }),
+      credentials: 'include',
+    }).then(r => r.json()).then(async rpt => {
+      await fetch('/api/vault/custody-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'mark_intermediary_done', folder: iFolder, filename: iFilename, reportId: rpt.reportId }),
+        credentials: 'include',
+      });
+      await fetchCustodyState(iFolder, iFilename);
+      notify('success', 'Relatório Intermediário gerado automaticamente.');
+    }).catch(() => {
+      autoIntermediaryFired.current = false;
+      notify('error', 'Erro ao gerar Relatório Intermediário automaticamente.');
+    }).finally(() => setGeneratingIntermediaryReport(false));
+  }, [nowMs, custodyState, selected]);
+
   const selectFile = async (file: VaultFile) => {
     setSelected(file);
     setBurnLink("");
     setPassword("");
+    setCustodyState(null);
+    const parts = file.path.split('/');
+    const fileFolder = parts[0];
+    const fileFilename = parts.slice(1).join('/');
+    if (parts.length >= 2) {
+      fetchCustodyState(fileFolder, fileFilename);
+      setFileCtx(fileFolder, fileFilename);
+    }
     if (file.type === 'text') {
       setTextLoading(true);
       setTextContent("");
@@ -449,6 +689,15 @@ export default function VaultPage() {
         setSessionEncrypted(prev => new Set([...prev, selected.path]));
         logAction(selected.path, 'encrypt');
         notify('success', `"${selected.name}" encriptado com AES-256. Arquivo .enc gerado na pasta.`);
+        // Mark custody state as encrypted
+        const [encFolder] = selected.path.split('/');
+        const encFilename = selected.path.split('/').slice(1).join('/');
+        fetch('/api/vault/custody-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'mark_encrypted', folder: encFolder, filename: encFilename }),
+          credentials: 'include',
+        }).then(() => fetchCustodyState(encFolder, encFilename)).catch(() => {});
       } else {
         logAction(selected.path, 'decrypt');
         notify('success', `Arquivo decriptado com sucesso.`);
@@ -466,6 +715,30 @@ export default function VaultPage() {
   const handleCustodiaDownload = async () => {
     if (!selected) return;
     const [folder] = selected.path.split('/');
+
+    // Arquivo R2: abre URL assinada diretamente (sem passar pelo Next.js)
+    if (selected.r2) {
+      setActionLoading('custod');
+      try {
+        const res = await fetch(`/api/vault/r2-download?folder=${encodeURIComponent(folder)}&filename=${encodeURIComponent(selected.name)}`, { credentials: 'include' });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        const { url } = await res.json();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = selected.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        notify('success', `Download R2 iniciado: ${selected.name}`);
+        logAction(selected.path, 'download');
+      } catch (e: any) {
+        notify('error', 'Erro ao gerar link R2: ' + e.message);
+      } finally {
+        setActionLoading('');
+      }
+      return;
+    }
+
     // After encryption the original file is deleted; the actual file on disk is filename.enc
     const actualFilename = (sessionEncrypted.has(selected.path) && !selected.name.endsWith('.enc'))
       ? selected.name + '.enc'
@@ -596,9 +869,82 @@ export default function VaultPage() {
     }
   };
 
+  const R2_THRESHOLD = 50 * 1024 * 1024; // 50MB
+
+  const uploadViaR2 = async (file: File): Promise<void> => {
+    // 1. Pede URL assinada ao servidor
+    const presignRes = await fetch(
+      `/api/vault/r2-presign?folder=${encodeURIComponent(uploadFolder)}&filename=${encodeURIComponent(file.name)}&size=${file.size}&contentType=${encodeURIComponent(file.type || 'application/octet-stream')}`
+    );
+    if (!presignRes.ok) {
+      const err = await presignRes.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha ao obter URL de upload R2');
+    }
+    const { presignedUrl, r2Key, filename } = await presignRes.json();
+
+    // 2. Upload direto ao R2 com progresso (XHR para ter progresso real)
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', presignedUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) setR2UploadProgress(Math.round((ev.loaded / ev.total) * 100));
+      };
+      xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`R2 upload retornou ${xhr.status}`)));
+      xhr.onerror = () => reject(new Error('Erro de rede durante upload R2'));
+      xhr.send(file);
+    });
+
+    // 3. Confirma no servidor (registra no banco + hash + timestamp)
+    const confirmRes = await fetch('/api/vault/r2-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ r2Key, folder: uploadFolder, filename, size: file.size }),
+    });
+    if (!confirmRes.ok) {
+      const err = await confirmRes.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha ao confirmar upload R2');
+    }
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!uploadFolder || !e.target.files?.length) return;
     const file = e.target.files[0];
+    e.target.value = '';
+
+    // ── Malware / executable check ─────────────────────────────────────────
+    // Skip malware check for METADADOS LIMPOS (folder 12) — still process it
+    const isMeta = uploadFolder === '12_NCFN-METADADOS-LIMPOS';
+    if (!isMeta) {
+      const suspicious = await detectSuspiciousFile(file);
+      if (suspicious) {
+        setSuspiciousFile({ open: true, name: file.name });
+        return;
+      }
+    }
+
+    // ── Arquivos grandes (>50MB) → upload direto ao Cloudflare R2 ──────────
+    if (file.size > R2_THRESHOLD && !isMeta) {
+      setActionLoading('upload');
+      setR2UploadProgress(0);
+      try {
+        await uploadViaR2(file);
+        notify('success', `"${file.name}" enviado para R2 (${(file.size / 1048576).toFixed(0)}MB).`);
+        logAction(`${uploadFolder}/${file.name}`, 'upload');
+        fetchFolders();
+        setColetaAttest(false);
+        setColetaByUser(false);
+        setColetaDate('');
+        setColetaModal({ open: true, folder: uploadFolder, filename: file.name, saving: false });
+      } catch (e: any) {
+        notify('error', e.message);
+      } finally {
+        setActionLoading('');
+        setR2UploadProgress(null);
+      }
+      return;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', uploadFolder);
@@ -606,34 +952,53 @@ export default function VaultPage() {
     try {
       const res = await fetch('/api/vault/actions', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(await res.text());
+
+      // METADADOS LIMPOS: server returns the cleaned file as a direct download
+      if (isMeta) {
+        const ct = res.headers.get('Content-Type') || '';
+        if (ct.includes('octet-stream') || ct.includes('application/')) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          notify('success', `Metadados removidos! "${file.name}" baixado com limpeza EXIF. Arquivo excluído do servidor.`);
+        } else {
+          notify('success', `"${file.name}" processado — metadados removidos.`);
+        }
+        return;
+      }
+
       notify('success', `"${file.name}" enviado para ${FOLDER_LABELS[uploadFolder] || uploadFolder}.`);
       logAction(`${uploadFolder}/${file.name}`, 'upload');
       fetchFolders();
-      // Show attestation modal for all folders except folder 7
-      if (uploadFolder !== '7_NCFN-CAPTURAS-WEB_OSINT') {
-        setColetaAttest(false);
-        setColetaByUser(false);
-        setColetaDate('');
-        setColetaModal({ open: true, folder: uploadFolder, filename: file.name, saving: false });
-      }
+      // Show attestation modal (custody form)
+      setColetaAttest(false);
+      setColetaByUser(false);
+      setColetaDate('');
+      setColetaModal({ open: true, folder: uploadFolder, filename: file.name, saving: false });
     } catch (e: any) {
       notify('error', e.message);
     } finally {
       setActionLoading('');
-      e.target.value = '';
     }
   };
 
   const saveColetaInfo = async (filled: boolean) => {
     setColetaModal(m => ({ ...m, saving: true }));
+    const { folder, filename } = coletaModal;
     try {
       await fetch('/api/vault/coleta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          folder: coletaModal.folder,
-          filename: coletaModal.filename,
+          folder,
+          filename,
           filled,
           attestsVeracity: filled ? coletaAttest : false,
           collectedByUser: filled ? coletaByUser : false,
@@ -642,6 +1007,10 @@ export default function VaultPage() {
       });
     } catch {}
     setColetaModal(m => ({ ...m, open: false, saving: false }));
+    // After closing custody form → open mandatory encryption modal
+    setEncModalPassword('');
+    setEncModalShowPw(false);
+    setEncryptionModal({ open: true, folder, filename });
   };
 
   const handleGeneratePericia = async () => {
@@ -667,6 +1036,35 @@ export default function VaultPage() {
       // Show confirmation modal instead of auto-downloading
       setPericiaDownloadModal({ open: true, blobUrl, filename: pdfFilename });
       notify('success', 'Pericia gerada. Confirme o download.');
+
+      // Trigger custody lifecycle T0 + Relatório Inicial (fire-and-forget)
+      const [csFolder] = selected.path.split('/');
+      const csFilename = selected.path.split('/').slice(1).join('/');
+      fetch('/api/vault/custody-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', folder: csFolder, filename: csFilename }),
+        credentials: 'include',
+      }).then(r => r.json()).then(async ({ state }) => {
+        if (!state) return;
+        // Generate Relatório Inicial
+        const rpt = await fetch('/api/vault/custody-report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'generate_inicial', folder: csFolder, filename: csFilename }),
+          credentials: 'include',
+        }).then(r => r.json()).catch(() => null);
+        if (rpt?.reportId) {
+          await fetch('/api/vault/custody-state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'set_initial_report', folder: csFolder, filename: csFilename, reportId: rpt.reportId }),
+            credentials: 'include',
+          }).catch(() => {});
+        }
+        fetchCustodyState(csFolder, csFilename);
+      }).catch(() => {});
+
       // Also trigger the JSON pericia for /admin/pericia-arquivo (fire-and-forget)
       fetch('/api/pericia', {
         method: 'POST',
@@ -770,7 +1168,7 @@ export default function VaultPage() {
 
   // Derived states for prerequisites
   const isEncrypted = selected ? (selected.type === 'encrypted' || sessionEncrypted.has(selected.path)) : false;
-  const hasReport = selected ? generatedPericias.has(selected.path) : false;
+  const hasReport = selected ? (generatedPericias.has(selected.path) || !!custodyState?.initialReportId) : false;
   const canDownloadZip = isEncrypted && hasReport;
 
   return (
@@ -1185,6 +1583,32 @@ export default function VaultPage() {
             className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all mt-2 w-full justify-center">
             <HelpCircle size={14} /> Como funciona
           </button>
+          {/* Navigation row 1 */}
+          <div className="flex gap-1 mt-2">
+            <button onClick={() => router.push('/admin/pericia-arquivo')}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-cyan-500 hover:text-cyan-300 bg-cyan-950/20 hover:bg-cyan-950/40 border border-cyan-800/30 transition-all uppercase tracking-wide">
+              <FileSearch size={9} /> Perícia
+            </button>
+            <button onClick={() => router.push('/admin/cofre')}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-purple-500 hover:text-purple-300 bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/30 transition-all uppercase tracking-wide">
+              <Shield size={9} /> Log's
+            </button>
+            <button onClick={() => router.push('/admin/laudo-forense')}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-violet-500 hover:text-violet-300 bg-violet-950/20 hover:bg-violet-950/40 border border-violet-800/30 transition-all uppercase tracking-wide">
+              <BookOpen size={9} /> Relatórios
+            </button>
+          </div>
+          {/* Navigation row 2 */}
+          <div className="flex gap-1 mt-1">
+            <button onClick={() => router.push('/vitrine')}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-green-500 hover:text-green-300 bg-green-950/20 hover:bg-green-950/40 border border-green-800/30 transition-all uppercase tracking-wide">
+              <Globe size={9} /> Vitrine
+            </button>
+            <button onClick={() => router.push('/admin/lixeira')}
+              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-yellow-600 hover:text-yellow-400 bg-yellow-950/20 hover:bg-yellow-950/40 border border-yellow-800/30 transition-all uppercase tracking-wide">
+              <Trash2 size={9} /> Lixeira
+            </button>
+          </div>
         </div>
 
         {/* Open / Close all */}
@@ -1225,13 +1649,30 @@ export default function VaultPage() {
                         }`}>
                         <FileTypeIcon type={file.type} size={12} />
                         <span className="flex-1 truncate font-mono text-[10px]">{file.name}</span>
+                        {file.r2 && <span className="text-[8px] text-sky-400 font-bold bg-sky-900/30 px-1 rounded border border-sky-700/30 flex-shrink-0">☁R2</span>}
                       </button>
                     ))}
-                    {folderName !== '7_NCFN-CAPTURAS-WEB_OSINT' && (
+                    {folderName === '12_NCFN-METADADOS-LIMPOS' ? (
                       <button onClick={() => { setUploadFolder(folderName); uploadRef.current?.click(); }}
                         disabled={actionLoading === 'upload'}
-                        className="w-full flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] text-[#00f3ff]/80 hover:text-[#00f3ff] bg-[#00f3ff]/5 hover:bg-[#00f3ff]/10 transition-all border border-dashed border-[#00f3ff]/25 hover:border-[#00f3ff]/50 font-semibold shadow-[0_0_8px_rgba(0,243,255,0.05)]">
-                        <Upload size={10} /> {actionLoading === 'upload' && uploadFolder === folderName ? 'Enviando...' : 'Enviar arquivo aqui'}
+                        className="w-full flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] text-green-400/80 hover:text-green-300 bg-green-950/20 hover:bg-green-950/40 transition-all border border-dashed border-green-700/40 hover:border-green-500/50 font-semibold">
+                        <Upload size={10} /> {actionLoading === 'upload' && uploadFolder === folderName ? 'Removendo metadados...' : 'Limpar metadados (1-download)'}
+                      </button>
+                    ) : folderName !== '7_NCFN-CAPTURAS-WEB_OSINT' && (
+                      <button onClick={() => { setUploadFolder(folderName); uploadRef.current?.click(); }}
+                        disabled={actionLoading === 'upload'}
+                        className="w-full flex flex-col gap-0.5 px-2 py-1.5 rounded-md text-[10px] text-[#00f3ff]/80 hover:text-[#00f3ff] bg-[#00f3ff]/5 hover:bg-[#00f3ff]/10 transition-all border border-dashed border-[#00f3ff]/25 hover:border-[#00f3ff]/50 font-semibold shadow-[0_0_8px_rgba(0,243,255,0.05)]">
+                        <span className="flex items-center gap-1">
+                          <Upload size={10} />
+                          {actionLoading === 'upload' && uploadFolder === folderName
+                            ? (r2UploadProgress !== null ? `R2 ${r2UploadProgress}%` : 'Enviando...')
+                            : 'Enviar arquivo aqui'}
+                        </span>
+                        {actionLoading === 'upload' && uploadFolder === folderName && r2UploadProgress !== null && (
+                          <div className="w-full bg-[#00f3ff]/10 rounded-full h-1 overflow-hidden">
+                            <div className="bg-[#00f3ff] h-1 rounded-full transition-all duration-300" style={{ width: `${r2UploadProgress}%` }} />
+                          </div>
+                        )}
                       </button>
                     )}
                   </div>
@@ -1254,6 +1695,7 @@ export default function VaultPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <FileTypeIcon type={selected.type} size={20} />
                   <h1 className="text-lg font-bold text-white">{selected.name}</h1>
+                  {selected.r2 && <span className="text-[9px] text-sky-300 font-bold bg-sky-900/40 px-2 py-0.5 rounded-full border border-sky-600/40">☁ Cloudflare R2</span>}
                 </div>
                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[10px] font-mono text-gray-500">
                   <span className="flex items-center gap-1"><Hash size={10} />{selected.hash.slice(0, 32)}...</span>
@@ -1262,279 +1704,415 @@ export default function VaultPage() {
                 </div>
               </div>
 
-              {/* ── Row 1: Primary — centered ── */}
-              <div className="flex justify-center gap-2 flex-wrap mb-2">
-                {selected.type === 'encrypted' || selected.name.endsWith('.enc') ? (
-                  <button onClick={() => setEncDownloadWarning(true)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-xs transition-all border border-white/10">
-                    <Download size={12} /> Baixar Arquivo Individual
-                  </button>
-                ) : (
-                  <a
-                    href={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
-                    download={selected.name}
-                    onClick={() => setBurnDownloaded(prev => new Set([...prev, selected.path]))}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg text-xs transition-all border border-white/10">
-                    <Download size={12} /> Baixar Arquivo Individual
-                  </a>
-                )}
-                <button onClick={() => {
+              {/* ── Action buttons: Visualizar / Histórico / Relatórios / Lixeira ── */}
+              <div className="flex justify-center gap-1.5 flex-wrap mb-3">
+                <button
+                  onClick={() => { setVisualizarOriginal(true); setVisualizarZoom(1); }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/40 text-blue-400 rounded-lg text-xs transition-all border border-blue-700/30">
+                  <Eye size={12} /> Visualizar Original
+                </button>
+                <button
+                  onClick={() => {
                     const parts = selected.path.split('/');
                     const folder = parts[0]; const file = parts.slice(1).join('/');
-                    router.push(`/admin/pericia-arquivo?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(file)}`);
+                    router.push(`/admin/cofre?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(file)}`);
                   }}
-                  disabled={!hasReport}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-cyan-900/30 hover:bg-cyan-800/40 text-cyan-400 rounded-lg text-xs transition-all border border-cyan-700/30 disabled:opacity-30 disabled:cursor-not-allowed"
-                  title={hasReport ? 'Abre análise forense completa deste arquivo' : 'Gere o Relatório / Perícia primeiro'}>
-                  <FileSearch size={12} /> Ver Perícia
+                  className="flex items-center gap-1 px-3 py-1.5 bg-purple-900/30 hover:bg-purple-800/40 text-purple-400 rounded-lg text-xs transition-all border border-purple-700/30">
+                  <History size={12} /> Linha do Tempo
                 </button>
-                <button onClick={() => router.push('/admin/laudo-forense?from=' + encodeURIComponent(selected.path))}
+                <button
+                  onClick={() => router.push('/admin/laudo-forense?from=' + encodeURIComponent(selected.path))}
                   className="flex items-center gap-1 px-3 py-1.5 bg-violet-900/30 hover:bg-violet-800/40 text-violet-400 rounded-lg text-xs transition-all border border-violet-700/30">
-                  <FileText size={12} /> Ver Histórico de Perícias e Relatórios
+                  <BookOpen size={12} /> Central de Relatórios
                 </button>
-                <button onClick={() => { setAmpliar(true); setAmpliarZoom(1); }}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-blue-900/30 hover:bg-blue-800/40 text-blue-400 rounded-lg text-xs transition-all border border-blue-700/30">
-                  <ZoomIn size={12} /> Ampliar
+                <button onClick={handleTrash} disabled={actionLoading === 'trash'}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-yellow-900/30 hover:bg-yellow-800/40 text-yellow-400 rounded-lg text-xs transition-all border border-yellow-700/30 disabled:opacity-50">
+                  <Trash2 size={12} /> {actionLoading === 'trash' ? '...' : 'Lixeira'}
                 </button>
-                {selected.path.startsWith('100_BURN') && (
-                  <button onClick={createBurnToken}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-orange-900/30 hover:bg-orange-800/40 text-orange-400 rounded-lg text-xs transition-all border border-orange-700/30">
-                    <Flame size={12} /> Burn Token
-                  </button>
-                )}
+                <button onClick={handlePermanentDelete} disabled={actionLoading === 'delete'}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 text-red-400 rounded-lg text-xs transition-all border border-red-700/30 disabled:opacity-50">
+                  <X size={12} /> {actionLoading === 'delete' ? '...' : 'Excluir'}
+                </button>
               </div>
 
-              {/* ── Row 2: File ops — centered ── */}
-              {(() => {
-                const isBurn = selected.path.startsWith('100_BURN');
-                if (isBurn) {
-                  // Get all burn files from folder listing to check if all downloaded
-                  const burnFolder = Object.values(folders).find(f => f.name.startsWith('100_BURN'));
-                  const burnFiles = burnFolder?.files || [];
-                  const allBurnDownloaded = burnFiles.length > 0 && burnFiles.every(f => burnDownloaded.has(`100_BURN_IMMUTABILITY/${f.name}`));
-                  return (
-                    <div className="flex flex-col items-center gap-2 mb-3">
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-orange-500/20 bg-orange-500/5 text-xs text-orange-400 max-w-sm text-center">
-                        <Shield size={12} className="flex-shrink-0" />
-                        <span>Pasta BURN — somente leitura. Arquivo imutável de custódia.</span>
-                      </div>
-                      {allBurnDownloaded ? (
-                        <button
-                          onClick={() => { setBurnDeleteAck(false); setBurnDeleteTarget(selected.path); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 text-red-400 rounded-lg text-xs border border-red-700/30 transition-all"
-                        >
-                          <X size={12} /> Excluir Cópia BURN
-                        </button>
-                      ) : (
-                        <p className="text-[10px] text-gray-600 font-mono text-center">
-                          Faça o download de TODOS os arquivos BURN para liberar a exclusão ({burnFiles.filter(f => burnDownloaded.has(`100_BURN_IMMUTABILITY/${f.name}`)).length}/{burnFiles.length} baixados).
-                        </p>
-                      )}
-                    </div>
-                  );
-                }
-                return (
-                  <div className="flex justify-center gap-2 flex-wrap mb-3">
-                    <button onClick={handleTrash} disabled={actionLoading === 'trash'}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-yellow-900/30 hover:bg-yellow-800/40 text-yellow-400 rounded-lg text-xs transition-all border border-yellow-700/30 disabled:opacity-50">
-                      <Trash2 size={12} /> {actionLoading === 'trash' ? '...' : 'Lixeira'}
-                    </button>
-                    <button onClick={handlePermanentDelete} disabled={actionLoading === 'delete'}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-red-900/30 hover:bg-red-800/40 text-red-400 rounded-lg text-xs transition-all border border-red-700/30 disabled:opacity-50">
-                      <X size={12} /> {actionLoading === 'delete' ? '...' : 'Excluir'}
-                    </button>
-                    <button onClick={() => router.push(`/admin/cofre?custody=${encodeURIComponent(selected.path)}&from=${encodeURIComponent(selected.path)}`)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg text-xs transition-all border border-slate-600/30">
-                      <Shield size={12} /> Registro de Custódia
-                    </button>
-                  </div>
-                );
-              })()}
+              {/* ── Relatórios de Custódia (Inicial / Intermediário / Final) ── */}
+              <div className="space-y-1.5 mb-6">
 
-              {/* ── Ações de Custódia ── */}
-              {!selected.path.startsWith('100_BURN') && (
-                <div className="space-y-1.5 mb-3">
-
-                  {/* LINHA 1 — Relatório / Perícia */}
-                  <div className={`flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 transition-all duration-300 ${
-                    hasReport
-                      ? 'border-white/5 border-l-emerald-500/60 bg-black'
-                      : 'border-blue-500/20 border-l-blue-400 bg-[#05101e]'
-                  }`}>
-                    {hasReport
+                {/* RELATÓRIO INICIAL */}
+                <div className={`flex flex-col rounded-lg border border-l-4 transition-all duration-300 ${
+                  custodyState?.initialReportId
+                    ? 'border-white/5 border-l-emerald-500/60 bg-black'
+                    : 'border-[#00f3ff]/15 border-l-[#00f3ff]/40 bg-[#05101e]'
+                }`}>
+                  <div className="flex items-center gap-3 pl-3 pr-2 py-2">
+                    {custodyState?.initialReportId
                       ? <CheckCircle size={13} className="text-emerald-400 flex-shrink-0" />
-                      : <FileCheck2 size={13} className="text-blue-400 flex-shrink-0" />
+                      : <FileCheck2 size={13} className="text-[#00f3ff]/60 flex-shrink-0" />
                     }
-                    <span className={`text-xs font-bold flex-1 ${hasReport ? 'text-gray-600 line-through' : 'text-blue-100'}`}>
-                      1 · Relatório / Perícia
+                    <span className={`text-xs font-bold flex-1 ${custodyState?.initialReportId ? 'text-gray-500' : 'text-[#00f3ff]/70'}`}>
+                      Relatório Inicial
                     </span>
-                    {hasReport && (
-                      <button onClick={handlePrintPericia} disabled={actionLoading === 'print'}
-                        className="flex items-center gap-1 px-2 py-1 text-[10px] border border-white/8 text-gray-500 hover:text-gray-300 hover:border-white/15 rounded-md transition-all disabled:opacity-40">
-                        <Printer size={10} /> {actionLoading === 'print' ? '...' : 'Imprimir'}
-                      </button>
+                    {custodyState?.initialReportId ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-emerald-500 font-mono mr-1">Gerado</span>
+                        <button
+                          onClick={() => handleViewReport(custodyState.initialReportId!, 'Relatório Inicial')}
+                          disabled={loadingViewReport === custodyState.initialReportId}
+                          className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-cyan-900/30 hover:bg-cyan-900/50 text-cyan-400 rounded border border-cyan-700/30 transition-all disabled:opacity-40"
+                        >
+                          <Eye size={8} /> {loadingViewReport === custodyState.initialReportId ? '...' : 'Digital'}
+                        </button>
+                        <button
+                          onClick={() => handleViewReportPrint(custodyState.initialReportId!, 'Relatório Inicial')}
+                          disabled={loadingViewReport === custodyState.initialReportId}
+                          className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 rounded border border-gray-600/30 transition-all disabled:opacity-40"
+                        >
+                          <FileText size={8} /> Impressão
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-gray-600 font-mono">Gerado após encriptação</span>
                     )}
-                    <button
-                      onClick={handleGeneratePericia}
-                      disabled={actionLoading === 'pericia' || hasReport}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                        hasReport
-                          ? 'border-white/8 text-gray-600 bg-black'
-                          : 'border-blue-500/50 text-blue-100 bg-blue-600/20 hover:bg-blue-600/35'
-                      }`}
-                    >
-                      <FileCheck2 size={11} />
-                      {actionLoading === 'pericia' ? 'Gerando...' : hasReport ? 'Relatório gerado' : 'Gerar agora'}
-                    </button>
                   </div>
-
-                  {/* LINHA 2 — Encriptar (ou Decriptar) */}
-                  {selected.name.endsWith('.enc') ? (
-                    <div className="flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 border-emerald-500/30 border-l-emerald-500/60 bg-emerald-950/10 transition-all">
-                      <Unlock size={13} className="text-emerald-400 flex-shrink-0" />
-                      <span className="text-xs font-bold text-emerald-300 flex-1">2 · Decriptar AES-256</span>
-                      <div className="relative flex-shrink-0">
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={e => setPassword(e.target.value)}
-                          placeholder="Chave AES-256..."
-                          className="bg-black border border-emerald-600/40 focus:border-emerald-400 text-white text-xs px-2 py-1.5 pr-7 rounded-lg focus:outline-none w-28 transition-all"
-                        />
-                        <button type="button" onClick={() => setShowPassword(v => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-emerald-400 transition-colors">
-                          {showPassword ? <EyeOff size={10} /> : <Eye size={10} />}
-                        </button>
+                  {/* Ações disponíveis enquanto Intermediário não foi gerado */}
+                  {custodyState?.initialReportId && !custodyState?.intermediaryReportDone && (
+                    <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-1.5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[9px] text-gray-600 font-mono uppercase tracking-widest">Senha ZIP:</span>
+                        <span className="text-[10px] text-[#00f3ff]/60 font-mono font-bold bg-[#00f3ff]/5 px-1.5 py-0.5 rounded border border-[#00f3ff]/15">ncfn</span>
                       </div>
-                      <button disabled={processing || !password} onClick={() => handleEncryption('decrypt')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border bg-emerald-900/20 hover:bg-emerald-800/30 text-emerald-300 border-emerald-600/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                        {processing ? <><span className="animate-spin text-xs">⟳</span> Decriptando...</> : <><Unlock size={11} /> Decriptar</>}
+                      <button onClick={handleCustodiaDownload} disabled={actionLoading === 'custod'}
+                        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-black text-xs transition-all border bg-[#00f3ff]/15 hover:bg-[#00f3ff]/25 border-[#00f3ff]/40 text-[#00f3ff] shadow-[0_0_15px_rgba(0,243,255,0.08)]">
+                        <PackageCheck size={13} />
+                        {actionLoading === 'custod' ? 'Gerando ZIP...' : 'CUSTÓDIA LOCAL · BACKUP'}
                       </button>
-                    </div>
-                  ) : (
-                    <div className={`flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 transition-all duration-300 ${
-                      isEncrypted
-                        ? 'border-white/5 border-l-emerald-500/60 bg-black'
-                        : hasReport
-                        ? 'border-blue-500/20 border-l-blue-400 bg-[#05101e]'
-                        : 'border-white/4 border-l-white/10 bg-black'
-                    }`}>
-                      {isEncrypted
-                        ? <CheckCircle size={13} className="text-emerald-400 flex-shrink-0" />
-                        : <Lock size={13} className={`flex-shrink-0 ${hasReport ? 'text-blue-400' : 'text-gray-700'}`} />
-                      }
-                      <span className={`text-xs font-bold flex-1 ${
-                        isEncrypted ? 'text-gray-600 line-through' : hasReport ? 'text-blue-100' : 'text-gray-700'
-                      }`}>
-                        2 · Encriptar AES-256
-                      </span>
-                      <div className="relative flex-shrink-0">
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={e => setPassword(e.target.value)}
-                          placeholder="Chave AES-256..."
-                          disabled={!hasReport || isEncrypted}
-                          className={`bg-black border text-white text-xs px-2 py-1.5 pr-7 rounded-lg focus:outline-none w-28 transition-all ${
-                            hasReport && !isEncrypted
-                              ? 'border-blue-500/40 focus:border-blue-400'
-                              : 'border-white/8 opacity-30'
-                          }`}
-                        />
-                        <button type="button" onClick={() => setShowPassword(v => !v)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#00f3ff] transition-colors">
-                          {showPassword ? <EyeOff size={10} /> : <Eye size={10} />}
-                        </button>
-                      </div>
-                      <button
-                        disabled={!hasReport || processing || isEncrypted}
-                        onClick={() => handleEncryption('encrypt')}
-                        title={!hasReport ? 'Gere o Relatório / Perícia primeiro' : 'Encriptar com AES-256'}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
-                          isEncrypted
-                            ? 'border-white/8 text-gray-600 bg-black'
-                            : hasReport
-                            ? 'border-blue-500/50 text-blue-100 bg-blue-600/20 hover:bg-blue-600/35'
-                            : 'border-white/5 text-gray-700 bg-black'
-                        }`}
-                      >
-                        <Lock size={11} /> {isEncrypted ? 'Encriptado' : 'Encriptar'}
+                      <button onClick={handleOpenShare}
+                        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-green-900/20 hover:bg-green-800/30 border-green-700/40 text-green-400">
+                        <Globe size={12} />
+                        DISPONIBILIZAR PARA TERCEIROS
+                      </button>
+                      <button onClick={handleOpenVitrine}
+                        className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-violet-900/20 hover:bg-violet-800/30 border-violet-700/40 text-violet-400">
+                        <Share2 size={12} />
+                        PUBLICAR NA VITRINE
                       </button>
                     </div>
                   )}
+                </div>
 
-                  {/* LINHA 3 — ZIP (indicador de prontidão) */}
-                  <div className={`flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 transition-all duration-300 ${
-                    canDownloadZip
-                      ? 'border-blue-500/20 border-l-blue-400 bg-[#05101e]'
-                      : 'border-white/4 border-l-white/10 bg-black'
-                  }`}>
-                    <PackageCheck size={13} className={canDownloadZip ? 'text-blue-400' : 'text-gray-700'} />
-                    <span className={`text-xs font-bold flex-1 ${canDownloadZip ? 'text-blue-100' : 'text-gray-700'}`}>
-                      3 · ZIP Disponível
-                    </span>
-                    {canDownloadZip && (
-                      <span className="text-[10px] text-blue-400/60 font-mono">pronto para download</span>
+                {/* RELATÓRIO INTERMEDIÁRIO (auto-gerado quando timer 2h completa) */}
+                {custodyState && !custodyState.intermediaryReportDone && (() => {
+                  const t0 = new Date(custodyState.custodyStartedAt).getTime();
+                  const secsPassed = (nowMs - t0) / 1000;
+                  const ready = secsPassed >= 7200; // 2h
+                  const progress = Math.min((secsPassed / 7200) * 100, 100);
+                  const remaining = Math.max(0, 7200 - secsPassed);
+                  const remH = Math.floor(remaining / 3600);
+                  const remMin = Math.floor((remaining % 3600) / 60);
+                  const remSec = Math.floor(remaining % 60);
+                  return (
+                    <div className={`flex flex-col gap-2 pl-3 pr-2 py-2 rounded-lg border border-l-4 transition-all duration-300 ${
+                      ready ? 'border-amber-500/30 border-l-amber-400 bg-amber-950/10' : 'border-white/4 border-l-white/10 bg-black'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <Clock size={13} className={ready ? 'text-amber-400 flex-shrink-0' : 'text-gray-700 flex-shrink-0'} />
+                        <span className={`text-xs font-bold flex-1 ${ready ? 'text-amber-200' : 'text-gray-600'}`}>
+                          Relatório Intermediário
+                        </span>
+                        {ready ? (
+                          <span className="flex items-center gap-1.5 text-[10px] text-amber-400 font-mono animate-pulse">
+                            <Loader2 size={10} className="animate-spin" />
+                            {generatingIntermediaryReport ? 'Gerando...' : 'Aguardando...'}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-600 font-mono">
+                            {remH > 0 ? `${remH}h ` : ''}{remMin}min {String(remSec).padStart(2,'0')}s
+                          </span>
+                        )}
+                      </div>
+                      <div className="mx-8 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${ready ? 'bg-amber-400' : 'bg-amber-500/50'}`} style={{ width: `${progress}%` }} />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* RELATÓRIO INTERMEDIÁRIO — já gerado */}
+                {custodyState?.intermediaryReportDone && (
+                  <div className="flex flex-col rounded-lg border border-l-4 border-white/5 border-l-amber-500/60 bg-black">
+                    <div className="flex items-center gap-3 pl-3 pr-2 py-2">
+                      <CheckCircle size={13} className="text-amber-400 flex-shrink-0" />
+                      <span className="text-xs font-bold flex-1 text-gray-500">Relatório Intermediário</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-amber-500/70 font-mono mr-1">Gerado</span>
+                        {custodyState?.intermediaryReportId && (
+                          <>
+                            <button
+                              onClick={() => handleViewReport(custodyState.intermediaryReportId!, 'Relatório Intermediário')}
+                              disabled={loadingViewReport === custodyState.intermediaryReportId}
+                              className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-amber-900/30 hover:bg-amber-900/50 text-amber-400 rounded border border-amber-700/30 transition-all disabled:opacity-40"
+                            >
+                              <Eye size={8} /> {loadingViewReport === custodyState.intermediaryReportId ? '...' : 'Digital'}
+                            </button>
+                            <button
+                              onClick={() => handleViewReportPrint(custodyState.intermediaryReportId!, 'Relatório Intermediário')}
+                              disabled={loadingViewReport === custodyState.intermediaryReportId}
+                              className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 rounded border border-gray-600/30 transition-all disabled:opacity-40"
+                            >
+                              <FileText size={8} /> Impressão
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {/* Ações disponíveis enquanto Relatório Final não foi gerado */}
+                    {!custodyState?.finalReportAt && (
+                      <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-1.5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[9px] text-gray-600 font-mono uppercase tracking-widest">Senha ZIP:</span>
+                          <span className="text-[10px] text-[#00f3ff]/60 font-mono font-bold bg-[#00f3ff]/5 px-1.5 py-0.5 rounded border border-[#00f3ff]/15">ncfn</span>
+                        </div>
+                        <button onClick={handleCustodiaDownload} disabled={actionLoading === 'custod'}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-black text-xs transition-all border bg-[#00f3ff]/15 hover:bg-[#00f3ff]/25 border-[#00f3ff]/40 text-[#00f3ff] shadow-[0_0_15px_rgba(0,243,255,0.08)]">
+                          <PackageCheck size={13} />
+                          {actionLoading === 'custod' ? 'Gerando ZIP...' : 'CUSTÓDIA LOCAL · BACKUP'}
+                        </button>
+                        <button onClick={handleOpenShare}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-green-900/20 hover:bg-green-800/30 border-green-700/40 text-green-400">
+                          <Globe size={12} />
+                          DISPONIBILIZAR PARA TERCEIROS
+                        </button>
+                        <button onClick={handleOpenVitrine}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-violet-900/20 hover:bg-violet-800/30 border-violet-700/40 text-violet-400">
+                          <Share2 size={12} />
+                          PUBLICAR NA VITRINE
+                        </button>
+                      </div>
                     )}
                   </div>
+                )}
 
-                </div>
-              )}
+                {/* RELATÓRIO FINAL (disponível 48h após intermediário) */}
+                {custodyState?.intermediaryReportDone && !custodyState.finalReportAt && (() => {
+                  const intAt = custodyState.intermediaryReportAt
+                    ? new Date(custodyState.intermediaryReportAt).getTime()
+                    : new Date(custodyState.custodyStartedAt).getTime();
+                  const secsPassed = (nowMs - intAt) / 1000;
+                  const ready = secsPassed >= 172800; // 48h
+                  const progress = Math.min((secsPassed / 172800) * 100, 100);
+                  const remaining = Math.max(0, 172800 - secsPassed);
+                  const remH = Math.floor(remaining / 3600);
+                  const remMin = Math.floor((remaining % 3600) / 60);
 
-              {/* ── Custódia Local — Botão ZIP ── */}
-              <div className="rounded-xl border border-[#00f3ff]/15 bg-black/40 px-4 pt-2 pb-4 mb-3">
-                <button onClick={handleCustodiaDownload} disabled={!canDownloadZip || actionLoading === 'custod'}
-                  className={`mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-black text-sm transition-all border ${
-                    canDownloadZip
-                      ? 'bg-[#00f3ff]/15 hover:bg-[#00f3ff]/25 border-[#00f3ff]/40 text-[#00f3ff] shadow-[0_0_20px_rgba(0,243,255,0.1)] hover:shadow-[0_0_30px_rgba(0,243,255,0.2)]'
-                      : 'bg-gray-900/40 border-gray-700/30 text-gray-600 cursor-not-allowed'
-                  }`}>
-                  <PackageCheck size={16} />
-                  {actionLoading === 'custod' ? 'Gerando Bundle ZIP...' : 'CUSTÓDIA LOCAL · BACK UP'}
-                </button>
-                {/* DISPONIBILIZAR / PUBLICAR — only unlocked after CUSTÓDIA LOCAL download */}
-                {selected && !custodiaDownloaded.has(selected.path) && (
-                  <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-700/30 bg-amber-950/20">
-                    <Lock size={11} className="text-amber-600 flex-shrink-0" />
-                    <span className="text-[10px] text-amber-700 font-mono leading-tight">
-                      Faça o <strong className="text-amber-500">CUSTÓDIA LOCAL · BACK UP</strong> antes de compartilhar
-                    </span>
+                  const handleFinalReport = async () => {
+                    if (!selected) return;
+                    setGeneratingFinalReport(true);
+                    try {
+                      const [fFolder] = selected.path.split('/');
+                      const fFilename = selected.path.split('/').slice(1).join('/');
+                      const rpt = await fetch('/api/vault/custody-report', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'generate_final', folder: fFolder, filename: fFilename }),
+                        credentials: 'include',
+                      }).then(r => r.json());
+                      await fetch('/api/vault/custody-state', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'mark_final_done', folder: fFolder, filename: fFilename, reportId: rpt.reportId }),
+                        credentials: 'include',
+                      });
+                      await fetchCustodyState(fFolder, fFilename);
+                      notify('success', 'Relatório Final gerado. Disponível em /admin/laudo-forense por 5 horas.');
+                    } catch { notify('error', 'Erro ao gerar Relatório Final.'); }
+                    finally { setGeneratingFinalReport(false); }
+                  };
+
+                  return (
+                    <div className={`flex flex-col gap-2 pl-3 pr-2 py-2 rounded-lg border border-l-4 transition-all duration-300 ${
+                      ready ? 'border-red-500/20 border-l-red-400 bg-red-950/10' : 'border-white/4 border-l-white/10 bg-black'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <Shield size={13} className={ready ? 'text-red-400 flex-shrink-0' : 'text-gray-700 flex-shrink-0'} />
+                        <span className={`text-xs font-bold flex-1 ${ready ? 'text-red-200' : 'text-gray-600'}`}>
+                          Relatório Final
+                        </span>
+                        {ready ? (
+                          <button
+                            onClick={handleFinalReport}
+                            disabled={generatingFinalReport}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border border-red-500/50 text-red-100 bg-red-900/20 hover:bg-red-900/35 transition-all disabled:opacity-40"
+                          >
+                            <Shield size={11} />
+                            {generatingFinalReport ? 'Gerando...' : 'Gerar agora'}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-gray-600 font-mono">
+                            {remH}h {remMin}min
+                          </span>
+                        )}
+                      </div>
+                      {!ready && (
+                        <div className="mx-8 h-1 bg-gray-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-red-500/40 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* RELATÓRIO FINAL — já gerado */}
+                {custodyState?.finalReportAt && (() => {
+                  const expiresAt = custodyState.finalReportExpiresAt ? new Date(custodyState.finalReportExpiresAt).getTime() : null;
+                  const remaining = expiresAt ? Math.max(0, (expiresAt - nowMs) / 1000) : null;
+                  const remH = remaining !== null ? Math.floor(remaining / 3600) : null;
+                  const remMin = remaining !== null ? Math.floor((remaining % 3600) / 60) : null;
+                  const expired = remaining !== null && remaining <= 0;
+                  return (
+                    <div className="flex flex-col rounded-lg border border-l-4 border-white/5 border-l-red-500/60 bg-black">
+                      <div className="flex items-center gap-3 pl-3 pr-2 py-2">
+                        <CheckCircle size={13} className="text-red-400 flex-shrink-0" />
+                        <span className="text-xs font-bold flex-1 text-gray-500">Relatório Final</span>
+                        <div className="flex items-center gap-1.5">
+                          {remaining !== null && !expired && (
+                            <span className="text-[10px] text-amber-600 font-mono">expira {remH}h {remMin}min</span>
+                          )}
+                          {expired && (
+                            <span className="text-[10px] text-red-500 font-mono">Expirado</span>
+                          )}
+                          {!expired && custodyState?.finalReportId && (
+                            <>
+                              <button
+                                onClick={() => handleViewReport(custodyState.finalReportId!, 'Relatório Final')}
+                                disabled={loadingViewReport === custodyState.finalReportId}
+                                className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded border border-red-700/30 transition-all disabled:opacity-40"
+                              >
+                                <Eye size={8} /> {loadingViewReport === custodyState.finalReportId ? '...' : 'Digital'}
+                              </button>
+                              <button
+                                onClick={() => handleViewReportPrint(custodyState.finalReportId!, 'Relatório Final')}
+                                disabled={loadingViewReport === custodyState.finalReportId}
+                                className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 rounded border border-gray-600/30 transition-all disabled:opacity-40"
+                              >
+                                <FileText size={8} /> Impressão
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {/* Ações disponíveis no Relatório Final */}
+                      {!expired && (
+                        <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-1.5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[9px] text-gray-600 font-mono uppercase tracking-widest">Senha ZIP:</span>
+                            <span className="text-[10px] text-[#00f3ff]/60 font-mono font-bold bg-[#00f3ff]/5 px-1.5 py-0.5 rounded border border-[#00f3ff]/15">ncfn</span>
+                          </div>
+                          <button onClick={handleCustodiaDownload} disabled={actionLoading === 'custod'}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-black text-xs transition-all border bg-[#00f3ff]/15 hover:bg-[#00f3ff]/25 border-[#00f3ff]/40 text-[#00f3ff] shadow-[0_0_15px_rgba(0,243,255,0.08)]">
+                            <PackageCheck size={13} />
+                            {actionLoading === 'custod' ? 'Gerando ZIP...' : 'CUSTÓDIA LOCAL · BACKUP'}
+                          </button>
+                          <button onClick={handleOpenShare}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-green-900/20 hover:bg-green-800/30 border-green-700/40 text-green-400">
+                            <Globe size={12} />
+                            DISPONIBILIZAR PARA TERCEIROS
+                          </button>
+                          <button onClick={handleOpenVitrine}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-violet-900/20 hover:bg-violet-800/30 border-violet-700/40 text-violet-400">
+                            <Share2 size={12} />
+                            PUBLICAR NA VITRINE
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* LAUDO MANUAL — disponível após FINAL concluído, apenas 1 */}
+                {custodyState?.finalReportAt && !custodyState.manualReportDone && (() => {
+                  const handleManualReport = async () => {
+                    if (!selected) return;
+                    setGeneratingManualReport(true);
+                    try {
+                      const [mFolder] = selected.path.split('/');
+                      const mFilename = selected.path.split('/').slice(1).join('/');
+                      const rpt = await fetch('/api/vault/custody-report', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'generate_manual', folder: mFolder, filename: mFilename }),
+                        credentials: 'include',
+                      }).then(r => r.json());
+                      if (rpt.error) throw new Error(rpt.error);
+                      await fetch('/api/vault/custody-state', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'mark_manual_done', folder: mFolder, filename: mFilename, reportId: rpt.reportId }),
+                        credentials: 'include',
+                      });
+                      await fetchCustodyState(mFolder, mFilename);
+                      notify('success', 'Nova Leitura Manual gerada com sucesso.');
+                    } catch (e: any) { notify('error', e.message || 'Erro ao gerar laudo manual.'); }
+                    finally { setGeneratingManualReport(false); }
+                  };
+                  return (
+                    <div className="flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 border-emerald-500/20 border-l-emerald-400 bg-emerald-950/10 mt-1">
+                      <RefreshCw size={13} className="text-emerald-400 flex-shrink-0" />
+                      <span className="text-xs font-bold flex-1 text-emerald-200">Nova Leitura Manual</span>
+                      <button
+                        onClick={handleManualReport}
+                        disabled={generatingManualReport}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black border border-emerald-500/50 text-emerald-100 bg-emerald-600/20 hover:bg-emerald-600/35 transition-all disabled:opacity-40"
+                      >
+                        <FileSearch size={11} />
+                        {generatingManualReport ? 'Gerando...' : 'Gerar Nova Leitura'}
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* LAUDO MANUAL — já gerado */}
+                {custodyState?.manualReportDone && (
+                  <div className="flex items-center gap-3 pl-3 pr-2 py-2 rounded-lg border border-l-4 border-white/5 border-l-emerald-500/60 bg-black mt-1">
+                    <CheckCircle size={13} className="text-emerald-400 flex-shrink-0" />
+                    <span className="text-xs font-bold flex-1 text-gray-500">Laudo Manual (Nova Leitura)</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-emerald-500/70 font-mono mr-1">Gerado</span>
+                      {custodyState?.manualReportId && (
+                        <>
+                          <button
+                            onClick={() => handleViewReport(custodyState.manualReportId!, 'Laudo Manual')}
+                            disabled={loadingViewReport === custodyState.manualReportId}
+                            className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 rounded border border-emerald-700/30 transition-all disabled:opacity-40"
+                          >
+                            <Eye size={8} /> {loadingViewReport === custodyState.manualReportId ? '...' : 'Digital'}
+                          </button>
+                          <button
+                            onClick={() => handleViewReportPrint(custodyState.manualReportId!, 'Laudo Manual')}
+                            disabled={loadingViewReport === custodyState.manualReportId}
+                            className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 rounded border border-gray-600/30 transition-all disabled:opacity-40"
+                          >
+                            <FileText size={8} /> Impressão
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
-                <button
-                  onClick={handleOpenShare}
-                  disabled={!selected || !custodiaDownloaded.has(selected?.path ?? '')}
-                  title={!selected || !custodiaDownloaded.has(selected?.path ?? '') ? 'Faça o CUSTÓDIA LOCAL primeiro' : 'Gerar link seguro com expiração e limite de acessos'}
-                  className={`mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all border ${
-                    selected && custodiaDownloaded.has(selected.path)
-                      ? 'bg-green-900/20 hover:bg-green-800/30 border-green-700/40 text-green-400 hover:shadow-[0_0_15px_rgba(34,197,94,0.15)]'
-                      : 'bg-gray-900/30 border-gray-700/20 text-gray-600 cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  <Globe size={13} />
-                  DISPONIBILIZAR ATIVO PARA TERCEIROS
-                </button>
-                <button
-                  onClick={handleOpenVitrine}
-                  disabled={!selected || !custodiaDownloaded.has(selected?.path ?? '')}
-                  title={!selected || !custodiaDownloaded.has(selected?.path ?? '') ? 'Faça o CUSTÓDIA LOCAL primeiro' : 'Publicar na Vitrine com código de acesso numérico'}
-                  className={`mt-2 w-full flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all border ${
-                    selected && custodiaDownloaded.has(selected.path)
-                      ? 'bg-violet-900/20 hover:bg-violet-800/30 border-violet-700/40 text-violet-400 hover:shadow-[0_0_15px_rgba(139,92,246,0.15)]'
-                      : 'bg-gray-900/30 border-gray-700/20 text-gray-600 cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  <Share2 size={13} />
-                  PUBLICAR NA VITRINE
-                </button>
-                <button
-                  onClick={openVitrineCodesModal}
-                  className="mt-1 w-full flex items-center justify-center gap-2 py-1.5 rounded-xl font-bold text-xs transition-all border border-violet-700/20 bg-violet-950/10 hover:bg-violet-950/25 text-violet-500 hover:text-violet-300"
-                >
-                  <Key size={11} />
-                  Ver Códigos de Compartilhamento na Vitrine
-                </button>
+
               </div>
+
+              {/* Ver Códigos de Compartilhamento */}
+              {canDownloadZip && (
+                <div className="mb-3">
+                  <button
+                    onClick={openVitrineCodesModal}
+                    className="w-full flex items-center justify-center gap-2 py-1.5 rounded-xl font-bold text-xs transition-all border border-violet-700/20 bg-violet-950/10 hover:bg-violet-950/25 text-violet-500 hover:text-violet-300"
+                  >
+                    <Key size={11} />
+                    Ver Códigos de Compartilhamento na Vitrine
+                  </button>
+                </div>
+              )}
 
               {/* Burn link */}
               {burnLink && (
@@ -1545,22 +2123,6 @@ export default function VaultPage() {
                 </div>
               )}
 
-              {/* ── Custódia info — updated text ── */}
-              <div className="p-4 bg-black/30 border border-amber-500/20 rounded-xl text-[10px] font-mono text-amber-700 leading-relaxed space-y-2">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle size={11} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                  <span>
-                    Todos os arquivos custodiados neste cofre (vault) recebem tratamento forense.
-                    E necessario <strong className="text-amber-500">GERAR O RELATORIO</strong> primeiro para extrair o maximo de informacoes do arquivo original, DEPOIS encriptar.
-                  </span>
-                </div>
-                <div className="border-t border-amber-500/20 pt-2 space-y-1">
-                  <p><strong className="text-red-400">⚠ IMPORTANTE:</strong> CRIE UMA SENHA EM <strong className="text-amber-400">(Chave AES-256)</strong> e JAMAIS ESQUEÇA ESSA SENHA. SOMENTE COM ELA VOCÊ PODERÁ REVERTER O ARQUIVO COM CRIPTOGRAFIA MILITAR.</p>
-                  <p><strong className="text-red-400">⚠ IMPORTANTE:</strong> SEMPRE MANTENHA UMA CÓPIA DE SEGURANÇA EM SEU DISPOSITIVO PESSOAL EM LUGAR PROTEGIDO DE ALTERAÇÕES.</p>
-                  <p>AO FAZER O DOWNLOAD É GERADO UM ARQUIVO .ZIP QUE CONTÉM: O <strong className="text-amber-400">ARQUIVO ORIGINAL</strong>, UMA <strong className="text-amber-400">CÓPIA ENCRIPTADA</strong> E O <strong className="text-amber-400">RELATÓRIO PERICIAL</strong>.</p>
-                  <p className="text-red-500/80">NUNCA ALTERE NENHUM ELEMENTO DESTES ARQUIVOS. APENAS VISUALIZE. CÓPIAS DESTES ARQUIVOS, MESMO QUE IDÊNTICAS, PODEM GERAR INCONFORMIDADES NO SISTEMA DE AUDITORIA.</p>
-                </div>
-              </div>
             </div>
 
             {/* Preview area */}
@@ -1714,6 +2276,268 @@ export default function VaultPage() {
                 {actionLoading === 'burn-delete' ? 'Excluindo...' : 'Confirmar Exclusão'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Suspicious File Modal ── */}
+      {suspiciousFile.open && (
+        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-red-500/50 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div className="bg-red-950/60 border-b border-red-500/30 px-5 py-4 flex items-center gap-3">
+              <AlertTriangle size={20} className="text-red-400 animate-pulse flex-shrink-0" />
+              <div>
+                <h3 className="text-red-200 font-black text-sm uppercase tracking-widest">Arquivo Suspeito Detectado</h3>
+                <p className="text-[10px] text-red-700 font-mono mt-0.5">Protocolo de Segurança NCFN — Bloqueio Automático</p>
+              </div>
+            </div>
+            <div className="px-6 py-6 text-center space-y-4">
+              <AlertTriangle size={48} className="text-red-500 mx-auto" />
+              <div>
+                <p className="text-white font-black text-base mb-1">Upload Rejeitado</p>
+                <p className="text-red-400 text-xs font-mono break-all">"{suspiciousFile.name}"</p>
+              </div>
+              <div className="bg-red-950/30 border border-red-700/30 rounded-xl p-4 text-xs text-red-300 text-left space-y-2">
+                <p className="font-bold text-red-200">O arquivo foi identificado como suspeito:</p>
+                <p>• Assinatura de executável detectada (PE/ELF/Mach-O/Script)</p>
+                <p>• Arquivos executáveis e scripts não são permitidos no Cofre Forense</p>
+                <p className="text-red-500 font-bold mt-2">O arquivo NÃO foi carregado no sistema.</p>
+              </div>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setSuspiciousFile({ open: false, name: '' })}
+                className="w-full py-2.5 rounded-xl bg-red-900/30 border border-red-600/40 text-red-300 hover:bg-red-900/50 text-sm font-black transition-all"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mandatory Encryption Modal ── */}
+      {encryptionModal.open && (
+        <div className="fixed inset-0 z-[200] bg-black/92 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-gray-950 border border-orange-500/40 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div className="bg-orange-950/50 border-b border-orange-500/30 px-5 py-4 flex items-center gap-3">
+              <Lock size={18} className="text-orange-400 flex-shrink-0" />
+              <div>
+                <h3 className="text-orange-200 font-black text-sm uppercase tracking-widest">Encriptação Obrigatória</h3>
+                <p className="text-[10px] text-orange-800 font-mono mt-0.5 truncate max-w-xs">{encryptionModal.filename}</p>
+              </div>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-amber-950/30 border border-amber-700/30 rounded-xl p-3 text-xs text-amber-300 leading-relaxed">
+                <p className="font-black text-amber-200 mb-1">Senha obrigatória!</p>
+                <p>Não esqueça essa senha, pois <strong className="text-white">sem ela não será possível reverter a encriptação futuramente</strong>.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">Senha de Encriptação AES-256</label>
+                <div className="relative">
+                  <input
+                    type={encModalShowPw ? 'text' : 'password'}
+                    value={encModalPassword}
+                    onChange={e => setEncModalPassword(e.target.value)}
+                    placeholder="Crie uma senha segura..."
+                    className="w-full bg-black border border-orange-600/40 focus:border-orange-400 text-white text-sm px-4 py-3 pr-10 rounded-xl focus:outline-none transition-all"
+                  />
+                  <button type="button" onClick={() => setEncModalShowPw(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-orange-400 transition-colors">
+                    {encModalShowPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {encModalPassword.length > 0 && encModalPassword.length < 4 && (
+                  <p className="text-red-500 text-[10px] mt-1 font-mono">Mínimo 4 caracteres</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">Confirmar Senha</label>
+                <div className="relative">
+                  <input
+                    type={encModalShowConfirm ? 'text' : 'password'}
+                    value={encModalConfirm}
+                    onChange={e => setEncModalConfirm(e.target.value)}
+                    placeholder="Repita a senha..."
+                    className={`w-full bg-black border text-white text-sm px-4 py-3 pr-10 rounded-xl focus:outline-none transition-all ${
+                      encModalConfirm.length > 0 && encModalConfirm !== encModalPassword
+                        ? 'border-red-600/60 focus:border-red-400'
+                        : encModalConfirm.length >= 4 && encModalConfirm === encModalPassword
+                        ? 'border-emerald-600/60 focus:border-emerald-400'
+                        : 'border-orange-600/40 focus:border-orange-400'
+                    }`}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && encModalPassword.length >= 4 && encModalPassword === encModalConfirm)
+                        handleAutoEncryptAndReport(encryptionModal.folder, encryptionModal.filename, encModalPassword);
+                    }}
+                  />
+                  <button type="button" onClick={() => setEncModalShowConfirm(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-orange-400 transition-colors">
+                    {encModalShowConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {encModalConfirm.length > 0 && encModalConfirm !== encModalPassword && (
+                  <p className="text-red-500 text-[10px] mt-1 font-mono">As senhas não coincidem</p>
+                )}
+                {encModalConfirm.length >= 4 && encModalConfirm === encModalPassword && (
+                  <p className="text-emerald-500 text-[10px] mt-1 font-mono">✓ Senhas conferem</p>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-600 font-mono text-center">
+                Após confirmar: o arquivo será encriptado e o Relatório Inicial gerado automaticamente.
+              </p>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => handleAutoEncryptAndReport(encryptionModal.folder, encryptionModal.filename, encModalPassword)}
+                disabled={encModalPassword.length < 4 || encModalPassword !== encModalConfirm || autoEncrypting}
+                className="w-full py-3 rounded-xl bg-orange-900/30 border border-orange-500/40 text-orange-200 hover:bg-orange-900/50 font-black text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {autoEncrypting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-orange-400/30 border-t-orange-400 rounded-full animate-spin" />
+                    Encriptando e gerando relatório inicial...
+                  </>
+                ) : (
+                  <><Lock size={16} /> Confirmar Encriptação</>
+                )}
+              </button>
+              <p className="text-[10px] text-gray-700 text-center mt-2 font-mono">Esta janela não pode ser fechada sem inserir a senha</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Visualizar Original Modal ── */}
+      {visualizarOriginal && selected && (
+        <div className="fixed inset-0 z-[200] bg-black/97 flex flex-col">
+          {/* Header */}
+          <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-white/10 bg-black/80">
+            <div className="flex items-center gap-3">
+              <Eye size={16} className="text-[#00f3ff]" />
+              <span className="text-[#00f3ff] font-bold text-sm truncate max-w-sm">{selected.name}</span>
+              <span className="text-[9px] text-red-400/80 font-mono bg-red-950/30 border border-red-800/30 px-2 py-0.5 rounded uppercase tracking-widest">NCFN · ARQUIVO SOB CUSTÓDIA FORENSE</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {selected.type === 'image' && (
+                <>
+                  <button onClick={() => setVisualizarZoom(v => Math.max(v - 0.25, 0.25))}
+                    className="px-2 py-1 rounded bg-white/5 text-gray-400 hover:text-white text-xs border border-white/10 transition-all">−</button>
+                  <span className="text-xs text-gray-500 font-mono w-10 text-center">{Math.round(visualizarZoom * 100)}%</span>
+                  <button onClick={() => setVisualizarZoom(v => Math.min(v + 0.25, 8))}
+                    className="px-2 py-1 rounded bg-white/5 text-gray-400 hover:text-white text-xs border border-white/10 transition-all">+</button>
+                </>
+              )}
+              <button onClick={() => { setVisualizarOriginal(false); setVisualizarZoom(1); }}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-gray-400 hover:text-white border border-white/10 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+          {/* Content — no download, watermark overlay */}
+          <div className="flex-1 overflow-auto flex items-center justify-center p-6 relative">
+            {/* Watermark diagonal */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden">
+              <p className="text-red-500/8 font-black text-6xl tracking-widest rotate-[-35deg] select-none whitespace-nowrap">
+                NCFN · ARQUIVO SOB CUSTÓDIA FORENSE
+              </p>
+            </div>
+            {selected.type === 'image' && (
+              <img
+                src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
+                alt={selected.name}
+                style={{ transform: `scale(${visualizarZoom})`, transformOrigin: 'center', transition: 'transform 0.15s' }}
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                onContextMenu={e => e.preventDefault()}
+                draggable={false}
+              />
+            )}
+            {selected.type === 'pdf' && (
+              <iframe src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
+                className="w-full h-full rounded-xl border border-white/10" title={selected.name} />
+            )}
+            {selected.type === 'video' && (
+              <video controls className="max-w-full max-h-full rounded-xl border border-white/10"
+                src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
+                controlsList="nodownload" onContextMenu={e => e.preventDefault()} />
+            )}
+            {selected.type === 'text' && (
+              <div className="w-full max-w-4xl bg-black/50 rounded-xl border border-white/10 p-6 overflow-auto">
+                <pre className="text-sm text-gray-300 font-mono whitespace-pre-wrap break-words leading-relaxed select-none">{textContent}</pre>
+              </div>
+            )}
+            {(selected.type === 'encrypted' || selected.type === 'binary') && (
+              <div className="text-center space-y-3">
+                <Lock size={64} className="text-orange-400/40 mx-auto" />
+                <p className="text-orange-400 font-bold">Arquivo encriptado — visualização bloqueada</p>
+                <p className="text-xs text-gray-600 font-mono">Decripte o arquivo primeiro para visualizar</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Report PDF Viewer Modal (Inicial / Intermediário / Final) ── */}
+      {reportViewModal.open && reportViewModal.url && (
+        <div className="fixed inset-0 z-[210] bg-black/95 backdrop-blur-sm flex flex-col p-4">
+          <div className="flex items-center justify-between mb-3 flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 bg-[#bc13fe]/15 rounded-lg border border-[#bc13fe]/30">
+                <FileText className="w-4 h-4 text-[#bc13fe]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-white uppercase tracking-wide">{reportViewModal.title}</h3>
+                <p className="text-[10px] text-gray-500 font-mono">NCFN · Relatório de Custódia Forense</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={reportViewModal.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/8 hover:bg-white/15 border border-white/15 text-gray-300 hover:text-white rounded-lg text-xs font-bold transition-all"
+              >
+                <ExternalLink size={11} /> Nova aba
+              </a>
+              <a
+                href={reportViewModal.url}
+                download={`NCFN_${reportViewModal.title.replace(/\s+/g,'_')}_${Date.now()}.pdf`}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#bc13fe]/20 hover:bg-[#bc13fe]/35 border border-[#bc13fe]/40 text-[#bc13fe] rounded-lg text-xs font-bold transition-all"
+              >
+                <Download size={11} /> Baixar PDF
+              </a>
+              <button
+                onClick={() => { URL.revokeObjectURL(reportViewModal.url!); setReportViewModal({ open: false, url: null, title: '' }); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white rounded-lg text-xs transition-all"
+              >
+                <X size={13} /> Fechar
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 rounded-xl overflow-hidden border border-white/10 relative">
+            <object
+              data={reportViewModal.url}
+              type="application/pdf"
+              className="w-full h-full"
+            >
+              {/* Fallback para navegadores que bloqueiam PDF inline */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gray-950">
+                <FileText className="w-12 h-12 text-[#bc13fe]/40" />
+                <p className="text-gray-400 text-sm text-center max-w-xs">
+                  Seu navegador não suporta visualização inline de PDF.
+                </p>
+                <div className="flex gap-3">
+                  <a href={reportViewModal.url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#bc13fe]/20 border border-[#bc13fe]/40 text-[#bc13fe] rounded-xl text-sm font-bold hover:bg-[#bc13fe]/35 transition-all">
+                    <ExternalLink size={14} /> Abrir em nova aba
+                  </a>
+                  <a href={reportViewModal.url} download={`NCFN_${reportViewModal.title.replace(/\s+/g,'_')}.pdf`}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/8 border border-white/15 text-gray-300 rounded-xl text-sm font-bold hover:bg-white/15 transition-all">
+                    <Download size={14} /> Baixar PDF
+                  </a>
+                </div>
+              </div>
+            </object>
           </div>
         </div>
       )}
