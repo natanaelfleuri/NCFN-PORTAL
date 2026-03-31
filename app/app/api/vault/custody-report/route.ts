@@ -532,24 +532,38 @@ async function generatePdf(data: {
   }
 
   function field(label: string, value: any, mono = false, valueColor = C.WHITE) {
-    checkY(16);
-    ctx.page.drawText(safeText(label, 30), {
-      x: LX, y: ctx.y, size: 8, font: fontBold, color: C.GRAY,
-    });
-    const val = safeText(value, 400);
-    const chunks: string[] = [];
-    for (let i = 0; i < val.length; i += 80) chunks.push(val.slice(i, i + 80));
-    if (chunks.length === 0) chunks.push('N/A');
-    ctx.page.drawText(chunks[0], {
-      x: VX, y: ctx.y, size: 8, font: mono ? fontMono : fontReg, color: valueColor,
-    });
-    ctx.y -= 13;
-    for (let i = 1; i < chunks.length; i++) {
-      checkY(12);
-      ctx.page.drawText(chunks[i], {
-        x: VX, y: ctx.y, size: 8, font: mono ? fontMono : fontReg, color: valueColor,
-      });
-      ctx.y -= 12;
+    const fnt = mono ? fontMono : fontReg;
+    const maxLW = VX - LX - 6;           // label column width ≈ 124px
+    const maxVW = RX - VX - 4;           // value column width ≈ 390px
+    const maxFW = RX - LX - 4;           // full width for long labels ≈ 520px
+    const labelChunks = wrapTextPx(safeText(label, 200), fontBold, 8, maxLW);
+    const val = safeText(String(value ?? 'N/A'), 2000);
+
+    if (labelChunks.length === 1) {
+      // Short label: classic two-column layout
+      const valChunks = wrapTextPx(val || 'N/A', fnt, 8, maxVW);
+      checkY(16);
+      ctx.page.drawText(labelChunks[0], { x: LX, y: ctx.y, size: 8, font: fontBold, color: C.GRAY });
+      ctx.page.drawText(valChunks[0], { x: VX, y: ctx.y, size: 8, font: fnt, color: valueColor });
+      ctx.y -= 13;
+      for (let i = 1; i < valChunks.length; i++) {
+        checkY(12);
+        ctx.page.drawText(valChunks[i], { x: VX, y: ctx.y, size: 8, font: fnt, color: valueColor });
+        ctx.y -= 12;
+      }
+    } else {
+      // Long label: render full-width label line(s), then value indented below
+      const valChunks = wrapTextPx(val || 'N/A', fnt, 8, maxFW - 16);
+      for (const lc of labelChunks) {
+        checkY(12);
+        ctx.page.drawText(lc, { x: LX, y: ctx.y, size: 8, font: fontBold, color: C.GRAY });
+        ctx.y -= 11;
+      }
+      for (const vc of valChunks) {
+        checkY(12);
+        ctx.page.drawText(vc, { x: LX + 16, y: ctx.y, size: 8, font: fnt, color: valueColor });
+        ctx.y -= 12;
+      }
     }
     ctx.y -= 2;
   }
@@ -565,52 +579,70 @@ async function generatePdf(data: {
     ctx.y -= 10;
   }
 
-  // Nota explicativa abaixo de um campo — word-wrapped
+  // Nota explicativa abaixo de um campo — pixel-accurate word-wrap
   function note(text: string) {
-    const lines = wrapText(`> ${text}`, 106);
+    const maxNW = RX - VX - 4;
+    const lines = wrapTextPx(`> ${text}`, fontReg, 6.5, maxNW);
     for (const ln of lines) {
       checkY(9);
-      ctx.page.drawText(safeText(ln, 108), {
-        x: VX, y: ctx.y, size: 6.5, font: fontReg, color: C.GRAY,
-      });
+      ctx.page.drawText(ln, { x: VX, y: ctx.y, size: 6.5, font: fontReg, color: C.GRAY });
       ctx.y -= 9;
     }
     ctx.y -= 2;
   }
 
   function infoBox(lines: string[], bgColor: any, textColor: any, borderColor?: any) {
+    // Pre-wrap each line to fit inside the box (Courier monospace)
+    const innerW = CW - 28;
+    const wrapped: string[] = [];
+    for (const line of lines) {
+      for (const wl of wrapTextPx(line, fontMono, 8, innerW)) wrapped.push(wl);
+    }
     const lineH = 13;
-    const boxH = lines.length * lineH + 12;
+    const boxH = wrapped.length * lineH + 12;
     checkY(boxH + 6);
     ctx.page.drawRectangle({
       x: M + 2, y: ctx.y - boxH, width: CW - 4, height: boxH,
-      color: bgColor,
-      borderColor: borderColor || textColor,
-      borderWidth: 0.5,
+      color: bgColor, borderColor: borderColor || textColor, borderWidth: 0.5,
     });
     let ty = ctx.y - 9;
-    for (const line of lines) {
-      ctx.page.drawText(safeText(line, 96), {
-        x: M + 12, y: ty, size: 8, font: fontMono, color: textColor,
-      });
+    for (const wl of wrapped) {
+      ctx.page.drawText(wl, { x: M + 12, y: ty, size: 8, font: fontMono, color: textColor });
       ty -= lineH;
     }
     ctx.y -= boxH + 8;
   }
 
-  // Word-wrap helper — splits text at word boundaries up to maxChars per line
+  // Pixel-accurate word wrap — never cuts mid-word.
+  // Falls back to drawing the word as-is if it's wider than maxWidthPx alone.
+  function wrapTextPx(text: string, font: any, size: number, maxWidthPx: number): string[] {
+    const raw = safeText(text, 2000);
+    const words = raw.split(' ');
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+      if (!word) continue;
+      const candidate = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidthPx) {
+        line = candidate;
+      } else {
+        if (line) lines.push(line);
+        line = word;           // never hyphenate — draw long words as-is
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length > 0 ? lines : [''];
+  }
+
+  // Legacy char-based wrap kept for callsites that haven't been migrated yet
   function wrapText(text: string, maxChars: number): string[] {
     const words = text.split(' ');
     const lines: string[] = [];
     let line = '';
     for (const word of words) {
       const candidate = line ? `${line} ${word}` : word;
-      if (candidate.length <= maxChars) {
-        line = candidate;
-      } else {
-        if (line) lines.push(line);
-        line = word.length > maxChars ? word.slice(0, maxChars) : word;
-      }
+      if (candidate.length <= maxChars) { line = candidate; }
+      else { if (line) lines.push(line); line = word.length > maxChars ? word.slice(0, maxChars) : word; }
     }
     if (line) lines.push(line);
     return lines;
@@ -622,11 +654,8 @@ async function generatePdf(data: {
     page: any, text: string, x: number, y: number,
     maxWidth: number, size: number, font: any, color: any, isLast = false,
   ) {
-    const s = safeText(text, 200);
-    if (isLast || s.trim().length === 0) {
-      page.drawText(s, { x, y, size, font, color });
-      return;
-    }
+    const s = safeText(text, 2000);
+    if (isLast || s.trim().length === 0) { page.drawText(s, { x, y, size, font, color }); return; }
     const words = s.split(' ').filter(w => w.length > 0);
     if (words.length <= 1) { page.drawText(s, { x, y, size, font, color }); return; }
     const totalW = words.reduce((sum, w) => sum + font.widthOfTextAtSize(w, size), 0);
@@ -636,6 +665,49 @@ async function generatePdf(data: {
     for (const word of words) {
       page.drawText(word, { x: cx, y, size, font, color });
       cx += font.widthOfTextAtSize(word, size) + gap;
+    }
+  }
+
+  // Draw fully-justified paragraph block inside a box.
+  // Each interior line is justified; the last line is left-aligned.
+  // Returns the updated ctx.y after all lines are drawn.
+  function drawJustifiedParagraph(
+    text: string, font: any, size: number,
+    x: number, maxWidthPx: number, lineH: number, color: any,
+  ) {
+    const lines = wrapTextPx(text, font, size, maxWidthPx);
+    for (let i = 0; i < lines.length; i++) {
+      checkY(lineH);
+      const isLast = i === lines.length - 1;
+      justifyLine(ctx.page, lines[i], x, ctx.y, maxWidthPx, size, font, color, isLast);
+      ctx.y -= lineH;
+    }
+  }
+
+  // Draw a prose block (multi-paragraph) inside a pre-allocated box.
+  // paragraphs = array of text strings; '' = blank-line paragraph separator.
+  // Returns total height consumed.
+  function proseMeasure(paragraphs: string[], font: any, size: number, maxW: number, lineH: number, paraGap: number): number {
+    let h = 0;
+    for (const para of paragraphs) {
+      if (para === '') { h += paraGap; continue; }
+      h += wrapTextPx(para, font, size, maxW).length * lineH;
+    }
+    return h;
+  }
+
+  function proseRender(
+    paragraphs: string[], font: any, size: number,
+    x: number, maxW: number, lineH: number, color: any, paraGap = 5,
+  ) {
+    for (const para of paragraphs) {
+      if (para === '') { ctx.y -= paraGap; continue; }
+      const lines = wrapTextPx(para, font, size, maxW);
+      for (let i = 0; i < lines.length; i++) {
+        checkY(lineH);
+        justifyLine(ctx.page, lines[i], x, ctx.y, maxW, size, font, color, i === lines.length - 1);
+        ctx.y -= lineH;
+      }
     }
   }
 
@@ -881,13 +953,14 @@ async function generatePdf(data: {
       x: M + 10, y: certY0 + 2, size: 6.0, font: fontBold, color: C.CYAN,
     });
 
-    // Intro line (full width)
+    // Intro line (full width) — pixel-accurate justified
     const introY = certY0 - 18;
-    const introLines = wrapText('O sistema NCFN assegura a incolumidade do vestigio digital atraves do cumprimento estrito das etapas rituais da cadeia de custodia, fundamentado na Lei n. 13.964/2019 e na norma ISO/IEC 27037:2012.', 105);
+    const introFullW = CW - 12;
+    const introText = 'O sistema NCFN assegura a incolumidade do vestigio digital atraves do cumprimento estrito das etapas rituais da cadeia de custodia, fundamentado na Lei n. 13.964/2019 e na norma ISO/IEC 27037:2012.';
+    const introLines = wrapTextPx(introText, fontReg, cFontSz, introFullW);
     let iy2 = introY;
-    const introSlice = introLines.slice(0, 2);
-    for (let i = 0; i < introSlice.length; i++) {
-      ctx.page.drawText(safeText(introSlice[i], 110), { x: col1X, y: iy2, size: cFontSz, font: fontReg, color: C.LGRAY });
+    for (let i = 0; i < Math.min(2, introLines.length); i++) {
+      justifyLine(ctx.page, introLines[i], col1X, iy2, introFullW, cFontSz, fontReg, C.LGRAY, i === introLines.length - 1 || i === 1);
       iy2 -= cLineH;
     }
 
@@ -896,8 +969,62 @@ async function generatePdf(data: {
     const colMidX = M + Math.floor(CW / 2) + 1;
     ctx.page.drawLine({ start: { x: colMidX, y: certY0 - 4 }, end: { x: colMidX, y: 42 }, thickness: 0.3, color: C.DIVIDER });
 
+    // Each column's usable text width
+    const colW = colMidX - col1X - 4;  // ≈ 260 px
+
+    // Reusable renderer for tagged certification blocks
+    function renderCertBlocks(
+      blocks: Array<{text: string; bold?: boolean; gap?: number}>,
+      colX: number, startY: number,
+    ) {
+      let cy = startY;
+      for (const blk of blocks) {
+        if (cy < 44) break;
+        if (blk.bold) {
+          const lns = wrapTextPx(blk.text, fontBold, cFontSz, colW);
+          for (const ln of lns) {
+            if (cy < 44) break;
+            ctx.page.drawText(ln, { x: colX, y: cy, size: cFontSz, font: fontBold, color: C.CYAN });
+            cy -= cLineH;
+          }
+        } else {
+          // Text may start with [TAG] — bold-color the tag, then continue
+          const tagMatch = blk.text.match(/^(\[[^\]]+\])(.*)/);
+          if (tagMatch) {
+            const tag = tagMatch[1];
+            const body = tagMatch[2];
+            const tagW = fontBold.widthOfTextAtSize(tag, cFontSz);
+            const bodyLines = wrapTextPx(body.trimStart(), fontReg, cFontSz, colW - tagW);
+            // First line: tag + first body line
+            if (cy < 44) break;
+            ctx.page.drawText(tag, { x: colX, y: cy, size: cFontSz, font: fontBold, color: rgb(1.00, 0.60, 0.20) });
+            if (bodyLines[0]) {
+              const isLastB = bodyLines.length === 1;
+              justifyLine(ctx.page, bodyLines[0], colX + tagW + 2, cy, colW - tagW - 2, cFontSz, fontReg, C.LGRAY, isLastB);
+            }
+            cy -= cLineH;
+            // Remaining body lines indented to match tag width
+            for (let bi = 1; bi < bodyLines.length; bi++) {
+              if (cy < 44) break;
+              const isLastB = bi === bodyLines.length - 1;
+              justifyLine(ctx.page, bodyLines[bi], colX + tagW + 2, cy, colW - tagW - 2, cFontSz, fontReg, C.LGRAY, isLastB);
+              cy -= cLineH;
+            }
+          } else {
+            const lns = wrapTextPx(blk.text, fontReg, cFontSz, colW);
+            for (let i = 0; i < lns.length; i++) {
+              if (cy < 44) break;
+              justifyLine(ctx.page, lns[i], colX, cy, colW, cFontSz, fontReg, C.LGRAY, i === lns.length - 1);
+              cy -= cLineH;
+            }
+          }
+        }
+        cy -= (blk.gap || 0);
+      }
+    }
+
     // ── Left column: Sections I + II ──
-    const leftBlocks: Array<{text: string, bold?: boolean, gap?: number}> = [
+    renderCertBlocks([
       { text: 'I. PROCEDIMENTOS DE PRESERVACAO E FIXACAO', bold: true, gap: 2 },
       { text: '[Reconhecimento] Identificacao e delimitacao do ativo digital como elemento de potencial interesse pericial, conforme demanda e escopo definidos pelo custodiante.', gap: 4 },
       { text: '[Isolamento] Segregacao logica aplicada no ato do upload. Ativo confinado em volume containerizado, impedindo interacao com processos externos ou contaminacao cruzada.', gap: 4 },
@@ -905,34 +1032,10 @@ async function generatePdf(data: {
       { text: 'II. METODOS DE COLETA E ACONDICIONAMENTO', bold: true, gap: 2 },
       { text: '[Coleta] Realizada pelo custodiante. Ativos web coletados autonomamente pelo NCFN, certificando disponibilidade, conformidade e autenticidade sem intervencao humana.', gap: 4 },
       { text: '[Acondicionamento] Encapsulamento por cifragem AES-256-CBC com derivacao SCRYPT, garantindo confidencialidade e integridade do pacote probatorio.', gap: 0 },
-    ];
-    let ly = colContentY;
-    for (const blk of leftBlocks) {
-      const lns = wrapText(blk.text, cMaxL);
-      for (let i = 0; i < lns.length; i++) {
-        if (ly < 44) break;
-        const lineText = lns[i];
-        if (!blk.bold && i === 0 && lineText.startsWith('[')) {
-          const tagEnd = lineText.indexOf(']');
-          if (tagEnd > 0) {
-            const tag = lineText.slice(0, tagEnd + 1);
-            const rest = lineText.slice(tagEnd + 1);
-            const tagW = fontBold.widthOfTextAtSize(tag, cFontSz);
-            ctx.page.drawText(tag, { x: col1X, y: ly, size: cFontSz, font: fontBold, color: rgb(1.00, 0.60, 0.20) });
-            if (rest) ctx.page.drawText(safeText(rest, cMaxL), { x: col1X + tagW, y: ly, size: cFontSz, font: fontReg, color: C.LGRAY });
-          } else {
-            ctx.page.drawText(safeText(lineText, cMaxL + 2), { x: col1X, y: ly, size: cFontSz, font: fontReg, color: C.LGRAY });
-          }
-        } else {
-          ctx.page.drawText(safeText(lns[i], cMaxL + 2), { x: col1X, y: ly, size: cFontSz, font: blk.bold ? fontBold : fontReg, color: blk.bold ? C.CYAN : C.LGRAY });
-        }
-        ly -= cLineH;
-      }
-      ly -= (blk.gap || 0);
-    }
+    ], col1X, colContentY);
 
     // ── Right column: Sections III + IV ──
-    const rightBlocks: Array<{text: string, bold?: boolean, gap?: number}> = [
+    renderCertBlocks([
       { text: 'III. FLUXO DE TRANSPORTE E RECEBIMENTO', bold: true, gap: 2 },
       { text: '[Transporte] Trafego exclusivamente por tuneis criptografados (Zero-Trust). Integridade validada bit-a-bit entre backup local e ativo no servidor oficial ncfn.net.', gap: 4 },
       { text: '[Recebimento] Formalizacao da entrada no ecossistema pericial por registro imutavel em logs de auditoria e geracao do ID Unico (Protocolo NCFN).', gap: 6 },
@@ -940,31 +1043,7 @@ async function generatePdf(data: {
       { text: '[Processamento] Executado pelo Perito Sansao (IA local, Air-Gapped). Hashes multifatoriais (SHA-256, SHA-1, MD5), analise de entropia e metadados, com rotinas de contrainteligencia.', gap: 4 },
       { text: '[Armazenamento] Custodia no COFRE_NCFN com redundancia geografica e imutabilidade do dado bruto, assegurando permanencia para pericias judiciais ou contraperícias.', gap: 4 },
       { text: '[Descarte] A extincao do ativo gera log de encerramento permanente e inalteravel, atestando destruicao segura e mantendo historico como prova da destinacao final.', gap: 0 },
-    ];
-    let ry = colContentY;
-    for (const blk of rightBlocks) {
-      const lns = wrapText(blk.text, cMaxL);
-      for (let i = 0; i < lns.length; i++) {
-        if (ry < 44) break;
-        const lineText = lns[i];
-        if (!blk.bold && i === 0 && lineText.startsWith('[')) {
-          const tagEnd = lineText.indexOf(']');
-          if (tagEnd > 0) {
-            const tag = lineText.slice(0, tagEnd + 1);
-            const rest = lineText.slice(tagEnd + 1);
-            const tagW = fontBold.widthOfTextAtSize(tag, cFontSz);
-            ctx.page.drawText(tag, { x: col2X, y: ry, size: cFontSz, font: fontBold, color: rgb(1.00, 0.60, 0.20) });
-            if (rest) ctx.page.drawText(safeText(rest, cMaxL), { x: col2X + tagW, y: ry, size: cFontSz, font: fontReg, color: C.LGRAY });
-          } else {
-            ctx.page.drawText(safeText(lineText, cMaxL + 2), { x: col2X, y: ry, size: cFontSz, font: fontReg, color: C.LGRAY });
-          }
-        } else {
-          ctx.page.drawText(safeText(lns[i], cMaxL + 2), { x: col2X, y: ry, size: cFontSz, font: blk.bold ? fontBold : fontReg, color: blk.bold ? C.CYAN : C.LGRAY });
-        }
-        ry -= cLineH;
-      }
-      ry -= (blk.gap || 0);
-    }
+    ], col2X, colContentY);
   }
 
   // Cover footer is rendered by the unified footer loop at the end of generatePdf.
@@ -977,18 +1056,11 @@ async function generatePdf(data: {
   // ─────────────────────────────────────────────────
   {
     const INTRO_TITLE = 'DECLARACAO DE METODOLOGIA CIENTIFICA E AMBIENTE HERMETICO';
+    // Single consolidated paragraphs — wrapTextPx handles line breaks, justifyLine handles margins
     const INTRO_PARAGRAPHS = [
-      'Atesta-se que o processamento, a extracao de metadados e a analise estrutural do presente',
-      'artefato digital foram executados em ambiente esteril, efemero e isolado de redes externas',
-      '(Sandboxed/Zero-Trust). Os procedimentos adotados observam rigorosamente o principio da',
-      'reprodutibilidade forense e a nao-repudiacao, garantindo que o exame nao produziu qualquer',
-      'alteracao no escopo original dos dados (Principio de Locard aplicado ao meio digital).',
+      'Atesta-se que o processamento, a extracao de metadados e a analise estrutural do presente artefato digital foram executados em ambiente esteril, efemero e isolado de redes externas (Sandboxed/Zero-Trust). Os procedimentos adotados observam rigorosamente o principio da reprodutibilidade forense e a nao-repudiacao, garantindo que o exame nao produziu qualquer alteracao no escopo original dos dados (Principio de Locard aplicado ao meio digital).',
       '',
-      'A assinatura criptografica gerada baseia-se no algoritmo de dispersao unilateral SHA-256,',
-      'em estrita conformidade com o padrao federal norte-americano de processamento de informacoes',
-      'FIPS 180-4 (Federal Information Processing Standard). O sincronismo temporal dos registros',
-      'de custodia (Timestamping) obedece a diretriz internacional RFC 3161, mitigando riscos de',
-      'discrepancia de relogio (Clock Drift) e atestando a exatidao cronologica da apreensao.',
+      'A assinatura criptografica gerada baseia-se no algoritmo de dispersao unilateral SHA-256, em estrita conformidade com o padrao federal norte-americano de processamento de informacoes FIPS 180-4 (Federal Information Processing Standard). O sincronismo temporal dos registros de custodia (Timestamping) obedece a diretriz internacional RFC 3161, mitigando riscos de discrepancia de relogio (Clock Drift) e atestando a exatidao cronologica da apreensao.',
     ];
 
     // Title bar
@@ -997,32 +1069,18 @@ async function generatePdf(data: {
     ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: CW, height: 22, color: C.PANEL });
     ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: 4, height: 22, color: C.CYAN });
     ctx.page.drawRectangle({ x: M + CW - 4, y: ctx.y - 5, width: 4, height: 22, color: C.CYAN });
-    ctx.page.drawText(safeText(INTRO_TITLE, 85), {
-      x: M + 12, y: ctx.y + 4, size: 8.5, font: fontBold, color: C.CYAN,
-    });
+    ctx.page.drawText(INTRO_TITLE, { x: M + 12, y: ctx.y + 4, size: 8.5, font: fontBold, color: C.CYAN });
     ctx.y -= 28;
 
-    // Body box — word-wrapped lines
-    const introWrapped: string[] = [];
-    for (const line of INTRO_PARAGRAPHS) {
-      if (line === '') { introWrapped.push(''); continue; }
-      for (const wl of wrapText(line, 108)) introWrapped.push(wl);
-    }
+    // Measure box height first
     const lineH = 11;
-    const boxH = introWrapped.filter(l => l !== '').length * lineH + introWrapped.filter(l => l === '').length * 5 + 16;
+    const boxInnerW = CW - 28;
+    const boxH = proseMeasure(INTRO_PARAGRAPHS, fontReg, 7.5, boxInnerW, lineH, 5) + 16;
     checkY(boxH + 6);
-    ctx.page.drawRectangle({
-      x: M + 2, y: ctx.y - boxH, width: CW - 4, height: boxH,
-      color: C.PANEL, borderColor: C.CYAN, borderWidth: 0.4,
-    });
-    let ty = ctx.y - 11;
-    for (let i = 0; i < introWrapped.length; i++) {
-      const line = introWrapped[i];
-      if (line === '') { ty -= 5; continue; }
-      ctx.page.drawText(safeText(line, 110), { x: M + 12, y: ty, size: 7.5, font: fontReg, color: C.WHITE });
-      ty -= lineH;
-    }
-    ctx.y -= boxH + 14;
+    ctx.page.drawRectangle({ x: M + 2, y: ctx.y - boxH, width: CW - 4, height: boxH, color: C.PANEL, borderColor: C.CYAN, borderWidth: 0.4 });
+    ctx.y -= 10;
+    proseRender(INTRO_PARAGRAPHS, fontReg, 7.5, M + 12, boxInnerW, lineH, C.WHITE, 5);
+    ctx.y -= 10;
   }
 
   // ─────────────────────────────────────────────────
@@ -1035,12 +1093,11 @@ async function generatePdf(data: {
     ctx.page.drawRectangle({ x: M, y: ctx.y - 5, width: 4, height: 20, color: C.AMBER });
     ctx.page.drawRectangle({ x: M + CW - 4, y: ctx.y - 5, width: 4, height: 20, color: C.AMBER });
     ctx.page.drawLine({ start: { x: M, y: ctx.y + 15 }, end: { x: M + CW, y: ctx.y + 15 }, thickness: 0.6, color: C.AMBER });
-    ctx.page.drawText('INFORMACOES ADICIONAIS DE SEGURANCA DO SISTEMA NCFN', {
-      x: M + 12, y: ctx.y + 4, size: 8.5, font: fontBold, color: C.AMBER,
-    });
+    ctx.page.drawText('INFORMACOES ADICIONAIS DE SEGURANCA DO SISTEMA NCFN', { x: M + 12, y: ctx.y + 4, size: 8.5, font: fontBold, color: C.AMBER });
     ctx.y -= 26;
 
-    const addInfoItems: Array<{title: string, text: string}> = [
+    const innerW = CW - 28;
+    const addInfoItems: Array<{title: string; text: string}> = [
       {
         title: '1. Protocolo Anti-Tampering (Assinatura de Sistema)',
         text: `Este Relatorio Pericial e nativamente selado com assinatura digital de 256 bits, vinculada ao ID Unico ${safeText(data.docId, 20)}. Qualquer tentativa de alteracao estrutural no PDF invalida o selo de autenticidade sistemica, tornando o laudo nulo para fins de evidencia.`,
@@ -1051,7 +1108,7 @@ async function generatePdf(data: {
       },
       {
         title: '3. Certificacao de Non-Repudiation (Nao-Repudio)',
-        text: `O sistema opera sob o principio do Nao-Repudio. Todas as acoes do operador do cofre NCFN sao vinculadas a carimbo de tempo (Timestamp) e IP de origem, gerando trilha de auditoria imutavel conforme Art. 11 da Lei 12.965/2014.`,
+        text: 'O sistema opera sob o principio do Nao-Repudio. Todas as acoes do operador do cofre NCFN sao vinculadas a carimbo de tempo (Timestamp) e IP de origem, gerando trilha de auditoria imutavel conforme Art. 11 da Lei 12.965/2014.',
       },
       {
         title: '4. Analise de Entropia como Prova de Cifragem',
@@ -1060,15 +1117,16 @@ async function generatePdf(data: {
     ];
 
     for (const item of addInfoItems) {
-      checkY(28);
-      ctx.page.drawText(safeText(item.title, 92), {
-        x: M + 12, y: ctx.y, size: 7.5, font: fontBold, color: C.AMBER,
-      });
-      ctx.y -= 10;
-      const itemLines = wrapText(item.text, 106);
-      for (let i = 0; i < itemLines.length; i++) {
-        checkY(10);
-        ctx.page.drawText(safeText(itemLines[i], 108), { x: M + 14, y: ctx.y, size: 7, font: fontReg, color: C.LGRAY });
+      const titleLines = wrapTextPx(item.title, fontBold, 7.5, innerW);
+      const textLines = wrapTextPx(item.text, fontReg, 7, innerW);
+      checkY(titleLines.length * 10 + textLines.length * 9 + 8);
+      for (const tl of titleLines) {
+        ctx.page.drawText(tl, { x: M + 12, y: ctx.y, size: 7.5, font: fontBold, color: C.AMBER });
+        ctx.y -= 10;
+      }
+      for (let i = 0; i < textLines.length; i++) {
+        checkY(9);
+        justifyLine(ctx.page, textLines[i], M + 14, ctx.y, innerW - 2, 7, fontReg, C.LGRAY, i === textLines.length - 1);
         ctx.y -= 9;
       }
       ctx.y -= 4;
@@ -1150,7 +1208,8 @@ async function generatePdf(data: {
     // Explanation note — includes third-party file procedure
     checkY(20);
     ctx.y -= 4;
-    const coletaNoteText = [
+    // Paragraphs: '' = blank line separator; [TAG] entries rendered in bold teal
+    const coletaNoteParas = [
       'Coleta (Art. 158-B, III CPP): Procedimento de obtencao do vestigio digital. Realizada sob responsabilidade do custodiante para arquivos sob sua guarda.',
       '',
       'COMO FUNCIONA PARA ARQUIVOS DE TERCEIROS: No momento em que qualquer arquivo e carregado no sistema NCFN, antes do tratamento dos dados e custodia do ativo, aparece uma caixa flutuante na tela onde o custodiante, devidamente cadastrado, preenche um ATESTADO DE COLETA contendo as seguintes declaracoes:',
@@ -1163,22 +1222,22 @@ async function generatePdf(data: {
       '',
       'Ao confirmar o atestado, os dados sao gravados neste relatorio. IMPORTANTE: existe a opcao de fechar sem preencher; de toda forma, esse nao preenchimento e atestado no Relatorio e toda a responsabilidade pela autenticidade e coleta pessoal (ou nao) e exclusiva do custodiante cadastrado, pois o NCFN tem como principio a custodia de ativos licitos que devem ser preservados com o devido tratamento forense para futura apresentacao de provas e elementos de provas fidedignos na defesa de direitos individuais e da coletividade.',
     ];
-    const coletaNoteLines: string[] = [];
-    for (const ln of coletaNoteText) {
-      if (ln === '') { coletaNoteLines.push(''); continue; }
-      for (const wl of wrapText(ln, 106)) coletaNoteLines.push(wl);
-    }
-    const coletaNoteH = coletaNoteLines.filter(l => l !== '').length * 9 + coletaNoteLines.filter(l => l === '').length * 4 + 12;
+    const noteInnerW = CW - 28;
+    const coletaNoteH = proseMeasure(coletaNoteParas, fontReg, 6.5, noteInnerW, 9, 4) + 12;
     ctx.page.drawRectangle({ x: M + 2, y: ctx.y - coletaNoteH, width: CW - 4, height: coletaNoteH + 4, color: C.DARK });
     ctx.page.drawRectangle({ x: M + 2, y: ctx.y - coletaNoteH, width: 3, height: coletaNoteH + 4, color: C.TEAL });
-    let cny = ctx.y - 6;
-    for (const ln of coletaNoteLines) {
-      if (ln === '') { cny -= 4; continue; }
-      const isTag = ln.startsWith('[');
-      ctx.page.drawText(safeText(ln, 110), { x: M + 12, y: cny, size: 6.5, font: isTag ? fontBold : fontReg, color: isTag ? C.TEAL : C.LGRAY });
-      cny -= 9;
+    ctx.y -= 6;
+    for (const para of coletaNoteParas) {
+      if (para === '') { ctx.y -= 4; continue; }
+      const isTag = para.startsWith('[');
+      const lines = wrapTextPx(para, isTag ? fontBold : fontReg, 6.5, noteInnerW);
+      for (let i = 0; i < lines.length; i++) {
+        checkY(9);
+        justifyLine(ctx.page, lines[i], M + 12, ctx.y, noteInnerW, 6.5, isTag ? fontBold : fontReg, isTag ? C.TEAL : C.LGRAY, i === lines.length - 1);
+        ctx.y -= 9;
+      }
     }
-    ctx.y -= coletaNoteH + 10;
+    ctx.y -= 10;
   }
 
   divider();
@@ -1221,22 +1280,29 @@ async function generatePdf(data: {
     ctx.page.drawText(safeText(auditUrl, 90), { x: 210, y: ctx.y, size: 6.5, font: fontMono, color: C.BLUE });
     addLink(ctx.page, auditUrl, 48, ctx.y + 1, 500, 9);
     ctx.y -= 12;
-    const hexExplainLines = [
-      'COMO CONFERIR O CODIGO HEXADECIMAL:',
-      '1. Abra o link acima no navegador para acessar o portal de auditoria NCFN.',
-      '2. No portal, confirme que o SHA-256 do arquivo corresponde ao hash exibido acima.',
-      '3. O codigo hexadecimal mostra os primeiros 128 bytes do arquivo em base 16 (0-9 e A-F).',
-      '   Cada par de caracteres representa 1 byte. Ex: "25 50 44 46" = assinatura de PDF (%PDF).',
-      '4. Compare os bytes iniciais com a tabela de Magic Bytes para confirmar o tipo real do arquivo.',
-      '5. Qualquer diferenca de um unico byte invalida a integridade e rompe a cadeia de custodia.',
+    const hexBoxW = 515;
+    const hexInnerW = hexBoxW - 12;
+    const hexExplainParas = [
+      { bold: true,  text: 'COMO CONFERIR O CODIGO HEXADECIMAL:' },
+      { bold: false, text: '1. Abra o link acima no navegador para acessar o portal de auditoria NCFN.' },
+      { bold: false, text: '2. No portal, confirme que o SHA-256 do arquivo corresponde ao hash exibido acima.' },
+      { bold: false, text: '3. O codigo hexadecimal mostra os primeiros 128 bytes do arquivo em base 16 (0-9 e A-F). Cada par de caracteres representa 1 byte. Ex: "25 50 44 46" = assinatura de PDF (%PDF).' },
+      { bold: false, text: '4. Compare os bytes iniciais com a tabela de Magic Bytes para confirmar o tipo real do arquivo.' },
+      { bold: false, text: '5. Qualquer diferenca de um unico byte invalida a integridade e rompe a cadeia de custodia.' },
     ];
-    const hexExpH = hexExplainLines.length * 9 + 12;
+    let hexExpH = 12;
+    for (const hp of hexExplainParas) hexExpH += wrapTextPx(hp.text, hp.bold ? fontBold : fontReg, hp.bold ? 7 : 6.5, hexInnerW).length * 9;
     checkY(hexExpH + 6);
-    ctx.page.drawRectangle({ x: 40, y: ctx.y - hexExpH, width: 515, height: hexExpH, color: C.DARK, borderColor: C.CYAN, borderWidth: 0.4 });
+    ctx.page.drawRectangle({ x: 40, y: ctx.y - hexExpH, width: hexBoxW, height: hexExpH, color: C.DARK, borderColor: C.CYAN, borderWidth: 0.4 });
     let hexExpY = ctx.y - 7;
-    for (const hexln of hexExplainLines) {
-      ctx.page.drawText(safeText(hexln, 105), { x: 46, y: hexExpY, size: hexln.startsWith('COMO') ? 7 : 6.5, font: hexln.startsWith('COMO') ? fontBold : fontReg, color: hexln.startsWith('COMO') ? C.CYAN : C.GRAY });
-      hexExpY -= 9;
+    for (const hp of hexExplainParas) {
+      const sz = hp.bold ? 7 : 6.5;
+      const fnt2 = hp.bold ? fontBold : fontReg;
+      const clr = hp.bold ? C.CYAN : C.GRAY;
+      for (const hl of wrapTextPx(hp.text, fnt2, sz, hexInnerW)) {
+        ctx.page.drawText(hl, { x: 46, y: hexExpY, size: sz, font: fnt2, color: clr });
+        hexExpY -= 9;
+      }
     }
     ctx.y -= hexExpH + 8;
   }
@@ -1445,10 +1511,14 @@ async function generatePdf(data: {
   // ─────────────────────────────────────────────────
   section('[8] METADADOS EXIF - Comparativo: Upload vs. Pericia Atual', C.GRAY);
   {
-    for (const ln of wrapText('Metadados extraidos por exiftool. Col.1: baseline imutavel registrada no upload/1a pericia. Col.2: extracao atual. Col.4: STATUS de integridade por campo.', 108)) {
-      checkY(10);
-      ctx.page.drawText(safeText(ln, 110), { x: LX, y: ctx.y, size: 7, font: fontReg, color: C.LGRAY });
-      ctx.y -= 10;
+    {
+      const exifNoteW = RX - LX;
+      const exifNoteLines = wrapTextPx('Metadados extraidos por exiftool. Col.1: baseline imutavel registrada no upload/1a pericia. Col.2: extracao atual. Col.4: STATUS de integridade por campo.', fontReg, 7, exifNoteW);
+      for (let i = 0; i < exifNoteLines.length; i++) {
+        checkY(10);
+        justifyLine(ctx.page, exifNoteLines[i], LX, ctx.y, exifNoteW, 7, fontReg, C.LGRAY, i === exifNoteLines.length - 1);
+        ctx.y -= 10;
+      }
     }
     ctx.y -= 3;
   }
@@ -1527,16 +1597,15 @@ async function generatePdf(data: {
       // ── Table footer ──
       checkY(28);
       ctx.y -= 4;
-      const exifFooterLines = wrapText(
-        `Col.1 (Upload): baseline imutavel, registrada na 1a entrada do arquivo no sistema NCFN. Col.2 (Pericia ${safeText((() => { try { return data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return data.now.toISOString().slice(0,16); } })(), 20)} BRT): estado atual extraido nesta analise. STATUS: INTEGRO = sem alteracao | ALTERADO = divergencia detectada | NOVO = campo ausente na baseline.`,
-        108,
-      );
+      const _exifDate = (() => { try { return data.now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return data.now.toISOString().slice(0,16); } })();
+      const exifFooterText = `Col.1 (Upload): baseline imutavel, registrada na 1a entrada do arquivo no sistema NCFN. Col.2 (Pericia ${safeText(_exifDate, 20)} BRT): estado atual extraido nesta analise. STATUS: INTEGRO = sem alteracao | ALTERADO = divergencia detectada | NOVO = campo ausente na baseline.`;
+      const exifFooterLines = wrapTextPx(exifFooterText, fontReg, 6.5, CW - 28);
       const exifFH = exifFooterLines.length * 9 + 10;
       ctx.page.drawRectangle({ x: M + 2, y: ctx.y - exifFH, width: CW - 4, height: exifFH + 4, color: C.DARK });
       ctx.page.drawRectangle({ x: M + 2, y: ctx.y - exifFH, width: 3, height: exifFH + 4, color: C.TEAL });
       let efy = ctx.y - 7;
-      for (const ln of exifFooterLines) {
-        ctx.page.drawText(safeText(ln, 110), { x: M + 12, y: efy, size: 6.5, font: fontReg, color: C.LGRAY });
+      for (let i = 0; i < exifFooterLines.length; i++) {
+        justifyLine(ctx.page, exifFooterLines[i], M + 12, efy, CW - 28, 6.5, fontReg, C.LGRAY, i === exifFooterLines.length - 1);
         efy -= 9;
       }
       ctx.y -= exifFH + 12;
@@ -1576,10 +1645,10 @@ async function generatePdf(data: {
   // ─────────────────────────────────────────────────
   section('[10] REGISTROS DE ACESSO E CADEIA DE CUSTODIA - Historico Completo', C.AMBER);
   {
-    const s10Lines = wrapText('Historico completo de operacoes sobre o arquivo: visualizacoes, downloads, pericias e operacoes administrativas. Fundamental para a cadeia de custodia.', 108);
+    const s10Lines = wrapTextPx('Historico completo de operacoes sobre o arquivo: visualizacoes, downloads, pericias e operacoes administrativas. Fundamental para a cadeia de custodia.', fontReg, 6.5, CW - 28);
     for (let i = 0; i < s10Lines.length; i++) {
       checkY(10);
-      ctx.page.drawText(safeText(s10Lines[i], 110), { x: LX, y: ctx.y, size: 6.5, font: fontReg, color: C.GRAY });
+      justifyLine(ctx.page, s10Lines[i], LX, ctx.y, CW - 28, 6.5, fontReg, C.GRAY, i === s10Lines.length - 1);
       ctx.y -= 10;
     }
   }
@@ -1645,10 +1714,10 @@ async function generatePdf(data: {
   // ─────────────────────────────────────────────────
   section('[11] HISTORICO DE PERICIAS - Registro Cronologico de Analises', C.VIOLET);
   {
-    const s11Lines = wrapText('Cada pericia gera um registro imutavel no banco de dados. Este historico prova quantas vezes e por quem o arquivo foi analisado.', 108);
+    const s11Lines = wrapTextPx('Cada pericia gera um registro imutavel no banco de dados. Este historico prova quantas vezes e por quem o arquivo foi analisado.', fontReg, 6.5, CW - 28);
     for (let i = 0; i < s11Lines.length; i++) {
       checkY(10);
-      ctx.page.drawText(safeText(s11Lines[i], 110), { x: LX, y: ctx.y, size: 6.5, font: fontReg, color: C.GRAY });
+      justifyLine(ctx.page, s11Lines[i], LX, ctx.y, CW - 28, 6.5, fontReg, C.GRAY, i === s11Lines.length - 1);
       ctx.y -= 10;
     }
   }
@@ -1715,29 +1784,38 @@ async function generatePdf(data: {
   // [LEGAL] FUNDAMENTO LEGAL
   // ─────────────────────────────────────────────────
   section('[LEGAL] FUNDAMENTO LEGAL E NORMATIVO - Validade Juridica', C.DARK);
-  checkY(11);
-  ctx.page.drawText('Base legal que fundamenta este relatorio e confere validade juridica a cadeia de custodia digital no ordenamento brasileiro.', {
-    x: 48, y: ctx.y, size: 6.5, font: fontReg, color: C.GRAY,
-  });
-  ctx.y -= 12;
-  const legal: Array<[string, string]> = [
-    ['Art. 6, VII do CPP', 'Dever de preservar o estado das coisas quando da pratica de infracoes penais.'],
-    ['Art. 11 da Lei 12.965/2014 - Marco Civil', 'Obrigacao de registro e manutencao de logs de acesso a aplicacoes de internet.'],
-    ['Art. 19, par. 3 do Marco Civil', 'Preservacao de registros de acesso a conteudo em plataformas digitais.'],
-    ['ISO/IEC 27037:2012', 'Norma internacional para identificacao, coleta, aquisicao e preservacao de evidencias digitais.'],
-    ['Resolucao CNJ 396/2021', 'Politica de Seguranca da Informacao para o Poder Judiciario Brasileiro.'],
-    ['Art. 422 do CPC', 'Admissibilidade de documento digital com certificacao de integridade via hash criptografico.'],
-  ];
-  for (const [norma, descricao] of legal) {
-    checkY(24);
-    ctx.page.drawText(safeText(`[*] ${norma}`, 60), {
-      x: 55, y: ctx.y, size: 8, font: fontBold, color: C.LGRAY,
-    });
-    ctx.y -= 11;
-    ctx.page.drawText(safeText(`    ${descricao}`, 95), {
-      x: 55, y: ctx.y, size: 7, font: fontReg, color: C.GRAY,
-    });
-    ctx.y -= 12;
+  {
+    const legalDescW = RX - 55 - 4;
+    const legalIntro = wrapTextPx('Base legal que fundamenta este relatorio e confere validade juridica a cadeia de custodia digital no ordenamento brasileiro.', fontReg, 6.5, legalDescW);
+    for (let i = 0; i < legalIntro.length; i++) {
+      checkY(11);
+      justifyLine(ctx.page, legalIntro[i], 48, ctx.y, legalDescW, 6.5, fontReg, C.GRAY, i === legalIntro.length - 1);
+      ctx.y -= 11;
+    }
+    ctx.y -= 2;
+    const legal: Array<[string, string]> = [
+      ['Art. 6, VII do CPP', 'Dever de preservar o estado das coisas quando da pratica de infracoes penais.'],
+      ['Art. 11 da Lei 12.965/2014 - Marco Civil', 'Obrigacao de registro e manutencao de logs de acesso a aplicacoes de internet.'],
+      ['Art. 19, par. 3 do Marco Civil', 'Preservacao de registros de acesso a conteudo em plataformas digitais.'],
+      ['ISO/IEC 27037:2012', 'Norma internacional para identificacao, coleta, aquisicao e preservacao de evidencias digitais.'],
+      ['Resolucao CNJ 396/2021', 'Politica de Seguranca da Informacao para o Poder Judiciario Brasileiro.'],
+      ['Art. 422 do CPC', 'Admissibilidade de documento digital com certificacao de integridade via hash criptografico.'],
+    ];
+    for (const [norma, descricao] of legal) {
+      const normaLines = wrapTextPx(`[*] ${norma}`, fontBold, 8, legalDescW);
+      const descLines = wrapTextPx(descricao, fontReg, 7, legalDescW - 8);
+      checkY(normaLines.length * 11 + descLines.length * 11 + 4);
+      for (const nl of normaLines) {
+        ctx.page.drawText(nl, { x: 55, y: ctx.y, size: 8, font: fontBold, color: C.LGRAY });
+        ctx.y -= 11;
+      }
+      for (let di = 0; di < descLines.length; di++) {
+        checkY(11);
+        justifyLine(ctx.page, descLines[di], 63, ctx.y, legalDescW - 8, 7, fontReg, C.GRAY, di === descLines.length - 1);
+        ctx.y -= 11;
+      }
+      ctx.y -= 2;
+    }
   }
 
   divider();
@@ -1746,30 +1824,29 @@ async function generatePdf(data: {
   // [CONCLUSAO] CONCLUSAO PERICIAL
   // ─────────────────────────────────────────────────
   section('[CONCLUSAO] CONCLUSAO PERICIAL - Laudo Final do Perito Sansao', C.GREEN);
-
-  const conclusionLines = [
-    `O arquivo "${safeText(data.filename, 60)}", custodiado na pasta "${safeText(data.folderName, 40)}"`,
-    `do Cofre Forense NCFN, foi submetido a analise pericial digital completa pelo Perito Sansao -`,
-    `Inteligencia Artificial Interna do Sistema NCFN, Protegida e Isolada de Sistemas Externos.`,
-    '',
-    `SHA-256 (arquivo original):`,
-    `${data.sha256}`,
-    '',
-    `A integridade do arquivo e atestada pelos hashes criptograficos calculados neste relatorio.`,
-    `Qualquer alteracao posterior produzira hash completamente diferente, evidenciando adulteracao.`,
-    '',
-    `Entropia: ${data.entropy}/8.0 | Assinatura magica: ${data.magic ? safeText(data.magic.name, 30) : 'Nao identificada'}`,
-    `Padroes de malware verificados: ${data.malwareHits.length === 0 ? 'Nenhum detectado' : data.malwareHits.length + ' encontrado(s)'}`,
-  ];
-
-  for (const line of conclusionLines) {
-    if (line === '') { ctx.y -= 5; continue; }
+  {
+    const cW = RX - 55 - 4;
+    // Paragraph 1 — identity
+    const concl1 = `O arquivo "${safeText(data.filename, 60)}", custodiado na pasta "${safeText(data.folderName, 40)}" do Cofre Forense NCFN, foi submetido a analise pericial digital completa pelo Perito Sansao — Inteligencia Artificial Interna do Sistema NCFN, Protegida e Isolada de Sistemas Externos.`;
+    const cl1 = wrapTextPx(concl1, fontReg, 8.5, cW);
+    for (let i = 0; i < cl1.length; i++) { checkY(12); justifyLine(ctx.page, cl1[i], 55, ctx.y, cW, 8.5, fontReg, C.LGRAY, i === cl1.length - 1); ctx.y -= 12; }
+    ctx.y -= 5;
+    // SHA-256 label + hash (monospace)
     checkY(12);
-    ctx.page.drawText(safeText(line, 95), {
-      x: 55, y: ctx.y, size: 8.5, font: line.startsWith('Hash') || line.startsWith('              ') || line.startsWith('Entropia') ? fontMono : fontReg,
-      color: line.startsWith('Hash') || line.startsWith('              ') ? C.CYAN : C.LGRAY,
-    });
+    ctx.page.drawText('SHA-256 (arquivo original):', { x: 55, y: ctx.y, size: 8.5, font: fontBold, color: C.LGRAY });
     ctx.y -= 12;
+    checkY(12);
+    ctx.page.drawText(safeText(data.sha256, 64), { x: 55, y: ctx.y, size: 8, font: fontMono, color: C.CYAN });
+    ctx.y -= 16;
+    // Paragraph 2 — integrity statement
+    const concl2 = `A integridade do arquivo e atestada pelos hashes criptograficos calculados neste relatorio. Qualquer alteracao posterior produzira hash completamente diferente, evidenciando adulteracao.`;
+    const cl2 = wrapTextPx(concl2, fontReg, 8.5, cW);
+    for (let i = 0; i < cl2.length; i++) { checkY(12); justifyLine(ctx.page, cl2[i], 55, ctx.y, cW, 8.5, fontReg, C.LGRAY, i === cl2.length - 1); ctx.y -= 12; }
+    ctx.y -= 5;
+    // Metrics line
+    const metricsLine = `Entropia: ${data.entropy}/8.0  |  Assinatura magica: ${data.magic ? safeText(data.magic.name, 30) : 'Nao identificada'}  |  Malware: ${data.malwareHits.length === 0 ? 'Nenhum detectado' : data.malwareHits.length + ' padrao(oes) encontrado(s)'}`;
+    const ml = wrapTextPx(metricsLine, fontMono, 7.5, cW);
+    for (const mll of ml) { checkY(11); ctx.page.drawText(mll, { x: 55, y: ctx.y, size: 7.5, font: fontMono, color: C.LGRAY }); ctx.y -= 11; }
   }
 
   checkY(30);
@@ -1777,15 +1854,18 @@ async function generatePdf(data: {
   let statusLabel = 'LAUDO FINAL: ARQUIVO LIMPO E INTEGRO';
   let statusColor = C.GREEN;
   let statusBgColor = rgb(0.02, 0.18, 0.06);
-  if (data.riskLevel >= 3) { statusLabel = 'LAUDO FINAL: ALTO RISCO - ACIONAR PROTOCOLO DE RESPOSTA IMEDIATA'; statusColor = C.RED; statusBgColor = rgb(0.18, 0.02, 0.02); }
-  else if (data.riskLevel >= 2) { statusLabel = 'LAUDO FINAL: SUSPEITO - REQUER ANALISE HUMANA IMEDIATA'; statusColor = C.ORANGE; statusBgColor = rgb(0.18, 0.08, 0.01); }
-  else if (data.riskLevel === 1) { statusLabel = 'LAUDO FINAL: BAIXO RISCO - MONITORAR PERIODICAMENTE'; statusColor = C.YELLOW; statusBgColor = rgb(0.15, 0.13, 0.01); }
+  if (data.riskLevel >= 3) { statusLabel = 'LAUDO FINAL: ALTO RISCO — ACIONAR PROTOCOLO DE RESPOSTA IMEDIATA'; statusColor = C.RED; statusBgColor = rgb(0.18, 0.02, 0.02); }
+  else if (data.riskLevel >= 2) { statusLabel = 'LAUDO FINAL: SUSPEITO — REQUER ANALISE HUMANA IMEDIATA'; statusColor = C.ORANGE; statusBgColor = rgb(0.18, 0.08, 0.01); }
+  else if (data.riskLevel === 1) { statusLabel = 'LAUDO FINAL: BAIXO RISCO — MONITORAR PERIODICAMENTE'; statusColor = C.YELLOW; statusBgColor = rgb(0.15, 0.13, 0.01); }
 
-  ctx.page.drawRectangle({ x: 40, y: ctx.y - 20, width: 515, height: 20, color: statusBgColor, borderColor: statusColor, borderWidth: 0.8 });
-  ctx.page.drawText(safeText(statusLabel, 80), {
-    x: 125, y: ctx.y - 13, size: 10, font: fontBold, color: statusColor,
-  });
-  ctx.y -= 30;
+  {
+    // Centered verdict banner
+    const slW = fontBold.widthOfTextAtSize(statusLabel, 10);
+    const slX = M + CW / 2 - slW / 2;
+    ctx.page.drawRectangle({ x: M + 2, y: ctx.y - 24, width: CW - 4, height: 24, color: statusBgColor, borderColor: statusColor, borderWidth: 0.8 });
+    ctx.page.drawText(statusLabel, { x: slX, y: ctx.y - 15, size: 10, font: fontBold, color: statusColor });
+  }
+  ctx.y -= 34;
 
   // ─────────────────────────────────────────────────
   // HIGIDEZ DA CADEIA DE CUSTODIA E FUNDAMENTACAO NORMATIVA
@@ -1802,41 +1882,22 @@ async function generatePdf(data: {
     });
     ctx.y -= 28;
 
-    const higiLines = [
-      'O presente laudo certifica a preservacao do estado das coisas e a manutencao de uma cadeia de',
-      'custodia ininterrupta e auditavel, satisfazendo os requisitos legais de admissibilidade probatoria.',
-      'O fluxo de acautelamento da evidencia observou as etapas de Fixacao, Isolamento e Espelhamento,',
-      'conforme preceitua a Lei n. 13.964/2019 (Pacote Anticrime), que introduziu os Artigos 158-A a',
-      '158-F ao Codigo de Processo Penal (CPP) brasileiro.',
+    const HIGI_PARAS = [
+      'O presente laudo certifica a preservacao do estado das coisas e a manutencao de uma cadeia de custodia ininterrupta e auditavel, satisfazendo os requisitos legais de admissibilidade probatoria. O fluxo de acautelamento da evidencia observou as etapas de Fixacao, Isolamento e Espelhamento, conforme preceitua a Lei n. 13.964/2019 (Pacote Anticrime), que introduziu os Artigos 158-A a 158-F ao Codigo de Processo Penal (CPP) brasileiro.',
       '',
-      'No ambito internacional, os procedimentos de identificacao, coleta, aquisicao e preservacao',
-      'alinham-se a norma ISO/IEC 27037:2012. Adicionalmente, a autoria, os registros de acesso e a',
-      'imputabilidade do operador estao resguardados sob os ditames do Art. 11 e Art. 19, §3o da Lei',
-      'n. 12.965/2014 (Marco Civil da Internet). A autenticidade e a forca probante deste documento',
-      'eletronico sao atestadas e chanceladas na forma do Art. 422 do Codigo de Processo Civil (CPC),',
-      'corroboradas pela assinatura digital do sistema NCFN.',
+      'No ambito internacional, os procedimentos de identificacao, coleta, aquisicao e preservacao alinham-se a norma ISO/IEC 27037:2012. Adicionalmente, a autoria, os registros de acesso e a imputabilidade do operador estao resguardados sob os ditames do Art. 11 e Art. 19, §3o da Lei n. 12.965/2014 (Marco Civil da Internet). A autenticidade e a forca probante deste documento eletronico sao atestadas e chanceladas na forma do Art. 422 do Codigo de Processo Civil (CPC), corroboradas pela assinatura digital do sistema NCFN.',
     ];
-
-    const higiWrapped: string[] = [];
-    for (const line of higiLines) {
-      if (line === '') { higiWrapped.push(''); continue; }
-      for (const wl of wrapText(line, 108)) higiWrapped.push(wl);
-    }
-    const lineH = 11;
-    const boxH = higiWrapped.filter(l => l !== '').length * lineH + higiWrapped.filter(l => l === '').length * 5 + 14;
+    const higiInnerW = CW - 28;
+    const higiLineH = 11;
+    const boxH = proseMeasure(HIGI_PARAS, fontReg, 7.5, higiInnerW, higiLineH, 5) + 16;
     checkY(boxH + 6);
     ctx.page.drawRectangle({
       x: M + 2, y: ctx.y - boxH, width: CW - 4, height: boxH,
       color: C.PANEL, borderColor: C.BLUE, borderWidth: 0.4,
     });
-    let ty = ctx.y - 10;
-    for (let i = 0; i < higiWrapped.length; i++) {
-      const line = higiWrapped[i];
-      if (line === '') { ty -= 5; continue; }
-      ctx.page.drawText(safeText(line, 110), { x: M + 12, y: ty, size: 7.5, font: fontReg, color: C.WHITE });
-      ty -= lineH;
-    }
-    ctx.y -= boxH + 14;
+    ctx.y -= 10;
+    proseRender(HIGI_PARAS, fontReg, 7.5, M + 12, higiInnerW, higiLineH, C.WHITE, 5);
+    ctx.y -= 10;
   }
 
   // ─────────────────────────────────────────────────
@@ -1856,52 +1917,31 @@ async function generatePdf(data: {
 
     const entropiaVal = safeText(String(data.entropy), 10);
     const cleanLabel = data.riskLevel === 0 ? 'LIMPO, INTEGRO E AUTENTICO' : data.overallRisk;
-    const notaLines = [
-      'A analise de baixo nivel da estrutura binaria atesta a compatibilidade absoluta entre a extensao',
-      'declarada do artefato e a sua real assinatura interna (Magic Bytes). O calculo de Entropia de',
-      `Shannon resultou em indice indicativo de alta densidade informacional (E = ${entropiaVal}),`,
-      'caracteristico de algoritmos de compressao padrao ou encriptacao robusta, afastando',
-      'preliminarmente a hipotese de esteganografia trivial ou injecao de codigo malicioso anomalo.',
-      'A integridade temporal da evidencia e ratificada pela cronologia MACB (Modification, Access,',
-      'Change, Birth), nao apresentando anacronismos ou desvios em sua alocacao fisica nos blocos do',
-      'sistema de arquivos subjacente.',
-      '',
-      `Diante dos exames tecnicos supracitados e da ausencia de padroes condizentes com artefatos`,
-      `maliciosos (Malware/Exploits) na presente data, conclui-se que o arquivo digital submetido a`,
-      `analise encontra-se ${cleanLabel}. A custodia criptografica esta consolidada.`,
-      'O valor de hash SHA-256 constituido neste ato atua como linha de base imutavel da evidencia;',
-      'qualquer divergencia estrutural ou binaria futura em relacao a este identificador matematico',
-      'configurara a adulteracao irremediavel do artefato e a imediata quebra da cadeia de custodia.',
-    ];
-
-    const notaWrapped: string[] = [];
-    for (const line of notaLines) {
-      if (line === '') { notaWrapped.push(''); continue; }
-      for (const wl of wrapText(line, 108)) notaWrapped.push(wl);
-    }
-    const lineH2 = 11;
-    const boxH2 = notaWrapped.filter(l => l !== '').length * lineH2 + notaWrapped.filter(l => l === '').length * 5 + 14;
+    const NOTA_PARA_1 = `A analise de baixo nivel da estrutura binaria atesta a compatibilidade absoluta entre a extensao declarada do artefato e a sua real assinatura interna (Magic Bytes). O calculo de Entropia de Shannon resultou em indice indicativo de alta densidade informacional (E = ${entropiaVal}), caracteristico de algoritmos de compressao padrao ou encriptacao robusta, afastando preliminarmente a hipotese de esteganografia trivial ou injecao de codigo malicioso anomalo. A integridade temporal da evidencia e ratificada pela cronologia MACB (Modification, Access, Change, Birth), nao apresentando anacronismos ou desvios em sua alocacao fisica nos blocos do sistema de arquivos subjacente.`;
+    const NOTA_PARA_2 = `Diante dos exames tecnicos supracitados e da ausencia de padroes condizentes com artefatos maliciosos (Malware/Exploits) na presente data, conclui-se que o arquivo digital submetido a analise encontra-se ${cleanLabel}. A custodia criptografica esta consolidada. O valor de hash SHA-256 constituido neste ato atua como linha de base imutavel da evidencia; qualquer divergencia estrutural ou binaria futura em relacao a este identificador matematico configurara a adulteracao irremediavel do artefato e a imediata quebra da cadeia de custodia.`;
+    const notaInnerW = CW - 28;
+    const notaLineH = 11;
+    const notaStatusColor = data.riskLevel === 0 ? C.GREEN : data.riskLevel >= 3 ? C.RED : C.YELLOW;
+    const boxH2 = proseMeasure([NOTA_PARA_1, '', NOTA_PARA_2], fontReg, 7.5, notaInnerW, notaLineH, 5) + 16;
     checkY(boxH2 + 6);
     ctx.page.drawRectangle({
       x: M + 2, y: ctx.y - boxH2, width: CW - 4, height: boxH2,
       color: C.PANEL, borderColor: C.PURPLE, borderWidth: 0.4,
     });
-    let ty2 = ctx.y - 10;
-    for (let i = 0; i < notaWrapped.length; i++) {
-      const line = notaWrapped[i];
-      if (line === '') { ty2 -= 5; continue; }
-      const isStatus = line.includes(cleanLabel);
-      const nextIsBlankOrEnd = i === notaWrapped.length - 1 || notaWrapped[i + 1] === '';
-      const lineFont  = isStatus ? fontBold : fontReg;
-      const lineColor = isStatus ? (data.riskLevel === 0 ? C.GREEN : data.riskLevel >= 3 ? C.RED : C.YELLOW) : C.WHITE;
-      if (isStatus) {
-        ctx.page.drawText(safeText(line, 110), { x: M + 12, y: ty2, size: 7.5, font: lineFont, color: lineColor });
-      } else {
-        ctx.page.drawText(safeText(line, 110), { x: M + 12, y: ty2, size: 7.5, font: lineFont, color: lineColor });
+    ctx.y -= 10;
+    proseRender([NOTA_PARA_1], fontReg, 7.5, M + 12, notaInnerW, notaLineH, C.WHITE, 5);
+    ctx.y -= 5;
+    {
+      const statusLines = wrapTextPx(NOTA_PARA_2, fontReg, 7.5, notaInnerW);
+      for (let i = 0; i < statusLines.length; i++) {
+        checkY(notaLineH);
+        const sl = statusLines[i];
+        const isStatus = sl.includes(cleanLabel);
+        justifyLine(ctx.page, sl, M + 12, ctx.y, notaInnerW, 7.5, isStatus ? fontBold : fontReg, isStatus ? notaStatusColor : C.WHITE, i === statusLines.length - 1);
+        ctx.y -= notaLineH;
       }
-      ty2 -= lineH2;
     }
-    ctx.y -= boxH2 + 14;
+    ctx.y -= 10;
   }
 
   // ─────────────────────────────────────────────────
@@ -1920,34 +1960,19 @@ async function generatePdf(data: {
     });
     ctx.y -= 28;
 
-    const certLines = [
-      `Certifico, para os devidos fins de direito e sob as penas da lei, que o presente Relatorio do ativo`,
-      `digital acima identificado foi gerado de forma automatizada pelo sistema NCFN, em ambiente isolado`,
-      `e auditavel. Atesto que todos os hashes criptograficos, metadados e registros de log aqui expostos`,
-      `guardam fidedignidade absoluta com o ativo digital custodiado no Cofre Forense, nao tendo sofrido`,
-      `qualquer intervencao humana ou alteracao de bits desde o momento de sua fixacao no protocolo`,
-      `${safeText(data.docId, 25)}.`,
-      ``,
-      `A metodologia aplicada observa rigorosamente a ISO/IEC 27037:2012 e os preceitos da Cadeia de`,
-      `Custodia Digital previstos no Art. 158-B do Codigo de Processo Penal. Este documento constitui`,
-      `peca tecnica oficial e imutavel.`,
+    const CERT_PARAS = [
+      `Certifico, para os devidos fins de direito e sob as penas da lei, que o presente Relatorio do ativo digital acima identificado foi gerado de forma automatizada pelo sistema NCFN, em ambiente isolado e auditavel. Atesto que todos os hashes criptograficos, metadados e registros de log aqui expostos guardam fidedignidade absoluta com o ativo digital custodiado no Cofre Forense, nao tendo sofrido qualquer intervencao humana ou alteracao de bits desde o momento de sua fixacao no protocolo ${safeText(data.docId, 25)}.`,
+      '',
+      `A metodologia aplicada observa rigorosamente a ISO/IEC 27037:2012 e os preceitos da Cadeia de Custodia Digital previstos no Art. 158-B do Codigo de Processo Penal. Este documento constitui peca tecnica oficial e imutavel.`,
     ];
-    const certWrapped: string[] = [];
-    for (const cl of certLines) {
-      if (cl === '') { certWrapped.push(''); continue; }
-      for (const wl of wrapText(cl, 108)) certWrapped.push(wl);
-    }
-    const certBoxH = certWrapped.filter(l => l !== '').length * 11 + certWrapped.filter(l => l === '').length * 5 + 14;
+    const certInnerW = CW - 28;
+    const certLineH = 11;
+    const certBoxH = proseMeasure(CERT_PARAS, fontReg, 7.5, certInnerW, certLineH, 5) + 16;
     checkY(certBoxH + 6);
     ctx.page.drawRectangle({ x: M + 2, y: ctx.y - certBoxH, width: CW - 4, height: certBoxH, color: C.PANEL, borderColor: C.GREEN, borderWidth: 0.4 });
-    let cty = ctx.y - 10;
-    for (let i = 0; i < certWrapped.length; i++) {
-      const cl = certWrapped[i];
-      if (cl === '') { cty -= 5; continue; }
-      ctx.page.drawText(safeText(cl, 110), { x: M + 12, y: cty, size: 7.5, font: fontReg, color: C.WHITE });
-      cty -= 11;
-    }
-    ctx.y -= certBoxH + 12;
+    ctx.y -= 10;
+    proseRender(CERT_PARAS, fontReg, 7.5, M + 12, certInnerW, certLineH, C.WHITE, 5);
+    ctx.y -= 12;
   }
 
   // ─────────────────────────────────────────────────
@@ -2021,8 +2046,8 @@ async function generatePdf(data: {
     ctx.y -= 26;
 
     // Verification link
-    const verifyUrl = `https://ncfn.net/vitrine`;
-    field('Ponto de Verificacao:', 'https://ncfn.net/vitrine', true, C.CYAN);
+    const verifyUrl = `https://ncfn.net/auditor`;
+    field('Ponto de Verificacao:', 'https://ncfn.net/auditor', true, C.CYAN);
     addLink(ctx.page, verifyUrl, 185, ctx.y + 13, 220, 9);
     // ── 3 hashes (arquivo original, relatorio digital, relatorio impressao) ──
     checkY(150);
@@ -2144,13 +2169,14 @@ async function generatePdf(data: {
 
     checkY(24);
     ctx.y -= 4;
-    const conferLines = wrapText('Instrucao: O perito judicial/criminal ou autoridade competente deve confrontar o hash acima com o arquivo original. Qualquer divergencia de um unico caractere invalida este laudo em sua totalidade.', 108);
-    const conferH = conferLines.length * 9 + 10;
+    const conferInnerW = CW - 28;
+    const conferWrapped = wrapTextPx('Instrucao: O perito judicial/criminal ou autoridade competente deve confrontar o hash acima com o arquivo original. Qualquer divergencia de um unico caractere invalida este laudo em sua totalidade.', fontReg, 6.5, conferInnerW);
+    const conferH = conferWrapped.length * 9 + 10;
     ctx.page.drawRectangle({ x: M + 2, y: ctx.y - conferH, width: CW - 4, height: conferH + 4, color: C.DARK });
     ctx.page.drawRectangle({ x: M + 2, y: ctx.y - conferH, width: 3, height: conferH + 4, color: C.TEAL });
     let confY = ctx.y - 7;
-    for (let i = 0; i < conferLines.length; i++) {
-      ctx.page.drawText(safeText(conferLines[i], 110), { x: M + 12, y: confY, size: 6.5, font: fontReg, color: C.LGRAY });
+    for (let i = 0; i < conferWrapped.length; i++) {
+      justifyLine(ctx.page, conferWrapped[i], M + 12, confY, conferInnerW, 6.5, fontReg, C.LGRAY, i === conferWrapped.length - 1);
       confY -= 9;
     }
     ctx.y -= conferH + 10;
@@ -2257,7 +2283,9 @@ async function generatePdf(data: {
     const gCol2X = M + 4 + Math.floor(CW / 2) + 2;
     const gFontSz = 6.0;
     const gLineH = 8.2;
-    const gMaxL = 47;
+    // Pixel-accurate column inner widths
+    const gInnerW1 = Math.floor(W / 2) - (gCol1X + 4) - 8;   // ~253px
+    const gInnerW2 = (M + CW - 8) - (gCol2X + 4);             // ~252px
     const gStartY = ctx.y;
 
     ctx.page.drawLine({ start: { x: Math.floor(W / 2), y: gStartY }, end: { x: Math.floor(W / 2), y: gStartY - 220 }, thickness: 0.3, color: C.DIVIDER });
@@ -2267,9 +2295,10 @@ async function generatePdf(data: {
       if (gly < 50) break;
       ctx.page.drawText(safeText(`${item.term}:`, 30), { x: gCol1X, y: gly, size: gFontSz, font: fontBold, color: C.VIOLET });
       gly -= gLineH;
-      for (const ln of wrapText(item.def, gMaxL)) {
+      const defLines1 = wrapTextPx(item.def, fontReg, gFontSz, gInnerW1);
+      for (let di = 0; di < defLines1.length; di++) {
         if (gly < 50) break;
-        ctx.page.drawText(safeText(ln, gMaxL + 2), { x: gCol1X + 4, y: gly, size: gFontSz, font: fontReg, color: C.LGRAY });
+        justifyLine(ctx.page, defLines1[di], gCol1X + 4, gly, gInnerW1, gFontSz, fontReg, C.LGRAY, di === defLines1.length - 1);
         gly -= gLineH;
       }
       gly -= 3;
@@ -2280,9 +2309,10 @@ async function generatePdf(data: {
       if (gry < 50) break;
       ctx.page.drawText(safeText(`${item.term}:`, 30), { x: gCol2X, y: gry, size: gFontSz, font: fontBold, color: C.VIOLET });
       gry -= gLineH;
-      for (const ln of wrapText(item.def, gMaxL)) {
+      const defLines2 = wrapTextPx(item.def, fontReg, gFontSz, gInnerW2);
+      for (let di = 0; di < defLines2.length; di++) {
         if (gry < 50) break;
-        ctx.page.drawText(safeText(ln, gMaxL + 2), { x: gCol2X + 4, y: gry, size: gFontSz, font: fontReg, color: C.LGRAY });
+        justifyLine(ctx.page, defLines2[di], gCol2X + 4, gry, gInnerW2, gFontSz, fontReg, C.LGRAY, di === defLines2.length - 1);
         gry -= gLineH;
       }
       gry -= 3;
@@ -2355,13 +2385,10 @@ async function generatePdf(data: {
     const sbGap = 6;
     for (let si = 0; si < sigBlocks.length; si++) {
       const col = si % 2;
-      const row = Math.floor(si / 2);
       if (col === 0) checkY(sbH + 8);
       const sbX = M + col * (sbW + sbGap);
-      const sbY = col === 0 ? ctx.y : ctx.y + sbH + 8; // align second col with first col of same row
-
-      // For odd index on same row, they share the same ctx.y position
-      const drawY = col === 0 ? ctx.y : ctx.y + sbH + 8;
+      // Both columns of the same row draw at the same ctx.y (ctx.y only moves after col===1)
+      const drawY = ctx.y;
 
       ctx.page.drawRectangle({ x: sbX, y: drawY - sbH, width: sbW, height: sbH, color: C.DARK, borderColor: sigBlocks[si].color, borderWidth: 0.8 });
       ctx.page.drawRectangle({ x: sbX, y: drawY - 1, width: sbW, height: 2, color: sigBlocks[si].color });
@@ -2453,17 +2480,361 @@ async function generatePdf(data: {
 // POST handler
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Typed report generation (inicial / intermediario / final)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function generateTypedReport(action: string, folder: string, filename: string, operatorEmail: string) {
+  const filePath = `${folder}/${filename}`;
+  let absPath = resolveSafe(filePath);
+  if (!absPath || !fs.existsSync(absPath)) {
+    // Tenta com sufixo .enc (arquivo já encriptado)
+    const encPath = resolveSafe(`${folder}/${filename}.enc`);
+    if (encPath && fs.existsSync(encPath)) {
+      absPath = encPath;
+    } else {
+      throw new Error('Arquivo nao encontrado');
+    }
+  }
+
+  const stat = fs.statSync(absPath);
+  const fileBuffer = fs.readFileSync(absPath);
+  const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+  const sha1   = crypto.createHash('sha1').update(fileBuffer).digest('hex');
+  const md5    = crypto.createHash('md5').update(fileBuffer).digest('hex');
+  const entropy = calculateEntropy(fileBuffer);
+  const now = new Date();
+
+  let titulo = '';
+  let hashComparison: { prev: string; curr: string; match: boolean } | null = null;
+  let prevReportType = '';
+
+  if (action === 'generate_inicial') {
+    titulo = `RELATÓRIO INICIAL — ${filename}`;
+  } else if (action === 'generate_intermediario') {
+    // Find initial report to compare hashes
+    const initialReport = await prisma.laudoForense.findFirst({
+      where: { folder, filename, reportType: 'inicial' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (initialReport) {
+      try {
+        const evs = JSON.parse(initialReport.evidencias || '[]');
+        const prevHash = evs[0]?.hash || '';
+        hashComparison = { prev: prevHash, curr: sha256, match: prevHash === sha256 };
+      } catch {}
+    }
+    titulo = `RELATÓRIO INICIAL E RELATÓRIO INTERMEDIÁRIO CONSOLIDADO — ${filename}`;
+    prevReportType = 'inicial';
+  } else if (action === 'generate_final') {
+    // Find intermediary report to compare hashes
+    const intermediaryReport = await prisma.laudoForense.findFirst({
+      where: { folder, filename, reportType: 'intermediario' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (intermediaryReport) {
+      try {
+        const evs = JSON.parse(intermediaryReport.evidencias || '[]');
+        const prevHash = evs[0]?.hash || '';
+        hashComparison = { prev: prevHash, curr: sha256, match: prevHash === sha256 };
+      } catch {}
+    }
+    titulo = `RELATÓRIO FINAL CONSOLIDADO - ARQUIVO E LOGS — ${filename}`;
+    prevReportType = 'intermediario';
+  } else if (action === 'generate_manual') {
+    const finalReport = await prisma.laudoForense.findFirst({
+      where: { folder, filename, reportType: 'final' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (finalReport) {
+      try {
+        const evs = JSON.parse(finalReport.evidencias || '[]');
+        const prevHash = evs[0]?.hash || '';
+        hashComparison = { prev: prevHash, curr: sha256, match: prevHash === sha256 };
+      } catch {}
+    }
+    titulo = `NOVA LEITURA — LAUDO MANUAL PÓS-DEFINITIVO — ${filename}`;
+    prevReportType = 'final';
+  }
+
+  const evidencias = JSON.stringify([{
+    filename,
+    folder,
+    hash: sha256,
+    sha1,
+    md5,
+    size: stat.size,
+    mtime: stat.mtime.toISOString(),
+    entropy,
+    type: detectMime(filename),
+    ...(hashComparison ? {
+      prevHash: hashComparison.prev,
+      integrityMatch: hashComparison.match,
+      prevReportType,
+    } : {}),
+  }]);
+
+  const integrityStatus = hashComparison
+    ? hashComparison.match
+      ? 'ÍNTEGRO — Hash idêntico ao relatório anterior'
+      : '⚠ INCONFORMIDADE — Hash divergente do relatório anterior'
+    : 'N/A — Relatório inicial';
+
+  const achados = hashComparison
+    ? hashComparison.match
+      ? `Hash SHA-256 verificado: ${sha256}\nIntegridade confirmada em relação ao ${prevReportType}. Nenhuma alteração detectada.`
+      : `ALERTA DE INCONFORMIDADE:\nHash atual:   ${sha256}\nHash anterior: ${hashComparison.prev}\nO arquivo foi modificado desde o relatório ${prevReportType}.`
+    : `Hash SHA-256: ${sha256}\nHash SHA-1:   ${sha1}\nHash MD5:     ${md5}\nEntropia:     ${entropy}\nTamanho:      ${formatBytes(stat.size)}\nRegistrado em T0: ${now.toISOString()}`;
+
+  const conclusao = action === 'generate_final'
+    ? `DECLARAÇÃO DE DESCARTE: Este relatório consolida o ciclo de vida do vestígio digital "${filename}". O arquivo foi analisado, encriptado e disponibilizado conforme protocolos NCFN. Este relatório expira em 5 horas.`
+    : action === 'generate_intermediario'
+    ? `Relatório intermediário consolidado gerado conforme Art. 158-B do CPP. Status de integridade: ${integrityStatus}.`
+    : action === 'generate_manual'
+    ? `NOVA LEITURA MANUAL: Este laudo foi gerado manualmente após a conclusão do ciclo de custódia do vestígio "${filename}". Constitui nova conferência oficial com comparação de integridade em relação ao relatório definitivo. Status: ${integrityStatus}.`
+    : `Relatório inicial gerado automaticamente no momento de custódia (T0) do vestígio digital "${filename}".`;
+
+  const reportType = action === 'generate_inicial' ? 'inicial' : action === 'generate_intermediario' ? 'intermediario' : action === 'generate_final' ? 'final' : 'manual';
+  const finalExpiresAt = reportType === 'final' ? new Date(now.getTime() + 5 * 60 * 60 * 1000) : null;
+
+  const laudo = await prisma.laudoForense.create({
+    data: {
+      titulo,
+      operatorEmail,
+      evidencias,
+      achados,
+      conclusao,
+      status: 'final',
+      reportType,
+      folder,
+      filename,
+      ...(finalExpiresAt ? { finalReportExpiresAt: finalExpiresAt } : {}),
+    },
+  });
+
+  return laudo;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await adminGuard();
     if (!user) return new NextResponse('Nao autorizado', { status: 401 });
 
     const body = await req.json();
-    const { filePath, print: printMode = false } = body;
+    const { filePath, print: printMode = false, action, folder: bodyFolder, filename: bodyFilename } = body;
+
+    // ── New typed report actions ──────────────────────────────────────────────
+    if (action === 'generate_inicial' || action === 'generate_intermediario' || action === 'generate_final') {
+      if (!bodyFolder || !bodyFilename) return NextResponse.json({ error: 'folder e filename obrigatorios' }, { status: 400 });
+      try {
+        const laudo = await generateTypedReport(action, bodyFolder, bodyFilename, user.email);
+        return NextResponse.json({ ok: true, reportId: laudo.id, reportType: laudo.reportType });
+      } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 500 });
+      }
+    }
+
+    // ── Generate manual post-final report ────────────────────────────────────
+    if (action === 'generate_manual') {
+      if (!bodyFolder || !bodyFilename) return NextResponse.json({ error: 'folder e filename obrigatorios' }, { status: 400 });
+      const existingManual = await prisma.laudoForense.findFirst({
+        where: { folder: bodyFolder, filename: bodyFilename, reportType: 'manual' },
+      });
+      if (existingManual) return NextResponse.json({ error: 'Laudo manual já gerado para este arquivo.' }, { status: 400 });
+      const custState = await prisma.fileCustodyState.findUnique({
+        where: { folder_filename: { folder: bodyFolder, filename: bodyFilename } },
+      });
+      if (!custState?.finalReportAt) return NextResponse.json({ error: 'Relatório Final não concluído.' }, { status: 400 });
+      try {
+        const laudo = await generateTypedReport('generate_manual', bodyFolder, bodyFilename, user.email);
+        return NextResponse.json({ ok: true, reportId: laudo.id, reportType: laudo.reportType });
+      } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 500 });
+      }
+    }
+
+    // ── View existing typed report by ID (returns PDF blob) ──────────────────
+    if (action === 'view_typed_report') {
+      const { id, print: pm = false } = body;
+      if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
+
+      const laudo = await prisma.laudoForense.findUnique({ where: { id } });
+      if (!laudo) return NextResponse.json({ error: 'Relatorio nao encontrado' }, { status: 404 });
+
+      const laudoFolder2  = laudo.folder   || '';
+      const laudoFile2    = laudo.filename  || '';
+      const C = pm ? PRINT_C : DARK_C;
+      const PW = 612; const PH = 792;
+
+      // ── Gera a pericia base completa via chamada interna ─────────────────
+      const baseUrl3 = new URL(req.url).origin;
+      const cookieHdr3 = req.headers.get('cookie') || '';
+
+      let pdfDoc3: any;
+      let basePageCount3 = 0;
+
+      try {
+        const periciaRes3 = await fetch(`${baseUrl3}/api/vault/custody-report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'cookie': cookieHdr3 },
+          body: JSON.stringify({ filePath: `${laudoFolder2}/${laudoFile2}`, print: pm }),
+        });
+        if (!periciaRes3.ok) throw new Error('base pericia failed');
+        const baseBytes3 = Buffer.from(await periciaRes3.arrayBuffer());
+        pdfDoc3 = await PDFDocument.load(baseBytes3);
+        basePageCount3 = pdfDoc3.getPageCount();
+      } catch {
+        pdfDoc3 = await PDFDocument.create();
+        basePageCount3 = 0;
+      }
+
+      // Para inicial: retorna a pericia base diretamente
+      if (laudo.reportType === 'inicial') {
+        const sf3 = (laudoFile2 || 'relatorio').replace(/[^\w.-]/g, '_').slice(0, 30);
+        const bytes3 = await pdfDoc3.save();
+        return new NextResponse(Buffer.from(bytes3), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="NCFN_RELATORIO_INICIAL_${pm ? 'IMPRESSAO' : 'DIGITAL'}_${sf3}.pdf"`,
+          },
+        });
+      }
+
+      // ── Para etapas superiores: carrega base e adiciona secoes cumulativas
+      const fontBold3   = await pdfDoc3.embedFont(StandardFonts.HelveticaBold);
+      const fontNormal3 = await pdfDoc3.embedFont(StandardFonts.Helvetica);
+
+      let pg3: any;
+      let vy3 = 0;
+
+      const newPage3 = () => {
+        pg3 = pdfDoc3.addPage([PW, PH]);
+        pg3.drawRectangle({ x: 0, y: 0, width: PW, height: PH, color: C.BG });
+        vy3 = PH - 40;
+      };
+      const chk3 = (n: number) => { if (vy3 < n) newPage3(); };
+
+      const sec3 = (title: string, content: string, tc?: any) => {
+        if (!content?.trim()) return;
+        chk3(50);
+        pg3.drawLine({ start: { x: 30, y: vy3 + 4 }, end: { x: PW - 30, y: vy3 + 4 }, thickness: 0.5, color: C.DIVIDER });
+        vy3 -= 14;
+        pg3.drawText(title, { x: 30, y: vy3, size: 9, font: fontBold3, color: tc || C.PURPLE });
+        vy3 -= 16;
+        for (const rawLine of content.split('\n')) {
+          if (!rawLine.trim()) { vy3 -= 6; continue; }
+          let acc = '';
+          for (const w of rawLine.split(' ')) {
+            const test = acc ? `${acc} ${w}` : w;
+            if (fontNormal3.widthOfTextAtSize(test, 8) > PW - 80) {
+              chk3(16); pg3.drawText(acc, { x: 40, y: vy3, size: 8, font: fontNormal3, color: C.LGRAY }); vy3 -= 12; acc = w;
+            } else { acc = test; }
+          }
+          if (acc) { chk3(16); pg3.drawText(acc, { x: 40, y: vy3, size: 8, font: fontNormal3, color: C.LGRAY }); vy3 -= 12; }
+        }
+        vy3 -= 6;
+      };
+
+      // Cadeia de etapas a renderizar
+      const rType3 = laudo.reportType;
+      const stageChain3: { rType: string; label: string; color: any }[] = [];
+      if (rType3 === 'intermediario') {
+        stageChain3.push({ rType: 'intermediario', label: 'RELATORIO INTERMEDIARIO - SEGUNDA CONFERENCIA', color: C.AMBER });
+      } else if (rType3 === 'final') {
+        stageChain3.push({ rType: 'intermediario', label: 'RELATORIO INTERMEDIARIO - SEGUNDA CONFERENCIA', color: C.AMBER });
+        stageChain3.push({ rType: 'final',          label: 'RELATORIO FINAL - TERCEIRA CONFERENCIA',       color: C.RED });
+      } else if (rType3 === 'manual') {
+        stageChain3.push({ rType: 'intermediario', label: 'RELATORIO INTERMEDIARIO - SEGUNDA CONFERENCIA', color: C.AMBER });
+        stageChain3.push({ rType: 'final',          label: 'RELATORIO FINAL - TERCEIRA CONFERENCIA',       color: C.RED });
+        stageChain3.push({ rType: 'manual',         label: 'RELATORIO MANUAL - QUARTA CONFERENCIA',        color: C.GREEN });
+      }
+
+      for (const stage3 of stageChain3) {
+        const sl3 = stage3.rType === rType3 ? laudo : await prisma.laudoForense.findFirst({
+          where: { folder: laudoFolder2, filename: laudoFile2, reportType: stage3.rType },
+          orderBy: { createdAt: stage3.rType === 'intermediario' ? 'asc' : 'desc' },
+        });
+        if (!sl3) continue;
+
+        newPage3();
+        pg3.drawRectangle({ x: 0, y: PH - 70, width: PW, height: 70, color: C.HEADER });
+        pg3.drawText(`NCFN - ${stage3.label}`, { x: 30, y: PH - 28, size: 9, font: fontBold3, color: stage3.color });
+        pg3.drawText('Nexus Cyber Forensic Network - Confidencial', { x: 30, y: PH - 46, size: 8, font: fontNormal3, color: C.GRAY });
+        pg3.drawText(new Date().toISOString(), { x: 380, y: PH - 28, size: 7, font: fontNormal3, color: C.GRAY });
+        pg3.drawLine({ start: { x: 0, y: PH - 70 }, end: { x: PW, y: PH - 70 }, thickness: 2, color: stage3.color });
+        vy3 = PH - 98;
+
+        for (const [lbl3, val3] of [
+          ['Tipo:', stage3.label.split(' - ')[0]],
+          ['Arquivo:', safeText(sl3.filename || '', 70)],
+          ['Pasta:', safeText(sl3.folder || '', 70)],
+          ['Operador:', safeText(sl3.operatorEmail, 60)],
+          ['Gerado em:', new Date(sl3.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })],
+          ['ID do Laudo:', sl3.id],
+        ] as [string, string][]) {
+          chk3(20);
+          pg3.drawText(lbl3, { x: 40, y: vy3, size: 8, font: fontBold3, color: C.GRAY });
+          pg3.drawText(val3, { x: 155, y: vy3, size: 8, font: fontNormal3, color: C.WHITE });
+          vy3 -= 13;
+        }
+        vy3 -= 8;
+
+        let evArr3b: any[] = [];
+        try { evArr3b = JSON.parse(sl3.evidencias || '[]'); } catch {}
+        const ev3b = evArr3b[0] || {};
+        if (ev3b.hash || ev3b.sha1 || ev3b.md5) {
+          const hashLines3 = [
+            ev3b.hash    ? `SHA-256: ${ev3b.hash}` : '',
+            ev3b.sha1    ? `SHA-1:   ${ev3b.sha1}` : '',
+            ev3b.md5     ? `MD5:     ${ev3b.md5}` : '',
+            ev3b.entropy !== undefined ? `Entropia: ${ev3b.entropy}` : '',
+            ev3b.size    ? `Tamanho: ${formatBytes(ev3b.size)}` : '',
+          ].filter(Boolean).join('\n');
+          sec3('HASHES DE INTEGRIDADE', hashLines3);
+        }
+        if (ev3b.integrityMatch !== undefined) {
+          const itxt3 = ev3b.integrityMatch
+            ? 'INTEGRO - Hash identico ao relatorio anterior'
+            : 'INCONFORMIDADE - Hash diverge do relatorio anterior';
+          sec3('STATUS DE INTEGRIDADE', itxt3, ev3b.integrityMatch ? C.GREEN : C.RED);
+        }
+        if (sl3.achados)   sec3('ACHADOS FORENSES', sl3.achados, stage3.color);
+        if (sl3.conclusao) sec3('CONCLUSAO', sl3.conclusao);
+      }
+
+      // Footers apenas nas paginas novas (nao nas paginas da pericia base)
+      const allPgs3 = pdfDoc3.getPages();
+      for (let pi3 = basePageCount3; pi3 < allPgs3.length; pi3++) {
+        const p3 = allPgs3[pi3];
+        p3.drawLine({ start: { x: 30, y: 45 }, end: { x: PW - 30, y: 45 }, thickness: 0.5, color: C.DIVIDER });
+        p3.drawText('Documento gerado digitalmente pelo Portal NCFN.', { x: 30, y: 32, size: 6, font: fontNormal3, color: C.GRAY });
+        p3.drawText(`ID: ${laudo.id} | Pag. ${pi3 + 1}/${allPgs3.length} | ${new Date().toISOString()}`, { x: 30, y: 22, size: 6, font: fontNormal3, color: C.DGRAY });
+      }
+
+      const merged3 = await pdfDoc3.save();
+      const sf3b = (laudoFile2 || 'relatorio').replace(/[^\w.-]/g, '_').slice(0, 30);
+      const suf3 = pm ? 'IMPRESSAO' : 'DIGITAL';
+      return new NextResponse(Buffer.from(merged3), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="NCFN_${rType3.toUpperCase()}_${suf3}_${sf3b}.pdf"`,
+        },
+      });
+    }
+
     if (!filePath) return new NextResponse('filePath obrigatorio', { status: 400 });
 
-    const absPath = resolveSafe(filePath);
-    if (!absPath || !fs.existsSync(absPath)) return new NextResponse('Arquivo nao encontrado', { status: 404 });
+    let absPath = resolveSafe(filePath);
+    if (!absPath || !fs.existsSync(absPath)) {
+      const encPath = resolveSafe(filePath + '.enc');
+      if (encPath && fs.existsSync(encPath)) {
+        absPath = encPath;
+      } else {
+        return new NextResponse('Arquivo nao encontrado', { status: 404 });
+      }
+    }
 
     const stat = fs.statSync(absPath);
     if (!stat.isFile()) return new NextResponse('Nao e um arquivo', { status: 400 });

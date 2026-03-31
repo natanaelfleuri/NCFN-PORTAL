@@ -599,7 +599,8 @@ export default function VaultPage() {
     if ((nowMs - t0) / 1000 < 7200) return;
     autoIntermediaryFired.current = true;
     const [iFolder] = selected.path.split('/');
-    const iFilename = selected.path.split('/').slice(1).join('/');
+    const rawFilename = selected.path.split('/').slice(1).join('/');
+    const iFilename = rawFilename.endsWith('.enc') ? rawFilename.slice(0, -4) : rawFilename;
     setGeneratingIntermediaryReport(true);
     fetch('/api/vault/custody-report', {
       method: 'POST',
@@ -629,8 +630,10 @@ export default function VaultPage() {
     const parts = file.path.split('/');
     const fileFolder = parts[0];
     const fileFilename = parts.slice(1).join('/');
+    // Custody state é salvo sem .enc — strip para lookup
+    const plainFilename = fileFilename.endsWith('.enc') ? fileFilename.slice(0, -4) : fileFilename;
     if (parts.length >= 2) {
-      fetchCustodyState(fileFolder, fileFilename);
+      fetchCustodyState(fileFolder, plainFilename);
       setFileCtx(fileFolder, fileFilename);
     }
     if (file.type === 'text') {
@@ -1039,7 +1042,8 @@ export default function VaultPage() {
 
       // Trigger custody lifecycle T0 + Relatório Inicial (fire-and-forget)
       const [csFolder] = selected.path.split('/');
-      const csFilename = selected.path.split('/').slice(1).join('/');
+      const csFilenameRaw = selected.path.split('/').slice(1).join('/');
+      const csFilename = csFilenameRaw.endsWith('.enc') ? csFilenameRaw.slice(0, -4) : csFilenameRaw;
       fetch('/api/vault/custody-state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1909,7 +1913,8 @@ export default function VaultPage() {
                     setGeneratingFinalReport(true);
                     try {
                       const [fFolder] = selected.path.split('/');
-                      const fFilename = selected.path.split('/').slice(1).join('/');
+                      const fFilenameRaw = selected.path.split('/').slice(1).join('/');
+                      const fFilename = fFilenameRaw.endsWith('.enc') ? fFilenameRaw.slice(0, -4) : fFilenameRaw;
                       const rpt = await fetch('/api/vault/custody-report', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -2035,7 +2040,8 @@ export default function VaultPage() {
                     setGeneratingManualReport(true);
                     try {
                       const [mFolder] = selected.path.split('/');
-                      const mFilename = selected.path.split('/').slice(1).join('/');
+                      const mFilenameRaw = selected.path.split('/').slice(1).join('/');
+                      const mFilename = mFilenameRaw.endsWith('.enc') ? mFilenameRaw.slice(0, -4) : mFilenameRaw;
                       const rpt = await fetch('/api/vault/custody-report', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
