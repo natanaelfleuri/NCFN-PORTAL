@@ -1,0 +1,2 @@
+
+### Este é o seu repositório de informações, seu segundo cérebro, crie notas, pastas, organizações, tags e tudo que precisar, para a lógica das implementações, sempre que implementarmos algo novo, copie sua memória para cá da forma que ficar melhor, se quiser pode salvar o histórico do terminal para revisar tudo que foi implementado. 

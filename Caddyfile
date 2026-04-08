@@ -105,3 +105,34 @@ http://ncfn.net {
 http://www.ncfn.net {
     redir https://ncfn.net{uri} permanent
 }
+
+# ── Nextcloud (cloud.ncfn.net) ───────────────────────────────────────────────
+# Cloudflare Tunnel encaminha cloud.ncfn.net → ncfn_nextcloud:80 diretamente.
+# Este bloco é fallback para acesso interno (ex: outro container).
+http://cloud.ncfn.net {
+    header -X-Frame-Options
+    header X-Frame-Options "SAMEORIGIN"
+    header X-Content-Type-Options "nosniff"
+
+    reverse_proxy ncfn_nextcloud:80 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto https
+
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+            dial_timeout 10s
+        }
+    }
+
+    log {
+        output file /var/log/caddy/nextcloud_access.log {
+            roll_size 10mb
+            roll_keep 3
+        }
+        format json
+        level INFO
+    }
+}

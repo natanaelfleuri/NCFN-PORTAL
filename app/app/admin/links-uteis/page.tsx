@@ -8,7 +8,7 @@ import {
     Pin, PinOff, Copy, Download, ChevronUp, ArrowRight,
     Highlighter, Sparkles, Palette, MoveRight, Pencil,
     Maximize2, ExternalLink, Archive, BarChart2, FolderTree,
-    BookOpen, TrendingUp, Hash, Clock,
+    BookOpen, TrendingUp, Hash, Clock, Cloud, Loader2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -196,6 +196,7 @@ export default function LinksUteisPage() {
     const autoSaveRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saved'>('idle');
     const [templatesOpen, setTemplatesOpen]   = useState(false);
+    const [syncing, setSyncing]               = useState<'push' | 'pull' | null>(null);
 
     const isDirty = selected
         ? title !== selected.title || content !== selected.content || folderId !== (selected.folderId ?? null)
@@ -286,6 +287,36 @@ export default function LinksUteisPage() {
             ta.selectionEnd   = start + snippet.length;
         });
     }, [content]);
+
+    /* ── Sync com Nextcloud ── */
+    const handleSyncPush = async () => {
+        setSyncing('push');
+        try {
+            const res = await fetch('/api/nextcloud', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'sync-notes-push' }),
+            });
+            const d = await res.json();
+            showMsg(d.ok ? 'ok' : 'err', d.ok ? `${d.pushed}/${d.total} notas enviadas ao Nextcloud` : `Erro: ${d.error ?? 'falha'}`);
+        } catch { showMsg('err', 'Erro de rede ao sincronizar'); }
+        setSyncing(null);
+    };
+
+    const handleSyncPull = async () => {
+        setSyncing('pull');
+        try {
+            const res = await fetch('/api/nextcloud', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'sync-notes-pull' }),
+            });
+            const d = await res.json();
+            if (d.ok) { await loadData(); showMsg('ok', `${d.pulled}/${d.total} notas recebidas do Nextcloud`); }
+            else showMsg('err', `Erro: ${d.error ?? 'falha'}`);
+        } catch { showMsg('err', 'Erro de rede ao sincronizar'); }
+        setSyncing(null);
+    };
 
     /* ── Import .md file ── */
     const handleImportMd = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -990,6 +1021,14 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                         <button onClick={() => importRef.current?.click()}
                             style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600 }}>
                             <Download size={10} /> Importar .md
+                        </button>
+                        <button onClick={handleSyncPush} disabled={!!syncing}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(74,222,128,0.5)', background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600, opacity: syncing ? 0.5 : 1 }}>
+                            {syncing === 'push' ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> : <Cloud size={10} />} Push NC
+                        </button>
+                        <button onClick={handleSyncPull} disabled={!!syncing}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(0,243,255,0.5)', background: 'rgba(0,243,255,0.05)', border: '1px solid rgba(0,243,255,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600, opacity: syncing ? 0.5 : 1 }}>
+                            {syncing === 'pull' ? <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> : <Cloud size={10} />} Pull NC
                         </button>
                     </div>
 

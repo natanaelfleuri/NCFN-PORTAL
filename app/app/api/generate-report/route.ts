@@ -5,6 +5,8 @@ import { getToken } from 'next-auth/jwt';
 import fs from 'fs';
 import path from 'path';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { ncUploadWithDirs } from '@/lib/nextcloud';
+import { sendSecureMail, reportEmailHtml } from '@/lib/secureMail';
 
 const VAULT_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 
@@ -124,12 +126,44 @@ export async function GET(req: NextRequest) {
         page.drawText(`TIMESTAMP: ${Date.now()}`, { x: width - 180, y: y - 65, size: 7, font: fontMono, color: rgb(0.5, 0.5, 0.5) });
 
         const pdfBytes = await pdfDoc.save();
+        const pdfBuffer = Buffer.from(pdfBytes);
+        const filename = `NCFN_Audit_${folder}_${Date.now()}.pdf`;
+        const year  = new Date().getFullYear();
+        const month = String(new Date().getMonth() + 1).padStart(2, '0');
+        const ncPath = `NCFN-NextCloud/Relatórios/${year}/${month}/${filename}`;
 
-        return new NextResponse(Buffer.from(pdfBytes), {
+        // Upload para Nextcloud (fire & forget)
+        ncUploadWithDirs(ncPath, pdfBuffer, 'application/pdf').catch(e =>
+            console.error('[generate-report] NC upload failed:', e));
+
+        // Email automático (fire & forget)
+        if (process.env.REPORT_RECIPIENT || process.env.BRIDGE_FROM || process.env.SMTP_USER || process.env.RESEND_API_KEY) {
+            const recipient = process.env.REPORT_RECIPIENT ?? process.env.BRIDGE_FROM ?? process.env.SMTP_USER ?? '';
+            if (recipient) {
+                sendSecureMail({
+                    to: recipient,
+                    subject: `[NCFN] Relatório de Auditoria — ${folder}`,
+                    html: reportEmailHtml({
+                        title: `Relatório de Auditoria — ${folder}`,
+                        id: filename.replace('.pdf', ''),
+                        metadata: {
+                            'Pasta':      folder,
+                            'Arquivos':   `${files.length} itens`,
+                            'Nó':         nodeId,
+                            'Gerado em':  now,
+                        },
+                        ncPath,
+                    }),
+                    attachments: [{ filename, content: pdfBuffer, contentType: 'application/pdf' }],
+                }).catch(e => console.error('[generate-report] Email failed:', e));
+            }
+        }
+
+        return new NextResponse(pdfBuffer, {
             status: 200,
             headers: {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': `attachment; filename="NCFN_Audit_${folder}_${Date.now()}.pdf"`,
+                'Content-Disposition': `attachment; filename="${filename}"`,
             },
         });
     } catch (err) {

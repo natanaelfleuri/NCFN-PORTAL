@@ -142,6 +142,62 @@ services:
     network_mode: host
     command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiZTA0MjNmZGItODRhYy00YjZjLThhNzMtMGZhNGE1NzY1YzQzIiwicyI6Ik5UWmxZakk0TlRrdFkySTVNQzAwWmpjMExXRXlNelV0TldKallXSXhNekl5Tm1NNSJ9
 
+  # ─── Nextcloud (cloud.ncfn.net) ─────────────────────────────────────────────
+  # Ativar: docker compose --profile cloud up -d nextcloud
+  # Primeiro acesso: https://cloud.ncfn.net → wizard de instalação
+  # Setup banco: usar SQLite (padrão) ou ativar profile postgres
+  nextcloud:
+    image: nextcloud:27-apache
+    container_name: ncfn_nextcloud
+    profiles:
+      - cloud
+    mem_limit: 1g
+    mem_reservation: 256m
+    cpus: "2"
+    volumes:
+      - ./nextcloud_data:/var/www/html/data
+      - ./nextcloud_config:/var/www/html/config
+      - ./nextcloud_apps:/var/www/html/apps
+    environment:
+      - NEXTCLOUD_ADMIN_USER=admin
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD:-NCFN_Admin_2026!}
+      - NEXTCLOUD_TRUSTED_DOMAINS=cloud.ncfn.net localhost 127.0.0.1
+      - OVERWRITEHOST=cloud.ncfn.net
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITECLIURL=https://cloud.ncfn.net
+      - PHP_MEMORY_LIMIT=512M
+      - PHP_UPLOAD_LIMIT=5G
+      - APACHE_DISABLE_REWRITE_IP=1
+      # Banco: SQLite por padrão. Para PostgreSQL, adicionar:
+      # - POSTGRES_HOST=ncfn_postgres
+      # - POSTGRES_DB=nextcloud_db
+      # - POSTGRES_USER=ncfn
+      # - POSTGRES_PASSWORD=ncfn2026
+    restart: unless-stopped
+
+  # ─── ProtonMail Bridge (SMTP PGP-signed) ────────────────────────────────────
+  # Ativar: docker compose --profile secure-mail up -d protonmail-bridge
+  # Setup inicial OBRIGATÓRIO (uma vez):
+  #   docker exec -it ncfn_protonmail_bridge protonmail-bridge --cli
+  #   > login → digitar email/senha ProtonMail → info → copiar SMTP user/pass
+  #   Adicionar ao .env: BRIDGE_SMTP_USER, BRIDGE_SMTP_PASS, BRIDGE_FROM
+  #
+  # Alternativas sem ProtonMail:
+  #   - Gmail: SMTP_HOST=smtp.gmail.com SMTP_PORT=587 SMTP_USER= SMTP_PASS=app-password
+  #   - Resend: RESEND_API_KEY=re_... (resend.com — plano gratuito 3000/mês)
+  protonmail-bridge:
+    image: shenxianpeng/protonmail-bridge:latest
+    container_name: ncfn_protonmail_bridge
+    profiles:
+      - secure-mail
+    mem_limit: 256m
+    cpus: "1"
+    volumes:
+      - ./protonmail_bridge_data:/root
+    environment:
+      - TZ=America/Sao_Paulo
+    restart: unless-stopped
+
   # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
   # Ativar: docker compose --profile whisper up -d
   # RAM: ~1.5GB com modelo base
@@ -203,3 +259,6 @@ volumes:
   chroma_data:
   postgres_data:
   redis_data:
+  nextcloud_data:
+  nextcloud_config:
+  nextcloud_apps:

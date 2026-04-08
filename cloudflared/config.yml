@@ -10,4 +10,9 @@ ingress:
     service: http://127.0.0.1:3000
     originRequest:
       noTLSVerify: true
+  - hostname: cloud.ncfn.net
+    service: http://ncfn_nextcloud:80
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
   - service: http_status:404

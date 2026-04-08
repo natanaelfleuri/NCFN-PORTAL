@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, FileSearch, Trash2, Users, FileText, Globe, TrendingUp, Clock, BookOpen, Archive, KeyRound, Home, FileCode2, NotebookPen, AlertTriangle, HelpCircle, X, ShieldCheck, UserCog, CheckCircle, Lock, FileBarChart, HardDriveDownload, Shield, XCircle, RefreshCw, Wifi, Key, Layers, Zap, Server } from 'lucide-react';
+import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, FileSearch, Trash2, Users, FileText, Globe, TrendingUp, Clock, BookOpen, Archive, KeyRound, Home, FileCode2, NotebookPen, AlertTriangle, HelpCircle, X, ShieldCheck, UserCog, CheckCircle, Lock, FileBarChart, HardDriveDownload, Shield, XCircle, RefreshCw, Wifi, Key, Layers, Zap, Server, Cloud, Cpu } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { formatBytes } from '../utils';
@@ -99,9 +99,11 @@ const MODULES = [
     { href: '/admin/descriptar',      icon: KeyRound,     label: 'REVERTER CRIPTOGRAFIA',          ...F },
     { href: '/auditor',               icon: ShieldCheck,  label: 'CALCULAR HASH DO ATIVO',         ...F },
     { href: '/admin/canary',          icon: AlertTriangle,label: 'ARMADILHA DIGITAL',              ...F },
-    { href: '/home',                  icon: Home,         label: 'HUB PÚBLICO',                    ...U },
-    { href: '/doc',                   icon: FileCode2,    label: 'MANUAIS DO SISTEMA',             ...U },
-    { href: '/admin/links-uteis',     icon: NotebookPen,  label: 'LINKS ÚTEIS',                    ...U },
+    { href: '/home',                   icon: Home,         label: 'HUB PÚBLICO',                    ...U },
+    { href: '/doc',                    icon: FileCode2,    label: 'MANUAIS DO SISTEMA',             ...U },
+    { href: '/admin/links-uteis',      icon: NotebookPen,  label: 'LINKS ÚTEIS',                    ...U },
+    { href: '/admin/utilidades',       icon: Cpu,          label: 'MÓDULO UTILIDADES',              ...U },
+    { href: 'https://cloud.ncfn.net',  icon: Cloud,        label: 'NEXTCLOUD — CLOUD.NCFN.NET',     ...U },
 ];
 
 // ── Diagnóstico: constantes ───────────────────────────────────────────────────
@@ -510,8 +512,11 @@ export default function AdminDashboard() {
                 }).map((mod, idx) => {
                     const visible = activeFilter === 'TODOS' || mod.category === activeFilter;
                     const fc = activeFilter !== 'TODOS' ? (FILTER_COLORS[activeFilter] ?? '#bc13fe') : null;
+                    const isExternal = mod.href.startsWith('http');
                     return (
                         <Link key={`${mod.href}-${idx}`} href={visible ? mod.href : '#'}
+                            target={isExternal && visible ? '_blank' : undefined}
+                            rel={isExternal ? 'noopener noreferrer' : undefined}
                             className={`group transition-all duration-300 ${!visible ? 'pointer-events-none' : ''}`}
                             style={{ opacity: visible ? 1 : 0.2 }}
                             tabIndex={visible ? undefined : -1}>
