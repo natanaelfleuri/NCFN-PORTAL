@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "CLAUDE BRAIN.md",
+                "file": "README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "CLAUDE BRAIN"
+              "title": "README"
             }
           }
         ]
@@ -199,10 +199,18 @@
       "bases:Criar nova base": false
     }
   },
-  "active": "90da176a2a151e9f",
+  "active": "96ac943d4c0bde77",
   "lastOpenFiles": [
+    "IMPLEMENTACOES.md",
+    "INFRAESTRUTURA.md",
+    "ESTADO_ATUAL.md",
+    "DECISOES.md",
+    "CLAUDE BRAIN.md",
+    "PLANOS/NEXTCLOUD_PROTONMAIL.md",
+    "ARQUITETURA.md",
+    "README.md",
+    "ESTADO_ATUAL.md.tmp.425664.1775671185430",
     "HISTÓRICO DE IMPLEMENTAÇÕES",
-    "Bem-vindo.md",
-    "CLAUDE BRAIN.md"
+    "Bem-vindo.md"
   ]
 }

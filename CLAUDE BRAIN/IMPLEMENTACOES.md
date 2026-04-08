@@ -77,7 +77,84 @@ Registro cronológico de tudo implementado. Sempre atualizar após cada sessão.
 
 ---
 
-## Pendências após `5c1564c`
+---
+
+## Commit `a85bdeb` — Nextcloud + SecureMail + Módulo Utilidades + CLAUDE BRAIN
+
+**Data:** 2026-04-08
+
+### `app/lib/nextcloud.ts` (NOVO)
+WebDAV client completo:
+- `ncUpload(path, content, mime)` — PUT
+- `ncDownload(path)` → Buffer
+- `ncDelete(path)` → bool
+- `ncMkdir(path)` → bool (409 = ok, already exists)
+- `ncList(path)` → NcFile[] (PROPFIND XML parser)
+- `ncStat(path)` → { size, modified }
+- `ncPing()` → { ok, user, version } via OCS API
+- `ncEnsureDir(path)` — cria todos os segmentos
+- `ncUploadWithDirs(path, content)` — mkdirs + upload
+- `ncWebUrl(path)` → URL da interface web NC
+
+### `app/lib/secureMail.ts` (NOVO)
+Mailer flexível com 3 backends (prioridade: Bridge > SMTP > Resend):
+- `sendSecureMail(payload)` → { ok, backend, messageId, error }
+- `pingMailBackend()` → { ok, backend, detail }
+- `reportEmailHtml(opts)` → HTML template dark com tabela de metadados
+- ProtonMail Bridge: porta 1025, TLS self-signed, PGP automático
+- SMTP: Gmail/Outlook padrão
+- Resend: API REST, sem SMTP
+
+### `app/api/nextcloud/route.ts` (NOVO)
+GET: ping, list, download
+POST: upload, mkdir, delete, sync-notes-push, sync-notes-pull
+sync-notes-push: links-uteis.json → NCFN-NextCloud/Notas/*.md (frontmatter YAML)
+sync-notes-pull: *.md NC → links-uteis.json (last-write-wins)
+
+### `app/api/nextcloud/test-mail/route.ts` (NOVO)
+POST { to } → envia email de teste via secureMail
+
+### `app/admin/utilidades/page.tsx` (NOVO)
+4 abas: Painel, Arquivos NC, Sync Notas, Configurações
+- Status Nextcloud + SecureMail com ping automático
+- File browser WebDAV (navegação por diretórios, upload, download, delete)
+- Push/Pull notas com log em tempo real
+- Setup instructions para ProtonMail Bridge
+- Test email form
+
+### `app/admin/page.tsx` (MODIFICADO)
+- +2 módulos UTILIDADES: `/admin/utilidades` (Cpu icon) + `https://cloud.ncfn.net` (Cloud icon)
+- Imports: Cloud, Cpu
+- URLs externas: detectadas por `href.startsWith('http')` → `target="_blank"`
+
+### `app/api/generate-report/route.ts` (MODIFICADO)
+- Upload automático para NC após gerar PDF: `NCFN-NextCloud/Relatórios/YYYY/MM/filename.pdf`
+- Email automático com anexo PDF (fire & forget, não bloqueia resposta)
+
+### `app/admin/links-uteis/page.tsx` (MODIFICADO)
+- Botões "Push NC" e "Pull NC" no sidebar
+- Estado `syncing: 'push' | 'pull' | null`
+- Handlers: `handleSyncPush()`, `handleSyncPull()`
+
+### `docker-compose.yml` (MODIFICADO)
+- Serviço `nextcloud` (profile: cloud) — nextcloud:27-apache
+- Serviço `protonmail-bridge` (profile: secure-mail)
+- Volumes: nextcloud_data, nextcloud_config, nextcloud_apps
+
+### `cloudflared/config.yml` (MODIFICADO)
+- Rota: `cloud.ncfn.net → http://ncfn_nextcloud:80`
+
+### `Caddyfile` (MODIFICADO)
+- Bloco `http://cloud.ncfn.net` → proxy para ncfn_nextcloud:80
+
+### `CLAUDE BRAIN/` (NOVO)
+- README.md, INFRAESTRUTURA.md, ARQUITETURA.md, IMPLEMENTACOES.md
+- ESTADO_ATUAL.md, DECISOES.md, BUGS_CONHECIDOS.md
+- PLANOS/NEXTCLOUD_PROTONMAIL.md, PLANOS/ROADMAP.md
+
+---
+
+## Pendências após `a85bdeb`
 
 - [ ] **Nextcloud** — container, cloud.ncfn.net, WebDAV integration
 - [ ] **ProtonMail Bridge** — container SMTP, PGP signing
