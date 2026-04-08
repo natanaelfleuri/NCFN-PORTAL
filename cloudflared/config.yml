@@ -15,4 +15,13 @@ ingress:
     originRequest:
       noTLSVerify: true
       connectTimeout: 30s
+  # ── Mailcow SoGo Webmail (mail.ncfn.net) ─────────────────────────────────
+  # Cloudflare Tunnel encaminha apenas HTTP/HTTPS.
+  # SMTP (587), IMAP (993) e SMTP MTA (25) apontam direto para o IP da VPS.
+  # O DNS A record de mail.ncfn.net deve ser configurado SEM proxy Cloudflare.
+  - hostname: mail.ncfn.net
+    service: http://localhost:8080
+    originRequest:
+      noTLSVerify: true
+      connectTimeout: 30s
   - service: http_status:404

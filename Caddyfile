@@ -106,6 +106,37 @@ http://www.ncfn.net {
     redir https://ncfn.net{uri} permanent
 }
 
+# ── Mailcow SoGo Webmail (mail.ncfn.net) ────────────────────────────────────
+# Cloudflare Tunnel encaminha HTTPS → localhost:8080 (Mailcow HTTP_PORT).
+# Obs: SMTP/IMAP NÃO passam por aqui — vão direto ao IP da VPS.
+http://mail.ncfn.net {
+    header X-Frame-Options "SAMEORIGIN"
+    header X-Content-Type-Options "nosniff"
+    header -Server
+
+    reverse_proxy localhost:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto https
+
+        transport http {
+            read_timeout 120s
+            write_timeout 120s
+            dial_timeout 10s
+        }
+    }
+
+    log {
+        output file /var/log/caddy/mailcow_access.log {
+            roll_size 10mb
+            roll_keep 3
+        }
+        format json
+        level INFO
+    }
+}
+
 # ── Nextcloud (cloud.ncfn.net) ───────────────────────────────────────────────
 # Cloudflare Tunnel encaminha cloud.ncfn.net → ncfn_nextcloud:80 diretamente.
 # Este bloco é fallback para acesso interno (ex: outro container).

@@ -89,6 +89,9 @@ services:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - ncfn_mailcow
     restart: unless-stopped
 
   # ─── Terminal Web (ttyd) ────────────────────────────────────────────────────
@@ -262,3 +265,14 @@ volumes:
   nextcloud_data:
   nextcloud_config:
   nextcloud_apps:
+
+# ── Redes externas ──────────────────────────────────────────────────────────
+# ncfn_mailcow: rede criada pelo mailcow/install.sh — permite portal atingir
+#               postfix/dovecot do Mailcow por nome de container internamente.
+#               Alternativa: usar mail.ncfn.net:587 direto (resolve pelo DNS VPS).
+networks:
+  default:
+    name: ncfn_default
+  ncfn_mailcow:
+    external: true
+    name: ncfn_mailcow

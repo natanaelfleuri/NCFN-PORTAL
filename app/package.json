@@ -47,6 +47,7 @@
     "@aws-sdk/client-s3": "^3.620.0",
     "@aws-sdk/s3-request-presigner": "^3.620.0",
     "googleapis": "^171.4.0",
+    "openpgp": "^5.11.2",
     "webdav": "^5.7.1"
   },
   "devDependencies": {
