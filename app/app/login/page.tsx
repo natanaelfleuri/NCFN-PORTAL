@@ -2,7 +2,7 @@
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter }          from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import { Shield, AlertTriangle, Lock } from 'lucide-react';
+import { Shield, AlertTriangle, Lock, Eye, EyeOff } from 'lucide-react';
 
 function LoginContent() {
     const { status } = useSession();
@@ -10,6 +10,11 @@ function LoginContent() {
 
     const [phase,    setPhase]    = useState<'checking' | 'failed'>('checking');
     const [errorMsg, setErrorMsg] = useState('');
+    const [email,    setEmail]    = useState('');
+    const [password, setPassword] = useState('');
+    const [showPw,   setShowPw]   = useState(false);
+    const [loading,  setLoading]  = useState(false);
+    const [loginErr, setLoginErr] = useState('');
 
     // Redireciona se já autenticado
     useEffect(() => {
@@ -60,39 +65,85 @@ function LoginContent() {
         );
     }
 
+    async function handleLogin(e: React.FormEvent) {
+        e.preventDefault();
+        setLoading(true);
+        setLoginErr('');
+        const result = await signIn('credentials', {
+            email,
+            passphrase: password,
+            redirect: false,
+            callbackUrl: '/admin',
+        });
+        setLoading(false);
+        if (result?.ok) {
+            router.push('/admin');
+        } else {
+            setLoginErr('Email ou senha inválidos.');
+        }
+    }
+
     return (
         <div className="min-h-[85vh] flex items-center justify-center px-4">
             <div className="glass-panel p-10 rounded-2xl w-full max-w-sm text-center space-y-5"
                 style={{ border: '1px solid rgba(188,19,254,0.25)' }}>
 
-                {errorMsg
-                    ? <AlertTriangle className="w-16 h-16 mx-auto text-red-500"
-                        style={{ filter: 'drop-shadow(0 0 12px rgba(239,68,68,0.6))' }} />
-                    : <Shield className="w-16 h-16 mx-auto text-[#bc13fe]"
-                        style={{ filter: 'drop-shadow(0 0 12px rgba(188,19,254,0.6))' }} />
-                }
+                <Shield className="w-14 h-14 mx-auto text-[#bc13fe]"
+                    style={{ filter: 'drop-shadow(0 0 12px rgba(188,19,254,0.6))' }} />
 
-                <h2 className="text-3xl font-black text-white tracking-tighter">
-                    ACESSO RESTRITO
-                </h2>
+                <h2 className="text-2xl font-black text-white tracking-tighter">NCFN</h2>
 
-                {errorMsg ? (
+                {errorMsg && (
                     <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-left">
                         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                         <p className="text-xs">{errorMsg}</p>
                     </div>
-                ) : (
-                    <div className="space-y-3">
-                        <p className="text-sm text-gray-400">
-                            Autenticação via <span className="text-[#bc13fe] font-semibold">Cloudflare Zero Trust</span> necessária.
-                        </p>
-                        <p className="text-[11px] text-gray-600 font-mono">
-                            Certifique-se de acessar via ncfn.net com Zero Trust ativo ou use o link de acesso direto do dispositivo confiável.
-                        </p>
-                    </div>
                 )}
 
-                <p className="text-gray-700 text-[10px] font-mono pt-2">
+                <form onSubmit={handleLogin} className="space-y-3 text-left">
+                    <div>
+                        <label className="text-[11px] text-gray-500 font-mono uppercase tracking-widest">Email</label>
+                        <input
+                            type="text"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            required
+                            className="w-full mt-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#bc13fe]/60"
+                            placeholder="seu@email.com"
+                            autoComplete="username"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[11px] text-gray-500 font-mono uppercase tracking-widest">Senha</label>
+                        <div className="relative mt-1">
+                            <input
+                                type={showPw ? 'text' : 'password'}
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                required
+                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#bc13fe]/60 pr-10"
+                                placeholder="••••••••"
+                                autoComplete="current-password"
+                            />
+                            <button type="button" onClick={() => setShowPw(v => !v)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                                {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {loginErr && (
+                        <p className="text-xs text-red-400 font-mono">{loginErr}</p>
+                    )}
+
+                    <button type="submit" disabled={loading}
+                        className="w-full py-2.5 rounded-lg font-bold text-sm tracking-widest uppercase transition-all"
+                        style={{ background: 'rgba(188,19,254,0.15)', border: '1px solid rgba(188,19,254,0.4)', color: '#bc13fe' }}>
+                        {loading ? 'Verificando…' : 'Entrar'}
+                    </button>
+                </form>
+
+                <p className="text-gray-700 text-[10px] font-mono pt-1">
                     TLS 1.3 · Cloudflare Access · NCFN
                 </p>
             </div>
