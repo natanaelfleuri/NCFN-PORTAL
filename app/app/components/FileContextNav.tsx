@@ -92,64 +92,68 @@ export default function FileContextNav() {
 
   return (
     <div
-      className="fixed bottom-[72px] md:bottom-4 left-1/2 z-[9000] flex items-center gap-0 transition-all duration-300 select-none"
+      className="fixed bottom-[74px] md:bottom-4 left-1/2 z-[9000] transition-all duration-300 select-none"
       style={{
         transform: `translateX(-50%) translateY(${visible ? "0" : "20px"})`,
         opacity: visible ? 1 : 0,
         pointerEvents: visible ? "auto" : "none",
+        width: 'calc(100vw - 1.5rem)',
+        maxWidth: '560px',
       }}
     >
-      <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl border border-white/12 bg-black/80 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.6)] text-xs">
+      <div className="flex items-center gap-1 px-2.5 py-2 rounded-2xl border border-white/12 bg-black/90 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.7)] text-xs overflow-hidden">
 
         {/* File indicator */}
-        <div className="flex items-center gap-2 pr-2 border-r border-white/10 mr-1 max-w-[200px]">
-          <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+        <div className="flex items-center gap-1.5 pr-2 border-r border-white/10 mr-0.5 min-w-0 flex-shrink" style={{ maxWidth: 'min(160px, 35vw)' }}>
+          <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
           <div className="min-w-0">
-            <p className="text-white font-semibold truncate leading-none" style={{ maxWidth: 130 }}>{filename}</p>
-            <p className="text-gray-600 text-[9px] truncate leading-none mt-0.5">{shortFolder(folder)}</p>
+            <p className="text-white font-semibold truncate leading-none text-[10px]">{filename}</p>
+            <p className="text-gray-600 text-[8px] truncate leading-none mt-0.5 hidden xs:block">{shortFolder(folder)}</p>
           </div>
         </div>
 
-        {/* Page buttons */}
-        {PAGES.map(page => {
-          const isCurrent = pathname === page.href || pathname.startsWith(page.href + "/");
-          const url = `${page.href}?${fileParam}`;
-          const Icon = page.icon;
+        {/* Page buttons — flex-1 distributes space evenly */}
+        <div className="flex items-center gap-0.5 flex-1 overflow-x-auto no-scrollbar">
+          {PAGES.map(page => {
+            const isCurrent = pathname === page.href || pathname.startsWith(page.href + "/");
+            const url = `${page.href}?${fileParam}`;
+            const Icon = page.icon;
 
-          return isCurrent ? (
-            <div
-              key={page.href}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold border"
-              style={{
-                background: `${page.color}20`,
-                borderColor: `${page.color}60`,
-                color: page.color,
-              }}
-              title={page.label}
-            >
-              <Icon className="w-3 h-3 flex-shrink-0" />
-              <span className="hidden sm:inline">{page.short}</span>
-            </div>
-          ) : (
-            <Link
-              key={page.href}
-              href={url}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-medium border border-transparent text-gray-400 hover:border-white/15 hover:bg-white/6 hover:text-white transition-all"
-              title={`${page.label} — ${filename}`}
-            >
-              <Icon className="w-3 h-3 flex-shrink-0" style={{ color: page.color }} />
-              <span className="hidden sm:inline">{page.short}</span>
-            </Link>
-          );
-        })}
+            return isCurrent ? (
+              <div
+                key={page.href}
+                className="flex items-center gap-1 px-1.5 py-1.5 rounded-lg text-[9px] font-bold border flex-shrink-0"
+                style={{
+                  background: `${page.color}20`,
+                  borderColor: `${page.color}60`,
+                  color: page.color,
+                }}
+                title={page.label}
+              >
+                <Icon className="w-3 h-3 flex-shrink-0" />
+                <span className="hidden sm:inline whitespace-nowrap">{page.short}</span>
+              </div>
+            ) : (
+              <Link
+                key={page.href}
+                href={url}
+                className="flex items-center gap-1 px-1.5 py-1.5 rounded-lg text-[9px] font-medium border border-transparent text-gray-500 hover:border-white/15 hover:bg-white/6 hover:text-white transition-all flex-shrink-0"
+                title={`${page.label} — ${filename}`}
+              >
+                <Icon className="w-3 h-3 flex-shrink-0" style={{ color: page.color }} />
+                <span className="hidden sm:inline whitespace-nowrap">{page.short}</span>
+              </Link>
+            );
+          })}
+        </div>
 
         {/* Dismiss */}
         <button
           onClick={clearFileCtx}
-          className="ml-1 p-1 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-all"
+          className="ml-0.5 p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-all flex-shrink-0"
           title="Fechar contexto de arquivo"
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="w-3 h-3" />
         </button>
       </div>
     </div>

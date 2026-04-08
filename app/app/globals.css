@@ -352,3 +352,44 @@ body.ncfn-map-fullscreen main {
   animation: cursor-blink 2s step-start infinite;
   /* animation-delay: 0 — all share the same timeline, blink in sync */
 }
+
+/* ─── Mobile drawer (portal) animations ──────────────────────────────────── */
+@keyframes drawer-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes drawer-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.mobile-drawer-enter {
+  animation: drawer-slide-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.mobile-drawer-backdrop-enter {
+  animation: drawer-backdrop-in 0.2s ease both;
+}
+
+/* Body scroll lock while mobile drawer is open */
+body.drawer-open {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* ─── Safe-area padding for bottom-nav content ───────────────────────────── */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+/* ─── Global mobile overflow guard ──────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Prevent any child from creating horizontal scroll */
+  main > * {
+    max-width: 100%;
+  }
+  /* Tables that overflow should scroll, not push layout */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

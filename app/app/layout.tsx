@@ -60,7 +60,7 @@ export default function RootLayout({
                 }}
               ></div>
 
-              <header className="w-full py-2.5 lg:py-3.5 px-6 flex justify-between items-center border-b border-white/5 bg-black/60 backdrop-blur-xl sticky top-0 z-50 shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.4)]">
+              <header className="w-full py-2.5 lg:py-3.5 px-3 sm:px-6 flex justify-between items-center border-b border-white/5 bg-black/60 backdrop-blur-xl sticky top-0 z-50 shadow-[0_1px_0_rgba(255,255,255,0.05),0_4px_20px_rgba(0,0,0,0.4)]">
                 <Link href="/" className="shrink-0 group flex items-center gap-3">
                   {/* Logo mark */}
                   <div className="w-10 h-10 lg:w-11 lg:h-11 rounded-lg flex items-center justify-center border border-[#00f3ff]/40 bg-[#00f3ff]/5 group-hover:border-[#00f3ff]/70 group-hover:bg-[#00f3ff]/10 transition-all shadow-[0_0_12px_rgba(0,243,255,0.18)] group-hover:shadow-[0_0_24px_rgba(0,243,255,0.4)]" style={{userSelect:'none', flexShrink:0}}>

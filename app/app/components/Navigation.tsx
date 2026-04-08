@@ -10,6 +10,7 @@ import {
   Archive, Database, Eye, ShieldAlert
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import QuotaBar from "./QuotaBar";
 import dynamic from "next/dynamic";
 
@@ -40,8 +41,20 @@ export default function Navigation() {
   const isAdminRoute = pathname?.startsWith("/admin") || pathname?.startsWith("/dashboard");
   const isAuditor = pathname?.startsWith("/auditor");
   const isAdmin_role = (session?.user as any)?.role === 'admin';
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => { setMounted(true); }, []);
   useEffect(() => { setIsOpen(false); setAdminOpen(false); }, [pathname]);
+
+  // Lock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('drawer-open');
+    } else {
+      document.body.classList.remove('drawer-open');
+    }
+    return () => { document.body.classList.remove('drawer-open'); };
+  }, [isOpen]);
 
   // Close admin dropdown on outside click
   useEffect(() => {
@@ -211,36 +224,44 @@ export default function Navigation() {
         )}
       </nav>
 
-      {/* ─── Mobile Drawer ─── */}
-      {isOpen && (
+      {/* ─── Mobile Drawer — via createPortal (bypasses header stacking context) ─── */}
+      {mounted && isOpen && createPortal(
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-[140] bg-black/70 backdrop-blur-sm md:hidden"
+            className="mobile-drawer-backdrop-enter fixed inset-0 bg-black/75 backdrop-blur-sm md:hidden"
+            style={{ zIndex: 9998 }}
             onClick={() => setIsOpen(false)}
           />
-          {/* Drawer */}
-          <div className="fixed right-0 top-0 h-full w-full sm:w-[340px] z-[150] bg-[#030310]/98 backdrop-blur-xl border-l border-[#bc13fe]/20 shadow-[-20px_0_60px_rgba(0,0,0,0.8)] flex flex-col md:hidden">
+          {/* Drawer panel */}
+          <div
+            className="mobile-drawer-enter fixed right-0 top-0 h-[100dvh] w-[min(100vw,340px)] bg-[#030310] border-l border-[#bc13fe]/20 shadow-[-20px_0_80px_rgba(0,0,0,0.9)] flex flex-col md:hidden"
+            style={{ zIndex: 9999 }}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-5 border-b border-white/5">
-              <div>
-                <p className="text-[10px] font-mono text-[#bc13fe]/60 uppercase tracking-[0.2em]">NCFN Portal</p>
+            <div className="flex items-center justify-between px-4 py-4 border-b border-white/5 shrink-0">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] font-mono text-[#bc13fe]/50 uppercase tracking-[0.2em] mb-0.5">NCFN Portal</p>
                 {session && (
-                  <p className="text-sm font-bold text-white truncate max-w-[200px]">{session.user?.email}</p>
+                  <p className="text-xs font-bold text-white truncate">{session.user?.email}</p>
                 )}
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-2 text-gray-500 hover:text-white transition bg-white/5 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 ml-2 shrink-0">
+                {isAdmin_role && session && <NotificationBell />}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="p-2 text-gray-500 hover:text-white transition bg-white/5 hover:bg-white/10 rounded-xl border border-white/5"
+                  aria-label="Fechar menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Links */}
-            <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 no-scrollbar">
+            <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5" style={{ WebkitOverflowScrolling: 'touch' }}>
               {/* Principal */}
-              <p className="text-[9px] font-black uppercase tracking-[0.25em] text-gray-600 px-3 pb-1 pt-2">Principal</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.25em] text-gray-600 px-3 pb-1.5 pt-2">Principal</p>
               <MobileLink href="/vitrine" icon={Globe} label="Vitrine Pública" active={isActive('/vitrine')} color="#00f3ff" />
               <MobileLink href="/auditor" icon={Activity} label="Auditor" active={isActive('/auditor')} color="#ff9900" />
               <MobileLink href="/doc" icon={BookOpen} label="Guia / Protocolos" active={isActive('/doc')} color="#00f3ff" />
@@ -248,24 +269,23 @@ export default function Navigation() {
               {/* Admin */}
               {isAdmin_role && (
                 <>
-                  <p className="text-[9px] font-black uppercase tracking-[0.25em] text-[#bc13fe]/60 px-3 pb-1 pt-4">Administração</p>
-                  {/* Hub Central e Vault — destaque full-width */}
+                  <p className="text-[9px] font-black uppercase tracking-[0.25em] text-[#bc13fe]/60 px-3 pb-1.5 pt-5">Administração</p>
                   <MobileLink href="/admin" icon={Home} label="Hub Central" active={isActive('/admin', true)} color="#00f3ff" />
                   <MobileLink href="/vault" icon={Archive} label="Vault Forense" active={isActive('/vault')} color="#bc13fe" />
-                  {/* Restante em grid 2 colunas — toque mais fácil */}
-                  <div className="grid grid-cols-2 gap-1 mt-1 px-0">
+                  {/* Grid 2 colunas para os demais módulos */}
+                  <div className="grid grid-cols-2 gap-1 mt-2">
                     {ADMIN_LINKS.slice(2).map(link => (
                       <Link
                         key={link.href}
                         href={link.href}
-                        className={`flex items-center gap-2 px-3 py-3 rounded-xl text-xs font-semibold transition-all min-h-[48px] ${
+                        className={`flex items-center gap-2 px-3 py-3.5 rounded-xl transition-all min-h-[52px] ${
                           isActive(link.href, false)
-                            ? 'text-white bg-white/10 border border-white/15'
-                            : 'text-gray-400 bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:text-white'
+                            ? 'text-white bg-white/10 border border-white/20'
+                            : 'text-gray-400 bg-white/[0.025] border border-white/5 active:bg-white/[0.07]'
                         }`}
                       >
                         <link.icon className="w-4 h-4 flex-shrink-0" style={{ color: link.color }} />
-                        <span className="text-[11px] leading-tight">{link.label}</span>
+                        <span className="text-[11px] font-semibold leading-tight">{link.label}</span>
                       </Link>
                     ))}
                   </div>
@@ -273,31 +293,32 @@ export default function Navigation() {
               )}
 
               {/* Conta */}
-              <p className="text-[9px] font-black uppercase tracking-[0.25em] text-gray-600 px-3 pb-1 pt-4">Conta</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.25em] text-gray-600 px-3 pb-1.5 pt-5">Conta</p>
               {session && (
                 <MobileLink href="/profile" icon={User} label="Meu Perfil" active={isActive('/profile', true)} color="#00f3ff" />
               )}
             </nav>
 
             {/* Quota + Signout */}
-            <div className="border-t border-white/5 px-3 py-4 space-y-3">
+            <div className="border-t border-white/5 px-3 py-4 space-y-3 shrink-0" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1rem)' }}>
               {session && <QuotaBar />}
               {session ? (
                 <button
                   onClick={() => signOut({ callbackUrl: '/login?logout=1' })}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-red-400 bg-red-500/5 border border-red-500/20 hover:bg-red-500/10 transition"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-red-400 bg-red-500/5 border border-red-500/20 active:bg-red-500/10 transition"
                 >
                   <LogOut className="w-4 h-4" /> Sair da Conta
                 </button>
               ) : (
-                <Link href="/login" className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-[#bc13fe] bg-[#bc13fe]/5 border border-[#bc13fe]/20 hover:bg-[#bc13fe]/10 transition">
+                <Link href="/login" className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold text-[#bc13fe] bg-[#bc13fe]/5 border border-[#bc13fe]/20 active:bg-[#bc13fe]/10 transition">
                   Entrar
                 </Link>
               )}
-              <p className="text-[9px] text-gray-700 font-mono text-center uppercase tracking-widest">Nexus Cloud Forensic Network v4.0</p>
+              <p className="text-[9px] text-gray-700 font-mono text-center uppercase tracking-widest">NCFN v15 · Nexus Cyber Forensic Network</p>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

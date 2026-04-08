@@ -1662,15 +1662,20 @@ export default function VaultPage() {
       )}
 
       {/* Mobile sidebar overlay */}
-      {sidebarOpen && <div className="fixed inset-0 bg-black/60 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      {/* Mobile hamburger */}
-      <button className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-black/80 border border-white/10 rounded-xl" onClick={() => setSidebarOpen(v => !v)}>
-        <Menu size={18} className="text-[#00f3ff]" />
+      {/* Mobile hamburger — positioned below sticky header (~56px) */}
+      <button
+        className="lg:hidden fixed z-40 p-2.5 bg-black/90 border border-[#00f3ff]/20 rounded-xl shadow-lg backdrop-blur-md"
+        style={{ top: 'calc(56px + 0.75rem)', left: '0.75rem' }}
+        onClick={() => setSidebarOpen(v => !v)}
+        aria-label="Abrir menu de arquivos"
+      >
+        {sidebarOpen ? <X size={18} className="text-[#00f3ff]" /> : <Menu size={18} className="text-[#00f3ff]" />}
       </button>
 
-      {/* Sidebar */}
-      <div className={`fixed lg:relative z-40 lg:z-auto h-full transition-transform duration-300 w-96 border-r border-white/10 flex flex-col glass-panel rounded-r-2xl my-2 ml-2 overflow-hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      {/* Sidebar — width capped to viewport on mobile */}
+      <div className={`fixed lg:relative z-40 lg:z-auto h-full transition-transform duration-300 w-[min(24rem,calc(100vw-0.5rem))] border-r border-white/10 flex flex-col glass-panel rounded-r-2xl my-2 ml-2 overflow-hidden ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="p-4 border-b border-white/10 flex-shrink-0">
           <button onClick={() => { setSelected(null); fetchFolders(); }}
             className="flex items-center gap-2 text-[#00f3ff] hover:text-white transition-colors drop-shadow-[0_0_8px_rgba(0,243,255,0.5)] w-full text-left"

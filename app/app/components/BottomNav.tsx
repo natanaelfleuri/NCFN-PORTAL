@@ -31,10 +31,10 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-[120] md:hidden bg-black/95 backdrop-blur-xl border-t border-white/8"
+      className="fixed bottom-0 left-0 right-0 z-[120] md:hidden bg-black/98 backdrop-blur-2xl border-t border-white/10"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="flex items-stretch h-[58px]">
+      <div className="flex items-stretch h-[60px]">
         {/* ── Esquerda ── */}
         {leftItems.map((item) => {
           const active = isActive(item.href, item.exact);
