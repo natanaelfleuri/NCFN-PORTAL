@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession, getDbUser } from '@/lib/auth';
 import { ncUpload, ncDownload, ncDelete, ncMkdir, ncList, ncStat, ncPing, ncEnsureDir } from '@/lib/nextcloud';
 import { pingMailBackend } from '@/lib/secureMail';
+import { backupStatus, backupToCloud } from '@/lib/cloudBackup';
+import { drivePing, driveList, isDriveConfigured } from '@/lib/googleDrive';
+import { isEncryptionConfigured } from '@/lib/vaultCrypto';
 
 async function requireAdmin(req: NextRequest) {
   const session = await getSession();
@@ -27,8 +30,21 @@ export async function GET(req: NextRequest) {
 
   /* ── ping ── */
   if (action === 'ping') {
-    const [nc, mail] = await Promise.all([ncPing(), pingMailBackend()]);
-    return NextResponse.json({ nextcloud: nc, mail });
+    const [nc, mail, backup] = await Promise.all([ncPing(), pingMailBackend(), backupStatus()]);
+    return NextResponse.json({ nextcloud: nc, mail, backup });
+  }
+
+  /* ── gdrive-ping ── */
+  if (action === 'gdrive-ping') {
+    const status = await drivePing();
+    return NextResponse.json({ gdrive: status, configured: isDriveConfigured(), encryption: isEncryptionConfigured() });
+  }
+
+  /* ── gdrive-list ── */
+  if (action === 'gdrive-list') {
+    if (!isDriveConfigured()) return NextResponse.json({ error: 'GDrive não configurado' }, { status: 503 });
+    const files = await driveList();
+    return NextResponse.json({ files });
   }
 
   /* ── list ── */

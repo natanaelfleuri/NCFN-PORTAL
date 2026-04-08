@@ -7,6 +7,7 @@ import { checkRateLimit } from '@/lib/rateLimit';
 import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
+import { backupToCloud, deleteFromCloud } from '@/lib/cloudBackup';
 
 const VAULT_BASE = path.resolve(process.cwd(), '../COFRE_NCFN');
 const PUBLIC_FOLDER = '11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS';
@@ -102,6 +103,13 @@ export async function POST(req: NextRequest) {
                 }
             } catch {}
 
+            // ── Cloud backup (fire & forget): NC E2EE + GDrive ──────────────
+            const uploadedBuf = await fs.readFile(destPath);
+            const relForCloud = `${folder}/${file.name}`;
+            backupToCloud(relForCloud, uploadedBuf, file.name).catch(e =>
+              console.error('[vault/actions] cloudBackup error:', e),
+            );
+
             return NextResponse.json({ success: true, message: `"${file.name}" enviado para ${folder}.` });
         }
 
@@ -120,6 +128,8 @@ export async function POST(req: NextRequest) {
         // ── Permanent delete ──────────────────────────────────────────────
         if (action === 'permanent-delete') {
             await fs.remove(absPath);
+            // Cascade: deleta do NC (GDrive preserva cópia permanente)
+            deleteFromCloud(filePath).catch(e => console.error('[vault/actions] cloudDelete error:', e));
             return NextResponse.json({ success: true, message: 'Arquivo excluído permanentemente.' });
         }
 
@@ -129,6 +139,8 @@ export async function POST(req: NextRequest) {
             await fs.ensureDir(trashDir);
             const dest = path.join(trashDir, path.basename(absPath));
             await fs.move(absPath, dest, { overwrite: true });
+            // Cascade: deleta do NC (arquivo movido para lixeira local)
+            deleteFromCloud(filePath).catch(e => console.error('[vault/actions] cloudDelete error:', e));
             return NextResponse.json({ success: true, message: 'Arquivo enviado para a lixeira.' });
         }
 

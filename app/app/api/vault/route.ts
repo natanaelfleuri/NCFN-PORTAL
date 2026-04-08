@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getSession, getDbUser } from '@/lib/auth';
 import fs from 'fs-extra';
 import path from 'path';
+import { deleteFromCloud } from '@/lib/cloudBackup';
 
 const VAULT_BASE = path.resolve(process.cwd(), '../COFRE_NCFN');
 const IGNORED_DIRS = new Set(['.smart-env', '.trash', '.obsidian', '.git']);
@@ -146,6 +147,9 @@ export async function DELETE(req: Request) {
         await fs.ensureDir(trashDir);
         const dest = path.join(trashDir, path.basename(filePath));
         await fs.move(filePath, dest, { overwrite: true });
+
+        // Cascade: remove cópia criptografada do NC (GDrive preserva)
+        deleteFromCloud(relPath).catch(e => console.error('[vault DELETE] cloudDelete error:', e));
 
         return NextResponse.json({ success: true });
     } catch (error) {

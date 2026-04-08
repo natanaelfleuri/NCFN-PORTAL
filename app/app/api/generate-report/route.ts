@@ -7,6 +7,8 @@ import path from 'path';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { ncUploadWithDirs } from '@/lib/nextcloud';
 import { sendSecureMail, reportEmailHtml } from '@/lib/secureMail';
+import { encryptBuffer, isEncryptionConfigured } from '@/lib/vaultCrypto';
+import { driveUpload, isDriveConfigured } from '@/lib/googleDrive';
 
 const VAULT_DIR = path.join(process.cwd(), '../COFRE_NCFN');
 
@@ -132,9 +134,21 @@ export async function GET(req: NextRequest) {
         const month = String(new Date().getMonth() + 1).padStart(2, '0');
         const ncPath = `NCFN-NextCloud/Relatórios/${year}/${month}/${filename}`;
 
-        // Upload para Nextcloud (fire & forget)
-        ncUploadWithDirs(ncPath, pdfBuffer, 'application/pdf').catch(e =>
-            console.error('[generate-report] NC upload failed:', e));
+        // ── Nextcloud: upload E2EE (cifrado) ─────────────────────────────
+        const ncEncPath = ncPath + (isEncryptionConfigured() ? '.enc' : '');
+        ;(async () => {
+          try {
+            const uploadBuf = isEncryptionConfigured() ? encryptBuffer(pdfBuffer) : pdfBuffer;
+            await ncUploadWithDirs(ncEncPath, uploadBuf, 'application/octet-stream');
+            console.log(`[generate-report] NC E2EE upload: ${ncEncPath}`);
+          } catch (e) { console.error('[generate-report] NC upload failed:', e); }
+        })();
+
+        // ── Google Drive: cópia permanente (original) ─────────────────────
+        if (isDriveConfigured()) {
+          driveUpload(filename, pdfBuffer, 'application/pdf').catch(e =>
+            console.error('[generate-report] GDrive upload failed:', e));
+        }
 
         // Email automático (fire & forget)
         if (process.env.REPORT_RECIPIENT || process.env.BRIDGE_FROM || process.env.SMTP_USER || process.env.RESEND_API_KEY) {
