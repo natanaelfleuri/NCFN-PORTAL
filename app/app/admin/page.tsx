@@ -770,10 +770,10 @@ export default function AdminDashboard() {
                             <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
                         </div>
                         <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
-                            <p>Este é o <strong className="text-white">Centro de Comando NCFN</strong> — painel principal do administrador com acesso a todos os módulos operacionais do sistema.</p>
-                            <p>O <strong className="text-white">Vault Forense</strong> armazena todas as evidências com criptografia AES-256, hash SHA-256 e carimbo temporal RFC 3161 para garantir a cadeia de custódia legal.</p>
-                            <p>Os <strong className="text-white">gráficos analíticos</strong> exibem a atividade do vault em tempo real — volume de arquivos, distribuição por pasta e novos ativos nas últimas 24h.</p>
-                            <p>O <strong className="text-white">mapa de acessos</strong> exibe as localizações geográficas dos IPs que acessaram o portal, auxiliando na detecção de anomalias.</p>
+                            <p>Este é o <strong className="text-white">Centro de Comando NCFN</strong> — painel principal com acesso a todos os módulos operacionais: Vault Forense, Laudos, Custódia, Timeline, Convidados, Usuários e Análise Forense.</p>
+                            <p>O <strong className="text-white">Vault Forense</strong> armazena evidências com criptografia AES-256, hash SHA-256, carimbo RFC 3161 e suporte a <strong className="text-white">Cloud Custody via R2</strong> para backup imutável na nuvem.</p>
+                            <p>Os <strong className="text-white">gráficos analíticos</strong> exibem a atividade do vault em tempo real — volume de arquivos, distribuição por zona e novos ativos nas últimas 24h. O <strong className="text-white">sino de notificações</strong> alerta eventos críticos do sistema via SSE.</p>
+                            <p>O <strong className="text-white">mapa de acessos</strong> exibe geolocalizações dos IPs que acessaram o portal. A <strong className="text-white">Timeline de Custódia</strong> mostra o histórico cronológico completo de cada ativo forense.</p>
                         </div>
                     </div>
                 </div>

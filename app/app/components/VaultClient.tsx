@@ -2870,11 +2870,11 @@ export default function VaultPage() {
               <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
             </div>
             <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
-              <p>O Vault possui <strong className="text-white">12 zonas de custódia</strong> organizadas por nível de sensibilidade. Selecione um arquivo na barra lateral para visualizá-lo e operá-lo.</p>
-              <p>Para <strong className="text-white">criptografar</strong> um arquivo, selecione-o e use a função de encriptação AES-256. O arquivo original é substituído pelo arquivo <code>.enc</code>.</p>
-              <p><strong className="text-white">Gerar Perícia</strong> cria um relatório forense com hash SHA-256, metadados EXIF, análise de entropia e carimbo temporal RFC 3161 — com validade jurídica.</p>
-              <p><strong className="text-white">CUSTÓDIA LOCAL</strong> gera um ZIP encriptado para backup offline. <strong className="text-white">DISPONIBILIZAR ATIVO</strong> torna o arquivo público na Vitrine para compartilhamento autorizado.</p>
-              <p>A <strong className="text-white">pasta 7 (Capturas Web/OSINT)</strong> recebe automaticamente todas as capturas forenses da web realizadas pelo módulo de captura.</p>
+              <p>O Vault possui <strong className="text-white">12 zonas de custódia</strong> (0–10 + 12) organizadas por nível de sensibilidade, mais a zona especial <code>100 · BURN</code> para imutabilidade permanente.</p>
+              <p>Para <strong className="text-white">criptografar</strong> um arquivo, selecione-o e use Encriptação AES-256. O original é preservado em <code>.originals/</code> e substituído pelo <code>.enc</code> na zona.</p>
+              <p><strong className="text-white">Gerar Perícia</strong> cria relatório forense com hash SHA-256/SHA-1/MD5, metadados EXIF, análise de entropia e carimbo RFC 3161 — admissível judicialmente. O ciclo segue: Inicial → Intermediário → Final → Laudo Manual.</p>
+              <p><strong className="text-white">Cloud Custody</strong> envia o ativo encriptado para o R2 da Cloudflare, gerando link imutável e registrando a custódia na nuvem. <strong className="text-white">Disponibilizar</strong> torna o arquivo público na Vitrine para compartilhamento autorizado com código de acesso de 6 dígitos.</p>
+              <p>A zona <strong className="text-white">7 · Capturas Web/OSINT</strong> recebe automaticamente capturas forenses da web. Todos os acessos ao Vault são registrados nos logs de auditoria com IP, operador e timestamp UTC.</p>
             </div>
           </div>
         </div>
