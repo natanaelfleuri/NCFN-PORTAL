@@ -192,6 +192,10 @@ export default function LinksUteisPage() {
     const textareaRef   = useRef<HTMLTextAreaElement>(null);
     const folderDropRef = useRef<HTMLDivElement>(null);
     const newFolderRef  = useRef<HTMLInputElement>(null);
+    const importRef     = useRef<HTMLInputElement>(null);
+    const autoSaveRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saved'>('idle');
+    const [templatesOpen, setTemplatesOpen]   = useState(false);
 
     const isDirty = selected
         ? title !== selected.title || content !== selected.content || folderId !== (selected.folderId ?? null)
@@ -201,6 +205,117 @@ export default function LinksUteisPage() {
         setMsg({ type, text });
         setTimeout(() => setMsg(null), 3000);
     };
+
+    /* ── Auto-save (debounced 2s) ── */
+    useEffect(() => {
+        if (!isDirty || !title.trim()) { setAutoSaveStatus('idle'); return; }
+        setAutoSaveStatus('pending');
+        if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+        autoSaveRef.current = setTimeout(async () => {
+            if (!title.trim()) return;
+            try {
+                const body = selected
+                    ? { id: selected.id, title, content, folderId }
+                    : { title, content, folderId };
+                const res = await fetch('/api/links-uteis', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (res.ok) {
+                    const saved: Note = await res.json();
+                    setNotes(prev => {
+                        const idx = prev.findIndex(n => n.id === saved.id);
+                        if (idx !== -1) { const u = [...prev]; u[idx] = saved; return u; }
+                        return [saved, ...prev];
+                    });
+                    setSelected(saved);
+                    setTitle(saved.title);
+                    setContent(saved.content);
+                    setFolderId(saved.folderId ?? null);
+                    setAutoSaveStatus('saved');
+                    setTimeout(() => setAutoSaveStatus('idle'), 2000);
+                }
+            } catch {}
+        }, 2000);
+        return () => { if (autoSaveRef.current) clearTimeout(autoSaveRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [title, content, folderId]);
+
+    /* ── Markdown formatting helper ── */
+    const wrapText = useCallback((before: string, after: string = '') => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const sel = content.substring(start, end);
+        const replacement = before + (sel || (after ? 'texto' : '')) + after;
+        const newContent = content.substring(0, start) + replacement + content.substring(end);
+        setContent(newContent);
+        requestAnimationFrame(() => {
+            ta.focus();
+            const newCursor = sel ? start + replacement.length : start + before.length;
+            ta.selectionStart = newCursor;
+            ta.selectionEnd   = sel ? newCursor : start + before.length + (after ? 5 : 0);
+        });
+    }, [content]);
+
+    const insertLine = useCallback((prefix: string) => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const start = ta.selectionStart;
+        const lineStart = content.lastIndexOf('\n', start - 1) + 1;
+        const lineEnd = content.indexOf('\n', start);
+        const line = content.substring(lineStart, lineEnd === -1 ? undefined : lineEnd);
+        const hasPrefix = line.startsWith(prefix);
+        const newLine = hasPrefix ? line.slice(prefix.length) : prefix + line;
+        const newContent = content.substring(0, lineStart) + newLine + (lineEnd === -1 ? '' : content.substring(lineEnd));
+        setContent(newContent);
+        requestAnimationFrame(() => { ta.focus(); });
+    }, [content]);
+
+    const insertSnippet = useCallback((snippet: string) => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const start = ta.selectionStart;
+        const newContent = content.substring(0, start) + snippet + content.substring(start);
+        setContent(newContent);
+        requestAnimationFrame(() => {
+            ta.focus();
+            ta.selectionStart = start + snippet.length;
+            ta.selectionEnd   = start + snippet.length;
+        });
+    }, [content]);
+
+    /* ── Import .md file ── */
+    const handleImportMd = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const text = ev.target?.result as string;
+            const titleLine = text.split('\n')[0].replace(/^#+\s*/, '').trim();
+            const body = text.split('\n').slice(1).join('\n').trim();
+            setSelected(null);
+            setTitle(titleLine || file.name.replace('.md', ''));
+            setContent(body);
+            setFolderId(folderId);
+            setMode('edit');
+            showMsg('ok', `Importado: ${file.name}`);
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    };
+
+    /* ── Templates ── */
+    const TEMPLATES = [
+        { label: 'Nota em branco', icon: '📄', title: '', content: '' },
+        { label: 'Ata de Reunião', icon: '📋', title: 'Ata — ', content: `## Participantes\n\n- \n\n## Pauta\n\n1. \n\n## Decisões\n\n- \n\n## Ações\n\n| Ação | Responsável | Prazo |\n| --- | --- | --- |\n| | | |\n\n## Observações\n\n` },
+        { label: 'Investigação', icon: '🔍', title: 'INV — ', content: `## Objetivo\n\n\n\n## Escopo\n\n\n\n## Evidências\n\n| # | Evidência | Fonte | Hash |\n| --- | --- | --- | --- |\n| 1 | | | |\n\n## Linha do Tempo\n\n| Data | Evento |\n| --- | --- |\n| | |\n\n## Conclusões\n\n\n\n## Referências\n\n- ` },
+        { label: 'Perfil de Suspeito', icon: '🎯', title: 'SUSPEITO — ', content: `## Identificação\n\n| Campo | Valor |\n| --- | --- |\n| Nome | |\n| Codinome | |\n| CPF/Doc | |\n| Localização | |\n\n## Vínculos\n\n- \n\n## Atividade\n\n\n\n## Risco\n\n> **Nível:** BAIXO / MÉDIO / ALTO / CRÍTICO\n\n## Notas\n\n` },
+        { label: 'Relatório Técnico', icon: '📊', title: 'REL — ', content: `## Sumário Executivo\n\n\n\n## Metodologia\n\n\n\n## Resultados\n\n### Achado 1\n\n\n\n## Vulnerabilidades\n\n| CVE | Severidade | Descrição | Status |\n| --- | --- | --- | --- |\n| | | | |\n\n## Recomendações\n\n1. \n\n## Conclusão\n\n` },
+        { label: 'Checklist', icon: '✅', title: 'Checklist — ', content: `## Itens\n\n- [ ] \n- [ ] \n- [ ] \n- [ ] \n- [ ] \n\n## Notas\n\n` },
+    ];
 
     /* ── Load ── */
     const loadData = useCallback(async () => {
@@ -387,9 +502,10 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                 if (idx !== -1) { const u = [...prev]; u[idx] = saved; return u; }
                 return [saved, ...prev];
             });
-            if (selected) { setSelected(saved); } else {
-                setSelected(null); setTitle(''); setContent(''); setFolderId(null);
-            }
+            setSelected(saved);
+            setTitle(saved.title);
+            setContent(saved.content);
+            setFolderId(saved.folderId ?? null);
             showMsg('ok', 'Salvo.');
         } finally { setSaving(false); }
     };
@@ -739,6 +855,13 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                 /* Editor pane */
                 .obs-editor-pane { flex:1; display:flex; flex-direction:column; min-width:0; background:#0d0d0d; }
                 .obs-toolbar { display:flex; align-items:center; gap:6px; padding:8px 14px; border-bottom:1px solid rgba(255,255,255,0.06); flex-shrink:0; flex-wrap:wrap; }
+                .obs-fmt-bar { display:flex; align-items:center; gap:2px; padding:4px 14px; border-bottom:1px solid rgba(255,255,255,0.05); flex-shrink:0; flex-wrap:wrap; background:rgba(255,255,255,0.02); }
+                .obs-fmt-btn { width:26px; height:22px; border-radius:4px; display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:rgba(255,255,255,0.4); cursor:pointer; font-size:11px; font-weight:700; font-family:monospace; transition:all .12s; flex-shrink:0; }
+                .obs-fmt-btn:hover { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.9); }
+                .obs-fmt-sep { width:1px; height:14px; background:rgba(255,255,255,0.08); margin:0 3px; flex-shrink:0; }
+                .obs-autosave { font-size:10px; font-family:monospace; color:rgba(255,255,255,0.2); margin-left:auto; display:flex; align-items:center; gap:4px; }
+                .obs-autosave.pending { color:rgba(245,158,11,0.6); }
+                .obs-autosave.saved { color:rgba(16,185,129,0.7); }
                 .obs-title-input { flex:1; background:transparent; border:none; outline:none; font-size:14px; font-weight:600; color:rgba(255,255,255,0.9); min-width:120px; }
                 .obs-title-input::placeholder { color:rgba(255,255,255,0.2); }
                 .obs-btn { display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:rgba(255,255,255,0.45); transition:all .15s; white-space:nowrap; }
@@ -851,17 +974,46 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                         </div>
                     </div>
 
+                    {/* Hidden import input */}
+                    <input ref={importRef} type="file" accept=".md,.txt" style={{ display: 'none' }} onChange={handleImportMd} />
+
                     {/* Quick-action hint */}
                     <div style={{ padding: '4px 12px 0', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <button onClick={() => { setAddingFolder(true); setTimeout(() => newFolderRef.current?.focus(), 50); }}
                             style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(74,222,128,0.5)', background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600 }}>
                             <FolderPlus size={10} /> Nova Pasta
                         </button>
-                        <button onClick={() => { const openId = Array.from(openFolders)[0] ?? null; handleNew(openId); }}
+                        <button onClick={() => setTemplatesOpen(v => !v)}
                             style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(167,139,250,0.5)', background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600 }}>
-                            <Plus size={10} /> Nova Nota
+                            <Sparkles size={10} /> Template
+                        </button>
+                        <button onClick={() => importRef.current?.click()}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'rgba(245,158,11,0.5)', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontWeight: 600 }}>
+                            <Download size={10} /> Importar .md
                         </button>
                     </div>
+
+                    {/* Template picker */}
+                    {templatesOpen && (
+                        <div style={{ margin: '6px 12px 0', background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 8, overflow: 'hidden' }}>
+                            {TEMPLATES.map(t => (
+                                <button key={t.label} onClick={() => {
+                                    const openId = Array.from(openFolders)[0] ?? null;
+                                    setSelected(null);
+                                    setTitle(t.title);
+                                    setContent(t.content);
+                                    setFolderId(openId);
+                                    setMode('edit');
+                                    setTemplatesOpen(false);
+                                    setTimeout(() => textareaRef.current?.focus(), 50);
+                                }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.65)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background .12s' }}
+                                    onMouseOver={e => (e.currentTarget.style.background = 'rgba(124,58,237,0.1)')}
+                                    onMouseOut={e => (e.currentTarget.style.background = 'transparent')}>
+                                    <span>{t.icon}</span> {t.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     <div className="obs-search">
                         <div className="obs-search-inner">
@@ -1201,6 +1353,44 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                         )}
                     </div>
 
+                    {/* ── Formatting toolbar (edit/split mode only) ── */}
+                    {(mode === 'edit' || mode === 'split') && (
+                        <div className="obs-fmt-bar">
+                            <button className="obs-fmt-btn" title="Negrito (Ctrl+B)" onClick={() => wrapText('**', '**')}>B</button>
+                            <button className="obs-fmt-btn" title="Itálico (Ctrl+I)" style={{ fontStyle: 'italic' }} onClick={() => wrapText('*', '*')}>I</button>
+                            <button className="obs-fmt-btn" title="Tachado" style={{ textDecoration: 'line-through' }} onClick={() => wrapText('~~', '~~')}>S</button>
+                            <button className="obs-fmt-btn obs-fmt-sep-btn" title="Código inline" style={{ fontFamily: 'monospace', fontSize: 12 }} onClick={() => wrapText('`', '`')}>{"`"}</button>
+                            <div className="obs-fmt-sep" />
+                            <button className="obs-fmt-btn" title="Título H1" onClick={() => insertLine('# ')} style={{ fontSize: 10 }}>H1</button>
+                            <button className="obs-fmt-btn" title="Título H2" onClick={() => insertLine('## ')} style={{ fontSize: 10 }}>H2</button>
+                            <button className="obs-fmt-btn" title="Título H3" onClick={() => insertLine('### ')} style={{ fontSize: 10 }}>H3</button>
+                            <div className="obs-fmt-sep" />
+                            <button className="obs-fmt-btn" title="Lista com marcadores" onClick={() => insertLine('- ')} style={{ fontSize: 14 }}>•</button>
+                            <button className="obs-fmt-btn" title="Lista numerada" onClick={() => insertLine('1. ')} style={{ fontSize: 10 }}>1.</button>
+                            <button className="obs-fmt-btn" title="Checkbox" onClick={() => insertLine('- [ ] ')} style={{ fontSize: 11 }}>☑</button>
+                            <div className="obs-fmt-sep" />
+                            <button className="obs-fmt-btn" title="Citação" onClick={() => insertLine('> ')} style={{ fontSize: 14 }}>"</button>
+                            <button className="obs-fmt-btn" title="Separador horizontal" onClick={() => insertSnippet('\n\n---\n\n')} style={{ fontSize: 14 }}>—</button>
+                            <div className="obs-fmt-sep" />
+                            <button className="obs-fmt-btn" title="Link" style={{ fontSize: 10 }} onClick={() => {
+                                const ta = textareaRef.current;
+                                if (!ta) return;
+                                const sel = content.substring(ta.selectionStart, ta.selectionEnd);
+                                const snippet = `[${sel || 'texto'}](url)`;
+                                const start = ta.selectionStart;
+                                setContent(content.substring(0, start) + snippet + content.substring(ta.selectionEnd));
+                                requestAnimationFrame(() => { ta.focus(); });
+                            }}>🔗</button>
+                            <button className="obs-fmt-btn" title="Bloco de código" style={{ fontSize: 10 }} onClick={() => insertSnippet('\n```\n\n```\n')}>{'</>'}</button>
+                            <button className="obs-fmt-btn" title="Tabela" style={{ fontSize: 10 }} onClick={() => insertSnippet('\n| Coluna 1 | Coluna 2 | Coluna 3 |\n| --- | --- | --- |\n| | | |\n')}>⊞</button>
+                            <div className="obs-autosave" style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'monospace', color: autoSaveStatus === 'pending' ? 'rgba(245,158,11,0.6)' : autoSaveStatus === 'saved' ? 'rgba(16,185,129,0.7)' : 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                {autoSaveStatus === 'pending' && <><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(245,158,11,0.7)', display: 'inline-block' }} /> salvando...</>}
+                                {autoSaveStatus === 'saved' && <><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(16,185,129,0.7)', display: 'inline-block' }} /> salvo</>}
+                                {autoSaveStatus === 'idle' && <span>auto-save</span>}
+                            </div>
+                        </div>
+                    )}
+
                     {/* content */}
                     <div className="obs-content">
                         {(mode === 'edit' || mode === 'split') && (
@@ -1224,6 +1414,9 @@ p{margin:0 0 12px}strong{color:#4ade80}em{color:#c084fc;font-style:italic}
                                             });
                                         }
                                         if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleSave(); }
+                                        if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); wrapText('**', '**'); }
+                                        if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); wrapText('*', '*'); }
+                                        if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); wrapText('`', '`'); }
                                     }}
                                 />
                             </div>
