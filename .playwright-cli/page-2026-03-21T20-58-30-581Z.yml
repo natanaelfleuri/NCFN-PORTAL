@@ -1,0 +1,936 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - link "■ NCFN.NET Nexus Cyber Forensic Network" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: ■
+        - generic [ref=e6]:
+          - generic [ref=e7]: NCFN.NET
+          - generic [ref=e8]: Nexus Cyber Forensic Network
+      - navigation [ref=e10]:
+        - link "Vitrine" [ref=e11] [cursor=pointer]:
+          - /url: /vitrine
+          - img [ref=e12]
+          - text: Vitrine
+        - link "Auditor" [ref=e15] [cursor=pointer]:
+          - /url: /auditor
+          - img [ref=e16]
+          - text: Auditor
+        - link "Guia" [ref=e18] [cursor=pointer]:
+          - /url: /doc
+          - img [ref=e19]
+          - text: Guia
+        - link "Entrar" [ref=e22] [cursor=pointer]:
+          - /url: /login
+    - main [ref=e23]:
+      - generic [ref=e24]:
+        - generic:
+          - generic:
+            - generic: AB26
+            - generic: 8F58
+            - generic: 34D7
+            - generic: DFA7
+            - generic: EC46
+            - generic: 4DB6
+            - generic: DB93
+            - generic: 38A1
+            - generic: 6E3A
+            - generic: 7BE2
+            - generic: E56B
+            - generic: 8A76
+            - generic: 50DC
+            - generic: 0D80
+            - generic: 023F
+            - generic: 9E2B
+            - generic: 177F
+            - generic: 7D00
+            - generic: 53C3
+            - generic: C71E
+            - generic: "8227"
+            - generic: "6826"
+            - generic: A9B1
+            - generic: C1A4
+            - generic: 4A34
+            - generic: E34D
+            - generic: B5F2
+            - generic: "0E76"
+            - generic: "4E73"
+            - generic: "2150"
+            - generic: C712
+            - generic: 0D1C
+            - generic: "4018"
+            - generic: C096
+            - generic: 41D6
+            - generic: D0C3
+            - generic: "7666"
+            - generic: "7437"
+            - generic: 1D24
+            - generic: "77E9"
+          - generic:
+            - generic: 8ECD
+            - generic: D214
+            - generic: 97D2
+            - generic: C3D9
+            - generic: 5DFE
+            - generic: 3EB1
+            - generic: "3693"
+            - generic: 016C
+            - generic: AAA7
+            - generic: 3F68
+            - generic: 181B
+            - generic: 40A1
+            - generic: BC48
+            - generic: 4D22
+            - generic: A288
+            - generic: 70D1
+            - generic: E18B
+            - generic: 2E4B
+            - generic: "8206"
+            - generic: DE00
+            - generic: C684
+            - generic: CECA
+            - generic: 2D40
+            - generic: E9AD
+            - generic: 179C
+            - generic: 0AA8
+            - generic: 9D27
+            - generic: FEE1
+            - generic: "1516"
+            - generic: FF78
+            - generic: EAA1
+            - generic: E863
+            - generic: 64B1
+            - generic: "74E7"
+            - generic: 6C5A
+            - generic: 1B7C
+            - generic: C776
+            - generic: "9E74"
+            - generic: 3B04
+            - generic: 0A76
+          - generic:
+            - generic: AB4A
+            - generic: 7C84
+            - generic: 7C19
+            - generic: B27E
+            - generic: "8569"
+            - generic: C893
+            - generic: 07C3
+            - generic: D200
+            - generic: DD5B
+            - generic: AFD8
+            - generic: 39CB
+            - generic: 77C2
+            - generic: F89B
+            - generic: D93C
+            - generic: EB1D
+            - generic: 2CE8
+            - generic: C0E7
+            - generic: C69F
+            - generic: "1841"
+            - generic: "7499"
+            - generic: CFDD
+            - generic: 02F8
+            - generic: 9C36
+            - generic: 1C92
+            - generic: 78F3
+            - generic: A730
+            - generic: 1DD4
+            - generic: EF2D
+            - generic: C44B
+            - generic: "2178"
+            - generic: "0473"
+            - generic: DD71
+            - generic: 7DCE
+            - generic: CD3C
+            - generic: CC6D
+            - generic: 6D59
+            - generic: 29C2
+            - generic: EB05
+            - generic: C3EF
+            - generic: "6386"
+          - generic:
+            - generic: "16E5"
+            - generic: 4C4E
+            - generic: FD77
+            - generic: F9D9
+            - generic: 8BC4
+            - generic: "2675"
+            - generic: 0EEA
+            - generic: CE35
+            - generic: FBA0
+            - generic: C363
+            - generic: 3DA3
+            - generic: A6E8
+            - generic: BBDC
+            - generic: DC21
+            - generic: E138
+            - generic: EE1B
+            - generic: DC32
+            - generic: 557A
+            - generic: 149C
+            - generic: 7FAA
+            - generic: E5AF
+            - generic: "4102"
+            - generic: D328
+            - generic: "8150"
+            - generic: DF2B
+            - generic: 21DB
+            - generic: 5D24
+            - generic: "68E8"
+            - generic: 0D60
+            - generic: "3E87"
+            - generic: C803
+            - generic: 81EA
+            - generic: D2A2
+            - generic: "2776"
+            - generic: 005C
+            - generic: C0D5
+            - generic: E377
+            - generic: "7591"
+            - generic: 53F2
+            - generic: 40B6
+          - generic:
+            - generic: "9409"
+            - generic: 25F2
+            - generic: AF06
+            - generic: "3410"
+            - generic: EACD
+            - generic: 3B5F
+            - generic: 4D96
+            - generic: "0336"
+            - generic: 6D04
+            - generic: FC58
+            - generic: 01CF
+            - generic: BC53
+            - generic: CC19
+            - generic: 17AE
+            - generic: "4E12"
+            - generic: 50DB
+            - generic: 6E2C
+            - generic: 827B
+            - generic: "1E69"
+            - generic: "5124"
+            - generic: 9DCE
+            - generic: 0EF6
+            - generic: 2C55
+            - generic: 544C
+            - generic: 15EE
+            - generic: C040
+            - generic: 3C2D
+            - generic: C230
+            - generic: 2EF1
+            - generic: 80F0
+            - generic: 36D1
+            - generic: 4B41
+            - generic: 3EF7
+            - generic: C0E6
+            - generic: 2ECC
+            - generic: 92B6
+            - generic: EDF4
+            - generic: 3A0A
+            - generic: A1C8
+            - generic: 2BC5
+          - generic:
+            - generic: F0C2
+            - generic: DC24
+            - generic: A80A
+            - generic: 45B3
+            - generic: 709C
+            - generic: "2906"
+            - generic: 1B4B
+            - generic: A832
+            - generic: FA64
+            - generic: 7CBD
+            - generic: 68A1
+            - generic: "5E80"
+            - generic: "8457"
+            - generic: DE63
+            - generic: F8B8
+            - generic: A02B
+            - generic: B613
+            - generic: 5DAF
+            - generic: 575B
+            - generic: 72CD
+            - generic: B9D7
+            - generic: 214E
+            - generic: F188
+            - generic: 7CD7
+            - generic: 7AA9
+            - generic: DB96
+            - generic: "0024"
+            - generic: AD78
+            - generic: 6AE9
+            - generic: 9FE8
+            - generic: B60E
+            - generic: C8C4
+            - generic: 2B1E
+            - generic: D0BE
+            - generic: "8439"
+            - generic: CF5B
+            - generic: ADC0
+            - generic: "9303"
+            - generic: 0AEB
+            - generic: 4F0C
+          - generic:
+            - generic: 4D73
+            - generic: CD74
+            - generic: 717F
+            - generic: "9840"
+            - generic: DCE8
+            - generic: C23E
+            - generic: D29A
+            - generic: 209C
+            - generic: D282
+            - generic: 752F
+            - generic: ED5D
+            - generic: "5606"
+            - generic: 3C2D
+            - generic: 383C
+            - generic: 246C
+            - generic: E672
+            - generic: 3C94
+            - generic: 1B3F
+            - generic: CA00
+            - generic: 6EBA
+            - generic: F920
+            - generic: B034
+            - generic: "7638"
+            - generic: 86F7
+            - generic: A21C
+            - generic: "0537"
+            - generic: 8B33
+            - generic: FD2F
+            - generic: B98C
+            - generic: 591E
+            - generic: 3B8E
+            - generic: 0EE9
+            - generic: "10E8"
+            - generic: 78FB
+            - generic: "2304"
+            - generic: 3EDA
+            - generic: 29FE
+            - generic: "0621"
+            - generic: 90D2
+            - generic: "92E5"
+          - generic:
+            - generic: 4CED
+            - generic: CAC5
+            - generic: B6C3
+            - generic: CBED
+            - generic: CAD8
+            - generic: E323
+            - generic: 82AD
+            - generic: BE97
+            - generic: 0EB2
+            - generic: 9DF1
+            - generic: 658D
+            - generic: 5FE1
+            - generic: 57D9
+            - generic: 821C
+            - generic: 53B0
+            - generic: E7DE
+            - generic: 2AB9
+            - generic: 1C79
+            - generic: A313
+            - generic: 822D
+            - generic: 28F5
+            - generic: 9C55
+            - generic: 650C
+            - generic: "0189"
+            - generic: 278F
+            - generic: EAEA
+            - generic: AD9A
+            - generic: 52EC
+            - generic: EB17
+            - generic: 357F
+            - generic: 9D6F
+            - generic: 46A7
+            - generic: 7AA2
+            - generic: 9A18
+            - generic: 0F75
+            - generic: 82EB
+            - generic: 99F4
+            - generic: 2AF9
+            - generic: 7D27
+            - generic: 89AC
+          - generic:
+            - generic: 8C6E
+            - generic: C1F0
+            - generic: F3C2
+            - generic: "7485"
+            - generic: E958
+            - generic: 3A2B
+            - generic: CF0F
+            - generic: 715A
+            - generic: E946
+            - generic: B132
+            - generic: E6D3
+            - generic: BAB6
+            - generic: 30C8
+            - generic: 8AB6
+            - generic: 7B6C
+            - generic: "08E5"
+            - generic: 978B
+            - generic: F743
+            - generic: "1326"
+            - generic: 3D1C
+            - generic: C4A3
+            - generic: BEE6
+            - generic: "3598"
+            - generic: C1EB
+            - generic: FF61
+            - generic: 7BDD
+            - generic: "3548"
+            - generic: AA8E
+            - generic: "2080"
+            - generic: C738
+            - generic: B2BA
+            - generic: C4B1
+            - generic: 06F7
+            - generic: 4C41
+            - generic: 20BE
+            - generic: B2C8
+            - generic: E457
+            - generic: 5A0F
+            - generic: 5C7B
+            - generic: "8280"
+          - generic:
+            - generic: BEBF
+            - generic: 3CEA
+            - generic: 856E
+            - generic: 00B0
+            - generic: 6E5C
+            - generic: FA4D
+            - generic: 059D
+            - generic: 4B30
+            - generic: 6EFC
+            - generic: D1BF
+            - generic: F2E1
+            - generic: 35BA
+            - generic: 17F0
+            - generic: F57C
+            - generic: 72DB
+            - generic: D826
+            - generic: 158C
+            - generic: 5E3E
+            - generic: 929F
+            - generic: D025
+            - generic: 85AF
+            - generic: "7269"
+            - generic: E8B6
+            - generic: 0EAB
+            - generic: "2906"
+            - generic: C5C6
+            - generic: 56F8
+            - generic: FC62
+            - generic: 83AF
+            - generic: 764B
+            - generic: "60E6"
+            - generic: 6F09
+            - generic: 666E
+            - generic: 6C8F
+            - generic: "7223"
+            - generic: 31D5
+            - generic: 73BE
+            - generic: CA8E
+            - generic: 93A3
+            - generic: "3475"
+          - generic:
+            - generic: C0A0
+            - generic: "7467"
+            - generic: "4055"
+            - generic: AE71
+            - generic: 9CDB
+            - generic: 5D9B
+            - generic: "7377"
+            - generic: CFAD
+            - generic: 0EEC
+            - generic: A226
+            - generic: A5D0
+            - generic: DDA7
+            - generic: 569E
+            - generic: CC50
+            - generic: C9BF
+            - generic: A7C1
+            - generic: C658
+            - generic: FD1E
+            - generic: "4995"
+            - generic: FFBC
+            - generic: A59B
+            - generic: E799
+            - generic: 444B
+            - generic: 690A
+            - generic: 3CDA
+            - generic: "1019"
+            - generic: "4465"
+            - generic: 4E9A
+            - generic: BCAA
+            - generic: CB2F
+            - generic: 369E
+            - generic: F5B5
+            - generic: 0D52
+            - generic: 6D29
+            - generic: 2C6F
+            - generic: "0745"
+            - generic: "5068"
+            - generic: 29A7
+            - generic: E1CE
+            - generic: A969
+          - generic:
+            - generic: 5EF5
+            - generic: "6308"
+            - generic: 916E
+            - generic: 4B36
+            - generic: "9955"
+            - generic: "3166"
+            - generic: 58C9
+            - generic: 05FA
+            - generic: "0749"
+            - generic: 1E1B
+            - generic: "8564"
+            - generic: 490E
+            - generic: AB05
+            - generic: D8BA
+            - generic: 1BA7
+            - generic: "82E4"
+            - generic: B84A
+            - generic: 3D36
+            - generic: F3EE
+            - generic: 5A64
+            - generic: "3051"
+            - generic: "1910"
+            - generic: 95DD
+            - generic: "6005"
+            - generic: 36D3
+            - generic: EF84
+            - generic: 2F28
+            - generic: 356E
+            - generic: C81E
+            - generic: "2386"
+            - generic: "03E3"
+            - generic: 0A7E
+            - generic: "2100"
+            - generic: BB99
+            - generic: CD81
+            - generic: A9F7
+            - generic: "54E6"
+            - generic: "8384"
+            - generic: 06C4
+            - generic: 03C0
+          - generic:
+            - generic: 3EF6
+            - generic: 6BCA
+            - generic: 7F0F
+            - generic: B914
+            - generic: 62DD
+            - generic: 653B
+            - generic: 4AFC
+            - generic: 97D2
+            - generic: "0376"
+            - generic: EBA7
+            - generic: "7564"
+            - generic: F9A5
+            - generic: CEFC
+            - generic: 967B
+            - generic: 0DB6
+            - generic: "9807"
+            - generic: E7CE
+            - generic: E52F
+            - generic: "6746"
+            - generic: B4C6
+            - generic: 1DEC
+            - generic: 667B
+            - generic: B688
+            - generic: 8CB9
+            - generic: "5139"
+            - generic: 9A3B
+            - generic: 8B20
+            - generic: 9ED9
+            - generic: 835C
+            - generic: E2C1
+            - generic: 60AF
+            - generic: D2CA
+            - generic: 510C
+            - generic: C772
+            - generic: "7005"
+            - generic: 443D
+            - generic: 3EDE
+            - generic: 05AF
+            - generic: 0BED
+            - generic: A754
+          - generic:
+            - generic: 5F51
+            - generic: 167B
+            - generic: 6CA7
+            - generic: "9041"
+            - generic: A9DC
+            - generic: "8253"
+            - generic: 6B0E
+            - generic: "7814"
+            - generic: D80D
+            - generic: FD89
+            - generic: "3781"
+            - generic: 22D1
+            - generic: D5FB
+            - generic: 36F2
+            - generic: 33A5
+            - generic: DD8D
+            - generic: "3598"
+            - generic: E85D
+            - generic: 78AA
+            - generic: 73FF
+            - generic: F02B
+            - generic: "9760"
+            - generic: 1B3E
+            - generic: 88F5
+            - generic: "6484"
+            - generic: "1346"
+            - generic: F994
+            - generic: FF20
+            - generic: 2C29
+            - generic: BAA4
+            - generic: A951
+            - generic: "0962"
+            - generic: "0995"
+            - generic: 37F9
+            - generic: "4357"
+            - generic: F116
+            - generic: 420C
+            - generic: BCAD
+            - generic: 414E
+            - generic: 9B09
+          - generic:
+            - generic: 135E
+            - generic: E283
+            - generic: 7F26
+            - generic: 5DEB
+            - generic: "8648"
+            - generic: 1BEE
+            - generic: 43EB
+            - generic: C9A8
+            - generic: "9446"
+            - generic: F464
+            - generic: CCDC
+            - generic: ACCC
+            - generic: FD14
+            - generic: 0B92
+            - generic: 8BFD
+            - generic: ED4B
+            - generic: 353F
+            - generic: E354
+            - generic: 30F9
+            - generic: FC20
+            - generic: 40B7
+            - generic: E0CC
+            - generic: 378D
+            - generic: 9FA4
+            - generic: C402
+            - generic: DF5F
+            - generic: 1EDE
+            - generic: "4105"
+            - generic: 6DDE
+            - generic: "2565"
+            - generic: "6309"
+            - generic: 95D7
+            - generic: DFA5
+            - generic: 4B00
+            - generic: 9E0A
+            - generic: A95E
+            - generic: 7FFC
+            - generic: "7495"
+            - generic: 9FCD
+            - generic: "9459"
+          - generic:
+            - generic: 3FAA
+            - generic: 622B
+            - generic: D432
+            - generic: 304A
+            - generic: EB96
+            - generic: 594C
+            - generic: 995B
+            - generic: 9D9B
+            - generic: A5E7
+            - generic: "3947"
+            - generic: 0C59
+            - generic: B513
+            - generic: 4D9A
+            - generic: "3286"
+            - generic: E90A
+            - generic: "9228"
+            - generic: E721
+            - generic: F262
+            - generic: 0FCD
+            - generic: 6DC3
+            - generic: 942C
+            - generic: 911D
+            - generic: D3EA
+            - generic: CF3B
+            - generic: 288D
+            - generic: "2617"
+            - generic: D7AC
+            - generic: E124
+            - generic: "8457"
+            - generic: "3504"
+            - generic: A424
+            - generic: "3549"
+            - generic: "1E44"
+            - generic: 0F9E
+            - generic: 6A27
+            - generic: "7345"
+            - generic: CAAC
+            - generic: 994D
+            - generic: D65F
+            - generic: F639
+          - generic:
+            - generic: 22C7
+            - generic: FDCA
+            - generic: "6676"
+            - generic: DB2E
+            - generic: "8450"
+            - generic: C349
+            - generic: "9561"
+            - generic: DC1B
+            - generic: 4F07
+            - generic: "4613"
+            - generic: "2E06"
+            - generic: 7F21
+            - generic: 4AA9
+            - generic: "3814"
+            - generic: "8E84"
+            - generic: "8433"
+            - generic: 4F84
+            - generic: 6EB2
+            - generic: AF47
+            - generic: C46D
+            - generic: E534
+            - generic: 6FEF
+            - generic: B7EC
+            - generic: C6F3
+            - generic: 771D
+            - generic: F0F0
+            - generic: 584D
+            - generic: "5152"
+            - generic: "9E59"
+            - generic: "0303"
+            - generic: E3F2
+            - generic: 2C63
+            - generic: 92B1
+            - generic: 9D3B
+            - generic: "7898"
+            - generic: "13E2"
+            - generic: 9F21
+            - generic: "0392"
+            - generic: "6312"
+            - generic: 109C
+          - generic:
+            - generic: 3BEB
+            - generic: 06C1
+            - generic: "8808"
+            - generic: 6DA9
+            - generic: "2836"
+            - generic: 8A26
+            - generic: "7990"
+            - generic: D6D6
+            - generic: EB24
+            - generic: A61E
+            - generic: F8C0
+            - generic: 5C36
+            - generic: 276E
+            - generic: E0D9
+            - generic: B1F5
+            - generic: 975D
+            - generic: "8992"
+            - generic: "2062"
+            - generic: "8E39"
+            - generic: C6A9
+            - generic: 64EB
+            - generic: 452C
+            - generic: 6B3D
+            - generic: "3393"
+            - generic: 11B8
+            - generic: 709E
+            - generic: E60A
+            - generic: "8489"
+            - generic: C077
+            - generic: 5C2B
+            - generic: 0BC2
+            - generic: F142
+            - generic: B1AD
+            - generic: E992
+            - generic: E034
+            - generic: 69D1
+            - generic: BAA0
+            - generic: A972
+            - generic: D9A1
+            - generic: DD50
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e29]: "SYS :: ONLINE"
+            - heading "NEXUS CYBER FORENSIC NETWORK" [level=1] [ref=e31]:
+              - text: NEXUS CYBER
+              - text: FORENSIC NETWORK
+            - paragraph [ref=e32]: CADEIA DE CUSTÓDIA E TRATAMENTO FORENSE EM DOCUMENTOS DIGITAIS PROBATÓRIOS
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - generic [ref=e36]: Status do Túnel
+              - generic [ref=e40]:
+                - generic [ref=e41]: ATIVO
+                - generic [ref=e42]: CLOUDFLARE TUNNEL
+            - generic [ref=e43]:
+              - generic [ref=e44]: Ameaças Bloqueadas (24h)
+              - generic [ref=e45]:
+                - generic [ref=e46]: "0"
+                - generic [ref=e47]: eventos
+            - generic [ref=e49]:
+              - generic [ref=e50]: Latência da Rede
+              - generic [ref=e51]:
+                - generic [ref=e52]: 12ms
+                - generic [ref=e53]: NOMINAL
+              - img [ref=e54]
+          - generic [ref=e56]:
+            - generic [ref=e58]: Módulos do Sistema
+            - generic [ref=e60]:
+              - link "Vitrine Pública" [ref=e61] [cursor=pointer]:
+                - /url: /vitrine
+                - generic [ref=e62]:
+                  - img [ref=e64]
+                  - generic [ref=e67]: Vitrine Pública
+              - link "Base de Conhecimento" [ref=e68] [cursor=pointer]:
+                - /url: /admin/investigar
+                - generic [ref=e69]:
+                  - img [ref=e71]
+                  - generic [ref=e73]: Base de Conhecimento
+              - link "Auditoria" [ref=e74] [cursor=pointer]:
+                - /url: /auditor
+                - generic [ref=e75]:
+                  - img [ref=e77]
+                  - generic [ref=e80]: Auditoria
+              - generic [ref=e82] [cursor=pointer]:
+                - generic [ref=e83]:
+                  - img [ref=e84]
+                  - img [ref=e87]
+                - generic [ref=e90]: Configurações de IA
+              - generic [ref=e92] [cursor=pointer]:
+                - generic [ref=e93]:
+                  - img [ref=e94]
+                  - img [ref=e96]
+                - generic [ref=e99]: Gestão do Vault
+              - generic [ref=e101] [cursor=pointer]:
+                - generic [ref=e102]:
+                  - img [ref=e103]
+                  - img [ref=e105]
+                - generic [ref=e108]: Logs de Acesso
+              - generic [ref=e110] [cursor=pointer]:
+                - generic [ref=e111]:
+                  - img [ref=e112]
+                  - img [ref=e114]
+                - generic [ref=e117]: Lockdown do Servidor
+          - generic [ref=e118]:
+            - generic [ref=e120]: Níveis de Acesso
+            - generic [ref=e122]:
+              - generic [ref=e123]:
+                - generic [ref=e125]: NÍVEL 0
+                - list [ref=e126]:
+                  - listitem [ref=e127]: Captura Web Padrão
+                  - listitem [ref=e129]: Testemunha Wayback Machine
+                - generic [ref=e131]:
+                  - paragraph [ref=e132]: "Para:"
+                  - paragraph [ref=e133]: Cidadãos, vítimas de crimes cibernéticos comuns e jornalistas
+                  - paragraph [ref=e134]: "Por quê:"
+                  - paragraph [ref=e135]: Ideal para preservar provas rápidas de redes sociais e sites
+              - generic [ref=e136]:
+                - generic [ref=e138]: NÍVEL 1
+                - list [ref=e139]:
+                  - listitem [ref=e140]: Carimbo Blockchain (.ots)
+                  - listitem [ref=e142]: Análise de Metadados (ExifTool)
+                - generic [ref=e144]:
+                  - paragraph [ref=e145]: "Para:"
+                  - paragraph [ref=e146]: Detetives particulares, pesquisadores OSINT e pequenos escritórios
+                  - paragraph [ref=e147]: "Por quê:"
+                  - paragraph [ref=e148]: Garante imutabilidade criptográfica via Blockchain
+              - generic [ref=e149]:
+                - generic [ref=e151]: NÍVEL 2
+                - list [ref=e152]:
+                  - listitem [ref=e153]: IA Local (Perito Sansão - Mistral)
+                  - listitem [ref=e155]: Assinatura RFC 3161
+                - generic [ref=e157]:
+                  - paragraph [ref=e158]: "Para:"
+                  - paragraph [ref=e159]: Advogados criminalistas, peritos judiciais independentes
+                  - paragraph [ref=e160]: "Por quê:"
+                  - paragraph [ref=e161]: Oferece análise profunda com IA isolada e carimbo de tempo oficial
+              - generic [ref=e162] [cursor=pointer]:
+                - generic [ref=e163]:
+                  - generic [ref=e164]: NÍVEL 3
+                  - img [ref=e165]
+                - list [ref=e168]:
+                  - listitem [ref=e169]: Infraestrutura Policial
+                  - listitem [ref=e171]: VPS Isolada
+                  - listitem [ref=e173]: Destruição Automática de Cache
+                - generic [ref=e175]:
+                  - paragraph [ref=e176]: "Para:"
+                  - paragraph [ref=e177]: Forças policiais, delegacias de crimes cibernéticos
+                  - paragraph [ref=e178]: "Por quê:"
+                  - paragraph [ref=e179]: Requer sigilo absoluto e infraestrutura isolada
+                - img [ref=e182]
+              - generic [ref=e185] [cursor=pointer]:
+                - generic [ref=e186]:
+                  - generic [ref=e187]: NÍVEL 4
+                  - img [ref=e188]
+                - list [ref=e191]:
+                  - listitem [ref=e192]: Processamento GPU Dedicado
+                  - listitem [ref=e194]: Llama 3 Local
+                  - listitem [ref=e196]: Detecção de Deepfake (ELA)
+                - generic [ref=e198]:
+                  - paragraph [ref=e199]: "Para:"
+                  - paragraph [ref=e200]: Agências de inteligência, peritos criminais federais
+                  - paragraph [ref=e201]: "Por quê:"
+                  - paragraph [ref=e202]: Altíssimo poder computacional para detectar manipulações
+                - img [ref=e205]
+              - generic [ref=e208] [cursor=pointer]:
+                - generic [ref=e209]:
+                  - generic [ref=e210]: NÍVEL 5
+                  - img [ref=e211]
+                - list [ref=e214]:
+                  - listitem [ref=e215]: Controle Absoluto de Instância
+                  - listitem [ref=e217]: Lockdown de Servidor
+                  - listitem [ref=e219]: Chaves Zero-Knowledge
+                - generic [ref=e221]:
+                  - paragraph [ref=e222]: "Para:"
+                  - paragraph [ref=e223]: Arquitetos do sistema e Operadores Root da plataforma NCFN
+                  - paragraph [ref=e224]: "Por quê:"
+                  - paragraph [ref=e225]: Acesso aos protocolos de emergência e gestão de criptografia mestre
+                - img [ref=e228]
+          - generic [ref=e231]:
+            - button "[ >_ INSTALAR APLICATIVO NCFN SYNC ]" [ref=e233] [cursor=pointer]:
+              - img [ref=e234]
+              - text: "[ >_ INSTALAR APLICATIVO NCFN SYNC ]"
+            - generic [ref=e236]:
+              - generic [ref=e237]:
+                - img [ref=e238]
+                - generic [ref=e241]: iOS / macOS
+              - generic [ref=e243]:
+                - img [ref=e244]
+                - generic [ref=e246]: Android / PWA
+            - generic [ref=e247]:
+              - generic [ref=e248]:
+                - img [ref=e249]
+                - generic [ref=e252]: SHA-256 Engine
+              - generic [ref=e253]:
+                - img [ref=e254]
+                - generic [ref=e256]: Forensic Core
+              - generic [ref=e257]:
+                - img [ref=e258]
+                - generic [ref=e261]: AES-256 Vault
+              - generic [ref=e262]:
+                - img [ref=e263]
+                - generic [ref=e266]: Zero-Trust Net
+    - contentinfo [ref=e267]:
+      - generic [ref=e268]:
+        - paragraph [ref=e269]: "Security Level: Grade A | Neural Multi-Layer Active"
+        - paragraph [ref=e270]: "NCFN: Nexus Cloud Forensic Network | CopyLeft 2026"
+        - generic [ref=e271]:
+          - generic [ref=e272]: ncfn@ncfn.net
+          - generic [ref=e273]: "|"
+          - link "Política de Uso" [ref=e274] [cursor=pointer]:
+            - /url: /politica
+  - alert [ref=e275]

@@ -1,1280 +1,1169 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
-  Camera, FileText, Globe, Code2, Search, Zap, Loader2, CheckCircle,
-  AlertTriangle, Download, Trash2, Eye, Save, ChevronDown, ChevronUp,
-  ExternalLink, Wifi, WifiOff, HelpCircle, X, Hash, Shield, Plus, Minus,
-  BookOpen, Link2, Archive, Server, Cpu, Clock, Activity,
+  Camera, FileText, Globe, Loader2, CheckCircle, AlertTriangle,
+  Download, Eye, ExternalLink, Wifi, Shield, Clock, Server,
+  Hash, Link2, Archive, MapPin, Zap, RefreshCw, X, Code,
+  Search, ChevronDown, ChevronRight, Lock, Unlock, Activity,
+  Database, Monitor, Radio, AlertCircle, Info, Layers,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Action = "screenshot" | "pdf" | "content" | "scrape" | "performance";
-
-type CollectedItem = {
-  id: string;
-  action: Action;
-  name: string;
-  mime: string;
-  base64?: string;
-  data?: any;
-  sizeBytes: number;
-  addedAt: Date;
-};
-
 type Capture = {
   id: string;
   url: string;
-  profile: string;
+  profile: "rapida" | "completa";
   status: "processing" | "done" | "error";
-  operatorEmail: string;
+  operatorEmail?: string;
   serverIp?: string;
   serverLocation?: string;
+  sslIssuer?: string;
+  sslExpiry?: string;
+  sslFingerprint?: string;
+  whoisData?: string;
+  httpHeaders?: string;
   hashScreenshot?: string;
+  hashPdf?: string;
+  hashHtml?: string;
   screenshotFile?: string;
+  pdfFile?: string;
+  htmlFile?: string;
   certidaoPdf?: string;
+  webCheckData?: string;
   createdAt: string;
   errorMessage?: string;
-  webCheckData?: string;
   waybackUrl?: string;
   blockchainVerify?: string;
+  blockchainTx?: string;
   pingMs?: number;
   siteStatus?: number;
+  rfcTimestamp?: string;
 };
 
-// ─── Action definitions ───────────────────────────────────────────────────────
-
-const ACTIONS = [
-  {
-    key: "screenshot" as Action,
-    label: "Screenshot",
-    icon: Camera,
-    desc: "Captura de tela completa (PNG full-page)",
-    color: "text-cyan-400",
-    border: "border-cyan-500/30",
-    bg: "bg-cyan-500/10",
-    hover: "hover:border-cyan-400/60 hover:bg-cyan-500/15",
-    name: "screenshot.png",
-    mime: "image/png",
-  },
-  {
-    key: "pdf" as Action,
-    label: "PDF",
-    icon: FileText,
-    desc: "Página renderizada como PDF (A4)",
-    color: "text-purple-400",
-    border: "border-purple-500/30",
-    bg: "bg-purple-500/10",
-    hover: "hover:border-purple-400/60 hover:bg-purple-500/15",
-    name: "pagina.pdf",
-    mime: "application/pdf",
-  },
-  {
-    key: "content" as Action,
-    label: "HTML / DOM",
-    icon: Code2,
-    desc: "HTML totalmente renderizado (inclui JS)",
-    color: "text-green-400",
-    border: "border-green-500/30",
-    bg: "bg-green-500/10",
-    hover: "hover:border-green-400/60 hover:bg-green-500/15",
-    name: "dom.html",
-    mime: "text/html",
-  },
-  {
-    key: "scrape" as Action,
-    label: "Raspar Dados",
-    icon: Search,
-    desc: "Extração estruturada via seletores CSS",
-    color: "text-yellow-400",
-    border: "border-yellow-500/30",
-    bg: "bg-yellow-500/10",
-    hover: "hover:border-yellow-400/60 hover:bg-yellow-500/15",
-    name: "raspa_dados.json",
-    mime: "application/json",
-  },
-  {
-    key: "performance" as Action,
-    label: "Performance",
-    icon: Zap,
-    desc: "Auditoria Lighthouse (velocidade, SEO, acessibilidade)",
-    color: "text-orange-400",
-    border: "border-orange-500/30",
-    bg: "bg-orange-500/10",
-    hover: "hover:border-orange-400/60 hover:bg-orange-500/15",
-    name: "performance.json",
-    mime: "application/json",
-  },
-] as const;
-
-// ─── Plan limits (Browserless.io free tier) ───────────────────────────────────
-
-const MAX_UNITS = 1000;          // units/month
-const COOLDOWN_SECS = 12;        // wait between actions (2 concurrent browser limit)
-const MAX_SESSION_SECS = 55;     // warn at 55 s (1 min hard limit)
-
-const UNIT_COSTS: Record<Action, number> = {
-  screenshot: 1,
-  pdf: 1,
-  content: 1,
-  scrape: 1,
-  performance: 5,   // Lighthouse is heavier
-};
-
-function currentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
+type Tab = "geral" | "status" | "fonte" | "osint" | "evidencias";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatBytes(b: number): string {
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
-  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+function vaultViewUrl(filePath: string) {
+  return `/api/vault/view?path=${encodeURIComponent(filePath)}`;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+function fmtDate(iso: string) {
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    }).format(new Date(iso));
+  } catch { return iso; }
 }
 
-// ─── Performance metrics display ─────────────────────────────────────────────
+function truncate(s: string, n = 60) {
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
 
-function PerformanceView({ data }: { data: any }) {
-  const lhr = data?.data || data;
-  const cats = lhr?.categories || lhr?.lhr?.categories;
-  const audits = lhr?.audits || lhr?.lhr?.audits;
+// ─── Source Code Highlighter ──────────────────────────────────────────────────
 
-  if (!cats) {
+type LineCategory =
+  | "comment" | "script" | "style" | "meta" | "link"
+  | "form" | "security" | "anchor" | "default";
+
+const LINE_COLORS: Record<LineCategory, { bg: string; text: string; label: string; dot: string }> = {
+  comment:  { bg: "bg-white/5",      text: "text-white/35",  label: "Comentários HTML",     dot: "bg-white/30" },
+  script:   { bg: "bg-red-900/30",   text: "text-red-300",   label: "JavaScript / <script>", dot: "bg-red-400" },
+  style:    { bg: "bg-blue-900/25",  text: "text-blue-300",  label: "CSS / <style>",         dot: "bg-blue-400" },
+  meta:     { bg: "bg-yellow-900/25",text: "text-yellow-300",label: "Metadados <meta>",      dot: "bg-yellow-400" },
+  link:     { bg: "bg-sky-900/25",   text: "text-sky-300",   label: "Links <link>",          dot: "bg-sky-400" },
+  form:     { bg: "bg-purple-900/25",text: "text-purple-300",label: "Formulários / Inputs",  dot: "bg-purple-400" },
+  security: { bg: "bg-emerald-900/25",text: "text-emerald-300",label: "Segurança / CSP",     dot: "bg-emerald-400" },
+  anchor:   { bg: "bg-cyan-900/20",  text: "text-cyan-300",  label: "Links <a href>",        dot: "bg-cyan-400" },
+  default:  { bg: "",                text: "text-white/60",  label: "HTML geral",             dot: "bg-white/20" },
+};
+
+function categorizeLine(line: string): LineCategory {
+  const t = line.trim();
+  if (!t) return "default";
+  if (/<!--/.test(t)) return "comment";
+  if (/<script[\s>]/i.test(t) || /<\/script>/i.test(t)) return "script";
+  if (/<style[\s>]/i.test(t) || /<\/style>/i.test(t)) return "style";
+  if (/<meta[\s/]/i.test(t)) {
+    if (/content-security-policy|x-frame-options|referrer-policy|x-content-type/i.test(t)) return "security";
+    return "meta";
+  }
+  if (/<link[\s/]/i.test(t)) return "link";
+  if (/<(?:form|input|select|textarea|button)[\s/>]/i.test(t)) return "form";
+  if (/content-security-policy|x-frame-options|strict-transport-security|referrer-policy/i.test(t)) return "security";
+  if (/<a\s/i.test(t) || /href=["']/i.test(t)) return "anchor";
+  return "default";
+}
+
+// ─── StatusBadge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: Capture["status"] }) {
+  if (status === "done")
+    return <span className="flex items-center gap-1 text-xs text-emerald-400 font-semibold"><CheckCircle size={11} /> Concluída</span>;
+  if (status === "error")
+    return <span className="flex items-center gap-1 text-xs text-red-400 font-semibold"><AlertTriangle size={11} /> Erro</span>;
+  return <span className="flex items-center gap-1 text-xs text-yellow-400 font-semibold"><Loader2 size={11} className="animate-spin" /> Processando</span>;
+}
+
+// ─── InfoRow ──────────────────────────────────────────────────────────────────
+
+function InfoRow({ icon: Icon, label, value, mono, color }: {
+  icon: any; label: string; value: string; mono?: boolean;
+  color?: "emerald" | "red" | "yellow" | "cyan";
+}) {
+  const tc = color === "emerald" ? "text-emerald-400"
+    : color === "red" ? "text-red-400"
+    : color === "yellow" ? "text-yellow-400"
+    : color === "cyan" ? "text-cyan-400"
+    : "text-white/80";
+  return (
+    <div className="flex items-start gap-2">
+      <Icon size={12} className="text-white/25 mt-0.5 shrink-0" />
+      <div>
+        <p className="text-[10px] text-white/30 uppercase tracking-wider">{label}</p>
+        <p className={`text-xs break-all ${tc} ${mono ? "font-mono" : ""}`}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── SourceCodeViewer ─────────────────────────────────────────────────────────
+
+function SourceCodeViewer({ cap }: { cap: Capture }) {
+  const [lines, setLines] = useState<{ text: string; cat: LineCategory }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<LineCategory | "all">("all");
+  const [search, setSearch] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  async function loadSource() {
+    if (loaded) return;
+    if (!cap.htmlFile) { setError("HTML não disponível para esta captura."); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(vaultViewUrl(cap.htmlFile));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const parsed = text.split("\n").slice(0, 2000).map(l => ({
+        text: l,
+        cat: categorizeLine(l),
+      }));
+      setLines(parsed);
+      setLoaded(true);
+    } catch (e: any) {
+      setError(e.message || "Falha ao carregar código fonte");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadSource(); }, [cap.htmlFile]);
+
+  const filtered = lines.filter(l => {
+    if (filter !== "all" && l.cat !== filter) return false;
+    if (search && !l.text.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const categoryCounts = lines.reduce((acc, l) => {
+    acc[l.cat] = (acc[l.cat] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return (
+    <div className="space-y-3">
+      {/* Legenda */}
+      <div className="border border-white/8 rounded-xl bg-black/20 p-3">
+        <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+          <Layers size={10} /> Legenda de Cores
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(Object.entries(LINE_COLORS) as [LineCategory, typeof LINE_COLORS[LineCategory]][])
+            .filter(([k]) => k !== "default")
+            .map(([key, val]) => (
+              <button
+                key={key}
+                onClick={() => setFilter(filter === key ? "all" : key)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] border transition-all
+                  ${filter === key
+                    ? "border-white/30 bg-white/10"
+                    : "border-white/8 hover:border-white/20"}`}
+              >
+                <span className={`w-2 h-2 rounded-full ${val.dot}`} />
+                <span className={val.text}>{val.label}</span>
+                {categoryCounts[key] > 0 && (
+                  <span className="text-white/25">({categoryCounts[key]})</span>
+                )}
+              </button>
+            ))}
+          <button
+            onClick={() => setFilter("all")}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] border transition-all
+              ${filter === "all" ? "border-white/30 bg-white/10" : "border-white/8 hover:border-white/20"}`}
+          >
+            <span className="text-white/50">Tudo ({lines.length})</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Busca */}
+      <div className="relative">
+        <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar no código fonte…"
+          className="w-full bg-black/40 border border-white/8 rounded-xl pl-8 pr-4 py-2 text-xs
+            text-white placeholder-white/20 font-mono focus:outline-none focus:border-[#00f3ff]/40"
+        />
+        {search && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">
+            {filtered.length} linhas
+          </span>
+        )}
+      </div>
+
+      {/* Código */}
+      {loading ? (
+        <div className="flex items-center justify-center py-8 text-white/30">
+          <Loader2 size={18} className="animate-spin mr-2" /> Carregando código fonte…
+        </div>
+      ) : error ? (
+        <div className="flex items-center gap-2 text-red-400 text-xs py-4 px-3 bg-red-900/10 rounded-xl border border-red-500/20">
+          <AlertTriangle size={14} /> {error}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/8 overflow-hidden bg-black/30">
+          <div className="overflow-auto max-h-[500px] text-[10px] font-mono">
+            {filtered.slice(0, 1500).map((l, i) => {
+              const col = LINE_COLORS[l.cat];
+              return (
+                <div
+                  key={i}
+                  className={`flex ${col.bg} border-b border-white/3`}
+                >
+                  <span className="select-none text-white/15 px-2 py-0.5 min-w-[3rem] text-right border-r border-white/5">
+                    {i + 1}
+                  </span>
+                  <span className={`px-2 py-0.5 break-all ${col.text} whitespace-pre-wrap`}>
+                    {l.text || " "}
+                  </span>
+                </div>
+              );
+            })}
+            {filtered.length > 1500 && (
+              <div className="px-4 py-2 text-white/25 text-[10px]">
+                … {filtered.length - 1500} linhas adicionais (use o filtro para navegar)
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── OSINTPanel ───────────────────────────────────────────────────────────────
+
+function OSINTPanel({ cap }: { cap: Capture }) {
+  const [open, setOpen] = useState<string[]>(["ip", "dns"]);
+
+  if (!cap.webCheckData) {
     return (
-      <pre className="text-xs text-gray-400 overflow-auto max-h-40 font-mono">
-        {JSON.stringify(data, null, 2).slice(0, 800)}
-      </pre>
+      <div className="flex flex-col items-center justify-center py-10 text-white/25 text-sm">
+        <Database size={28} className="mb-2 opacity-40" />
+        Dados OSINT disponíveis apenas na captura perfil Completa.
+      </div>
     );
   }
 
-  const scores = [
-    { key: "performance", label: "Performance" },
-    { key: "accessibility", label: "Acessibilidade" },
-    { key: "best-practices", label: "Boas Práticas" },
-    { key: "seo", label: "SEO" },
-  ];
+  let wc: any = {};
+  try { wc = JSON.parse(cap.webCheckData); } catch {}
 
-  const vitals = audits
-    ? [
-        { key: "first-contentful-paint", label: "FCP" },
-        { key: "largest-contentful-paint", label: "LCP" },
-        { key: "total-blocking-time", label: "TBT" },
-        { key: "cumulative-layout-shift", label: "CLS" },
-        { key: "speed-index", label: "Speed Index" },
-      ]
-    : [];
-
-  return (
-    <div className="mt-3 space-y-3">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {scores.map((s) => {
-          const score = cats[s.key]?.score;
-          if (score === undefined || score === null) return null;
-          const pct = Math.round(score * 100);
-          const color =
-            pct >= 90 ? "text-green-400" : pct >= 50 ? "text-yellow-400" : "text-red-400";
-          const bg =
-            pct >= 90 ? "bg-green-500/10 border-green-500/20" : pct >= 50 ? "bg-yellow-500/10 border-yellow-500/20" : "bg-red-500/10 border-red-500/20";
-          return (
-            <div key={s.key} className={`flex flex-col items-center justify-center p-3 rounded-xl border ${bg}`}>
-              <span className={`text-2xl font-black font-mono ${color}`}>{pct}</span>
-              <span className="text-[10px] text-gray-400 mt-0.5">{s.label}</span>
-            </div>
-          );
-        })}
-      </div>
-      {vitals.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          {vitals.map(({ key, label }) => {
-            const a = audits[key];
-            if (!a?.displayValue) return null;
-            return (
-              <div key={key} className="bg-black/20 rounded-lg px-3 py-2">
-                <p className="text-xs font-bold text-white font-mono">{a.displayValue}</p>
-                <p className="text-[10px] text-gray-500">{label}</p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Scrape data display ──────────────────────────────────────────────────────
-
-function ScrapeView({ data }: { data: any }) {
-  const items: any[] = data?.data || [];
-  if (!items.length) {
-    return <p className="text-xs text-gray-500 mt-2">Nenhum resultado encontrado para os seletores informados.</p>;
+  function toggle(key: string) {
+    setOpen(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   }
+
+  function Section({ id, title, icon: Icon, children }: { id: string; title: string; icon: any; children: React.ReactNode }) {
+    const isOpen = open.includes(id);
+    return (
+      <div className="border border-white/8 rounded-xl overflow-hidden">
+        <button
+          onClick={() => toggle(id)}
+          className="w-full flex items-center gap-2 px-4 py-3 bg-white/3 hover:bg-white/5 transition-colors"
+        >
+          <Icon size={13} className="text-[#bc13fe]/70" />
+          <span className="text-xs font-semibold text-white/80 flex-1 text-left">{title}</span>
+          {isOpen ? <ChevronDown size={12} className="text-white/30" /> : <ChevronRight size={12} className="text-white/30" />}
+        </button>
+        {isOpen && <div className="px-4 py-3 bg-black/20 text-xs font-mono space-y-1">{children}</div>}
+      </div>
+    );
+  }
+
+  function KV({ k, v, color }: { k: string; v: string; color?: string }) {
+    return (
+      <div className="flex gap-2 flex-wrap">
+        <span className="text-white/35 shrink-0">{k}:</span>
+        <span className={`break-all ${color || "text-white/70"}`}>{v}</span>
+      </div>
+    );
+  }
+
+  const ip = wc["get-ip"];
+  const ssl = wc["ssl"];
+  const dns = wc["dns"];
+  const headers = wc["headers"];
+  const ports = wc["ports"];
+  const cookies = wc["cookies"];
+  const redirects = wc["redirects"];
+
   return (
-    <div className="mt-3 space-y-3 max-h-56 overflow-auto">
-      {items.map((el: any, i: number) => (
-        <div key={i}>
-          <p className="text-yellow-400 font-mono font-bold text-xs mb-1">{el.selector}</p>
-          <div className="space-y-1 ml-2">
-            {(el.results || []).slice(0, 5).map((r: any, j: number) => (
-              <div key={j} className="bg-black/20 rounded px-2 py-1">
-                <p className="text-gray-300 text-xs truncate">{r.text || r.value || r.html?.replace(/<[^>]+>/g, "").slice(0, 120) || ""}</p>
-              </div>
+    <div className="space-y-2">
+      {ip && (
+        <Section id="ip" title="IP / Rede" icon={Server}>
+          <KV k="IP" v={ip.ip || "N/A"} color="text-cyan-300" />
+          <KV k="Família" v={ip.family === 6 ? "IPv6" : "IPv4"} />
+        </Section>
+      )}
+
+      {ssl && (
+        <Section id="ssl" title="Certificado SSL/TLS" icon={Lock}>
+          {ssl.subject?.CN && <KV k="Domínio" v={ssl.subject.CN} color="text-emerald-300" />}
+          {ssl.issuer?.O && <KV k="Emissor" v={ssl.issuer.O} />}
+          {ssl.valid_to && <KV k="Validade até" v={ssl.valid_to} color={
+            new Date(ssl.valid_to) > new Date() ? "text-emerald-300" : "text-red-400"
+          } />}
+          {ssl.fingerprint256 && <KV k="SHA-256" v={ssl.fingerprint256} />}
+          {ssl.nistCurve && <KV k="Curva" v={ssl.nistCurve} />}
+        </Section>
+      )}
+
+      {dns && (
+        <Section id="dns" title="Registros DNS" icon={Radio}>
+          {dns.A?.address && <KV k="A" v={dns.A.address} color="text-yellow-300" />}
+          {Array.isArray(dns.AAAA) && dns.AAAA.length > 0 && (
+            <KV k="AAAA" v={dns.AAAA.slice(0, 3).join(", ")} />
+          )}
+          {Array.isArray(dns.MX) && dns.MX.length > 0 && (
+            <KV k="MX" v={dns.MX.slice(0, 3).map((r: any) => r.exchange || r).join(", ")} />
+          )}
+          {Array.isArray(dns.NS) && dns.NS.length > 0 && (
+            <KV k="NS" v={dns.NS.slice(0, 4).flat().join(", ")} />
+          )}
+          {Array.isArray(dns.TXT) && dns.TXT.length > 0 && (
+            <KV k="TXT" v={dns.TXT.slice(0, 2).map((r: any) => r.value || JSON.stringify(r)).join(" | ")} />
+          )}
+          {dns.SOA?.nsname && <KV k="SOA" v={`${dns.SOA.nsname} (serial: ${dns.SOA.serial})`} />}
+        </Section>
+      )}
+
+      {headers && Object.keys(headers).length > 0 && (
+        <Section id="headers" title="HTTP Headers" icon={Layers}>
+          {Object.entries(headers).slice(0, 20).map(([k, v]) => (
+            <KV key={k} k={k} v={String(v).slice(0, 100)}
+              color={/security|csp|frame|transport|content-type-options/i.test(k) ? "text-emerald-300" : undefined}
+            />
+          ))}
+        </Section>
+      )}
+
+      {ports?.openPorts?.length > 0 && (
+        <Section id="ports" title={`Portas Abertas (${ports.openPorts.length})`} icon={Activity}>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {ports.openPorts.map((p: number) => (
+              <span key={p} className="px-2 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/20 text-[10px]">
+                {p}
+              </span>
             ))}
           </div>
-        </div>
-      ))}
+        </Section>
+      )}
+
+      {cookies && !cookies.skipped && Array.isArray(cookies) && cookies.length > 0 && (
+        <Section id="cookies" title={`Cookies (${cookies.length})`} icon={Database}>
+          {cookies.slice(0, 10).map((c: any, i: number) => (
+            <div key={i} className="flex gap-2 flex-wrap">
+              <span className="text-purple-300">{c.name || `cookie_${i}`}</span>
+              {c.secure && <span className="text-emerald-300/70">[Secure]</span>}
+              {c.httpOnly && <span className="text-yellow-300/70">[HttpOnly]</span>}
+              {c.sameSite && <span className="text-white/40">[{c.sameSite}]</span>}
+            </div>
+          ))}
+        </Section>
+      )}
+
+      {redirects?.redirects?.length > 0 && (
+        <Section id="redirects" title={`Redirecionamentos (${redirects.redirects.length})`} icon={Globe}>
+          {redirects.redirects.map((r: any, i: number) => (
+            <KV key={i} k={`${i + 1}`} v={r.url || String(r)} color="text-cyan-300" />
+          ))}
+        </Section>
+      )}
+
+      {cap.whoisData && cap.whoisData.length > 10 && (
+        <Section id="whois" title="WHOIS" icon={Info}>
+          {cap.whoisData.split("\n").slice(0, 25).filter(l => l.trim()).map((l, i) => (
+            <div key={i} className="text-white/50 break-all">{l.trim()}</div>
+          ))}
+        </Section>
+      )}
     </div>
   );
 }
 
-// ─── Web-Check panel (history) ────────────────────────────────────────────────
+// ─── EvidencePanel ────────────────────────────────────────────────────────────
 
-function WebCheckPanel({
-  data,
-  waybackUrl,
-  blockchainVerify,
-  pingMs,
-  siteStatus,
-}: {
-  data?: string;
-  waybackUrl?: string;
-  blockchainVerify?: string;
-  pingMs?: number;
-  siteStatus?: number;
-}) {
-  const [open, setOpen] = useState(false);
-  let wc: Record<string, any> = {};
-  try {
-    if (data) wc = JSON.parse(data);
-  } catch {}
-  const isOnline = siteStatus && siteStatus > 0 && siteStatus < 500;
+function EvidencePanel({ cap }: { cap: Capture }) {
+  const baseFolder = `7_NCFN-CAPTURAS-WEB_OSINT/${cap.id}`;
 
   return (
-    <div className="rounded-xl border border-white/10 overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 hover:bg-white/8 transition text-left"
-      >
-        <Globe className="w-4 h-4 text-[#00f3ff]" />
-        <span className="text-sm font-bold text-white flex-1">Análise Web</span>
-        {siteStatus ? (
-          <span
-            className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border ${
-              isOnline
-                ? "bg-green-500/10 border-green-500/30 text-green-400"
-                : "bg-red-500/10 border-red-500/30 text-red-400"
-            }`}
-          >
-            {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {isOnline ? "ONLINE" : "OFFLINE"} · {siteStatus}
-          </span>
-        ) : null}
-        {pingMs !== undefined && pingMs >= 0 && (
-          <span className="text-xs text-gray-500 font-mono">{pingMs}ms</span>
+    <div className="space-y-4">
+      {/* Hashes */}
+      <div className="border border-white/8 rounded-xl bg-black/20 p-4 space-y-3">
+        <p className="text-[10px] text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+          <Hash size={10} /> Hashes SHA-256
+        </p>
+        {[
+          { label: "Screenshot PNG", hash: cap.hashScreenshot },
+          { label: "PDF Renderizado", hash: cap.hashPdf },
+          { label: "HTML / DOM", hash: cap.hashHtml },
+        ].filter(h => h.hash).map(({ label, hash }) => (
+          <div key={label}>
+            <p className="text-[10px] text-white/40 mb-0.5">{label}</p>
+            <p className="text-[10px] font-mono text-[#00f3ff]/70 break-all">{hash}</p>
+          </div>
+        ))}
+        {!cap.hashScreenshot && !cap.hashPdf && !cap.hashHtml && (
+          <p className="text-xs text-white/25">Hashes não disponíveis.</p>
         )}
-        {open ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
-      </button>
+      </div>
 
-      {open && (
-        <div className="px-4 py-4 space-y-4 border-t border-white/5 bg-black/20">
-          {/* Tech Stack */}
-          {wc["tech-stack"]?.technologies?.length > 0 && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 flex items-center gap-1.5">
-                <Cpu className="w-3 h-3" /> Tech Stack
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {wc["tech-stack"].technologies.slice(0, 10).map((t: any, i: number) => (
-                  <span
-                    key={i}
-                    className="px-2 py-0.5 rounded-md bg-[#00f3ff]/10 border border-[#00f3ff]/20 text-[#00f3ff] text-xs font-mono"
-                  >
-                    {t.name || String(t)}
-                  </span>
-                ))}
-              </div>
+      {/* RFC 3161 */}
+      {cap.rfcTimestamp && (
+        <div className="border border-white/8 rounded-xl bg-black/20 p-4">
+          <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <Clock size={10} /> Carimbo Temporal RFC 3161
+          </p>
+          <p className="text-[10px] font-mono text-white/60 break-all">{cap.rfcTimestamp}</p>
+        </div>
+      )}
+
+      {/* Blockchain OTS */}
+      {(cap.blockchainTx || cap.blockchainVerify) && (
+        <div className="border border-orange-500/20 rounded-xl bg-orange-900/10 p-4">
+          <p className="text-[10px] text-orange-400/70 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <Link2 size={10} /> Registro Blockchain — OpenTimestamps (Bitcoin)
+          </p>
+          {cap.blockchainTx && (
+            <div className="mb-2">
+              <p className="text-[10px] text-white/30 mb-0.5">Hash registrado:</p>
+              <p className="text-[10px] font-mono text-orange-300/70 break-all">{cap.blockchainTx}</p>
             </div>
           )}
-
-          {/* DNS */}
-          {wc["dns"] && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 flex items-center gap-1.5">
-                <Server className="w-3 h-3" /> DNS
-              </p>
-              <div className="space-y-0.5 text-xs font-mono">
-                {(["A", "AAAA", "MX", "NS", "TXT"] as const).map((k) => {
-                  const vals = wc["dns"][k];
-                  if (!vals?.length) return null;
-                  return (
-                    <div key={k} className="flex gap-2">
-                      <span className="text-[#bc13fe] w-8 flex-shrink-0">{k}</span>
-                      <span className="text-gray-300 truncate">
-                        {vals
-                          .slice(0, 2)
-                          .map((r: any) => r.address || r.exchange || r.value || String(r))
-                          .join(", ")}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Open Ports */}
-          {wc["ports"]?.openPorts?.length > 0 && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
-                Portas Abertas
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {wc["ports"].openPorts.map((p: number) => (
-                  <span
-                    key={p}
-                    className="px-2 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono"
-                  >
-                    {p}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Preservation */}
-          {(waybackUrl || blockchainVerify) && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 flex items-center gap-1.5">
-                <Archive className="w-3 h-3" /> Preservação Digital
-              </p>
-              {waybackUrl && (
-                <a
-                  href={waybackUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition text-xs mb-2"
-                >
-                  <BookOpen className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                  <span className="text-blue-400 font-bold flex-1">Wayback Machine</span>
-                  <ExternalLink className="w-3 h-3 text-gray-600" />
-                </a>
-              )}
-              {blockchainVerify && (
-                <a
-                  href={blockchainVerify}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 hover:border-purple-500/40 transition text-xs"
-                >
-                  <Link2 className="w-3 h-3 text-purple-400 flex-shrink-0" />
-                  <span className="text-purple-400 font-bold flex-1">OpenTimestamps — Bitcoin</span>
-                  <ExternalLink className="w-3 h-3 text-gray-600" />
-                </a>
-              )}
-            </div>
+          <p className="text-[10px] text-white/40 leading-relaxed">
+            O hash foi enviado a 3 calendários Bitcoin da rede OpenTimestamps.
+            Após ~1h (próximo bloco minerado), fica ancorado permanentemente na blockchain.
+          </p>
+          <div className="mt-3 space-y-1.5 text-[10px] text-white/50">
+            <p className="text-white/60 font-medium">Como verificar:</p>
+            <p>1. Acesse <span className="text-orange-400">opentimestamps.org</span></p>
+            <p>2. Carregue o arquivo <code className="text-orange-300">hash.ots</code> disponível nos artefatos</p>
+            <p>3. O site exibirá o bloco Bitcoin e data/hora do registro</p>
+          </div>
+          {cap.blockchainVerify && (
+            <a href={cap.blockchainVerify} target="_blank" rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-orange-400 hover:text-orange-300 transition-colors">
+              <ExternalLink size={10} /> Verificar no OpenTimestamps
+            </a>
           )}
         </div>
       )}
+
+      {/* Wayback Machine */}
+      {cap.waybackUrl && (
+        <div className="border border-yellow-500/20 rounded-xl bg-yellow-900/10 p-4">
+          <p className="text-[10px] text-yellow-400/70 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <Archive size={10} /> Wayback Machine — Internet Archive
+          </p>
+          <p className="text-[10px] font-mono text-yellow-300/70 break-all mb-2">{cap.waybackUrl}</p>
+          <a href={cap.waybackUrl} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] text-yellow-400 hover:text-yellow-300 transition-colors">
+            <ExternalLink size={10} /> Ver cópia arquivada
+          </a>
+        </div>
+      )}
+
+      {/* Downloads */}
+      <div className="border border-white/8 rounded-xl bg-black/20 p-4">
+        <p className="text-[10px] text-white/40 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+          <Download size={10} /> Artefatos
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {cap.screenshotFile && (
+            <a href={vaultViewUrl(cap.screenshotFile)} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-500/30 text-cyan-400
+                text-xs bg-black/20 hover:bg-cyan-500/10 transition-all">
+              <Camera size={11} /> Screenshot
+            </a>
+          )}
+          {cap.pdfFile && (
+            <a href={vaultViewUrl(cap.pdfFile)} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-500/30 text-purple-400
+                text-xs bg-black/20 hover:bg-purple-500/10 transition-all">
+              <FileText size={11} /> PDF
+            </a>
+          )}
+          {cap.certidaoPdf && (
+            <a href={vaultViewUrl(cap.certidaoPdf)} download
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400
+                text-xs bg-black/20 hover:bg-emerald-500/10 transition-all">
+              <Shield size={11} /> Certidão Forense
+            </a>
+          )}
+          <a href={`/api/capture/relatorio`} onClick={async (e) => {
+            e.preventDefault();
+            const res = await fetch("/api/capture/relatorio", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ captureId: cap.id }),
+            });
+            if (res.ok) {
+              const blob = await res.blob();
+              const link = document.createElement("a");
+              link.href = URL.createObjectURL(blob);
+              link.download = `relatorio_sansao_${cap.id.slice(0, 8)}.pdf`;
+              link.click();
+            }
+          }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#bc13fe]/30 text-[#bc13fe]
+              text-xs bg-black/20 hover:bg-[#bc13fe]/10 transition-all cursor-pointer">
+            <FileText size={11} /> Relatório Pericial
+          </a>
+          <a href={vaultViewUrl(`${baseFolder}/hash.ots`)} download
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-400
+              text-xs bg-black/20 hover:bg-orange-500/10 transition-all">
+            <Hash size={11} /> hash.ots
+          </a>
+        </div>
+      </div>
     </div>
+  );
+}
+
+// ─── CaptureDetailCard ────────────────────────────────────────────────────────
+
+function CaptureDetailCard({ cap }: { cap: Capture }) {
+  const [tab, setTab] = useState<Tab>("geral");
+  const [imgError, setImgError] = useState(false);
+
+  const screenshotUrl = cap.screenshotFile ? vaultViewUrl(cap.screenshotFile) : null;
+  const isOnline = (cap.siteStatus ?? 0) > 0 && (cap.siteStatus ?? 0) < 500;
+
+  const TABS: { id: Tab; label: string; icon: any }[] = [
+    { id: "geral",     label: "Visão Geral",   icon: Monitor },
+    { id: "status",    label: "Status Online",  icon: Activity },
+    { id: "fonte",     label: "Código Fonte",   icon: Code },
+    { id: "osint",     label: "OSINT",          icon: Database },
+    { id: "evidencias",label: "Evidências",     icon: Shield },
+  ];
+
+  return (
+    <div className="border border-[#bc13fe]/20 rounded-xl bg-black/30 overflow-hidden">
+      {/* Status header */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/5 bg-white/2">
+        <StatusBadge status={cap.status} />
+        {cap.status === "done" && (
+          <span className={`flex items-center gap-1 text-[10px] font-semibold ml-2
+            ${isOnline ? "text-emerald-400" : "text-red-400"}`}>
+            <Radio size={9} className={isOnline ? "text-emerald-400" : "text-red-400"} />
+            {isOnline ? "ONLINE" : "OFFLINE"}
+            {cap.siteStatus ? ` · HTTP ${cap.siteStatus}` : ""}
+          </span>
+        )}
+        <span className="text-[10px] text-white/25 font-mono ml-auto">{cap.id.slice(0, 16)}…</span>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-0 border-b border-white/5 overflow-x-auto">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-[11px] font-medium whitespace-nowrap transition-all border-b-2
+              ${tab === t.id
+                ? "border-[#bc13fe] text-[#bc13fe] bg-[#bc13fe]/5"
+                : "border-transparent text-white/35 hover:text-white/60 hover:bg-white/3"}`}
+          >
+            <t.icon size={11} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-4">
+        {/* ─ Visão Geral ─ */}
+        {tab === "geral" && (
+          <div className="space-y-4">
+            {screenshotUrl && !imgError && (
+              <div>
+                <p className="text-[10px] text-white/30 uppercase tracking-widest mb-2">
+                  Screenshot Completa
+                </p>
+                <a href={screenshotUrl} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={screenshotUrl}
+                    alt="Screenshot"
+                    className="w-full rounded-lg border border-white/10 hover:opacity-90 transition-opacity max-h-[500px] object-top object-cover"
+                    onError={() => setImgError(true)}
+                  />
+                </a>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <InfoRow icon={Globe} label="URL" value={truncate(cap.url, 60)} />
+              {cap.serverIp && <InfoRow icon={Server} label="IP do Servidor" value={cap.serverIp} mono />}
+              {cap.serverLocation && <InfoRow icon={MapPin} label="Localização" value={cap.serverLocation} />}
+              {cap.pingMs !== undefined && cap.pingMs >= 0 && (
+                <InfoRow icon={Wifi} label="Latência" value={`${cap.pingMs} ms`} mono
+                  color={cap.pingMs < 200 ? "emerald" : cap.pingMs < 500 ? "yellow" : "red"} />
+              )}
+              {cap.siteStatus !== undefined && (
+                <InfoRow icon={Zap} label="HTTP Status" value={String(cap.siteStatus)} mono
+                  color={isOnline ? "emerald" : "red"} />
+              )}
+              {cap.sslIssuer && cap.sslIssuer !== "N/A" && (
+                <InfoRow icon={Lock} label="SSL Emissor" value={truncate(cap.sslIssuer, 50)} />
+              )}
+              {cap.sslExpiry && cap.sslExpiry !== "N/A" && (
+                <InfoRow icon={Clock} label="SSL Validade" value={cap.sslExpiry}
+                  color={new Date(cap.sslExpiry) > new Date() ? "emerald" : "red"} />
+              )}
+              <InfoRow icon={Clock} label="Capturado em" value={fmtDate(cap.createdAt)} />
+            </div>
+            {cap.status === "error" && cap.errorMessage && (
+              <div className="bg-red-900/20 border border-red-500/30 rounded-lg px-3 py-2 text-xs text-red-300 font-mono">
+                {cap.errorMessage}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─ Status Online ─ */}
+        {tab === "status" && (
+          <div className="space-y-4">
+            {/* Badge principal */}
+            <div className={`rounded-xl border p-5 flex items-center gap-4
+              ${isOnline
+                ? "border-emerald-500/30 bg-emerald-900/10"
+                : "border-red-500/30 bg-red-900/10"}`}>
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center
+                ${isOnline ? "bg-emerald-500/20" : "bg-red-500/20"}`}>
+                {isOnline
+                  ? <CheckCircle size={28} className="text-emerald-400" />
+                  : <AlertCircle size={28} className="text-red-400" />}
+              </div>
+              <div>
+                <p className={`text-2xl font-bold ${isOnline ? "text-emerald-400" : "text-red-400"}`}>
+                  {isOnline ? "ONLINE" : "OFFLINE"}
+                </p>
+                <p className="text-xs text-white/40">
+                  HTTP {cap.siteStatus || "—"} · Verificado em {fmtDate(cap.createdAt)}
+                </p>
+              </div>
+              {cap.pingMs !== undefined && cap.pingMs >= 0 && (
+                <div className="ml-auto text-right">
+                  <p className={`text-xl font-bold font-mono
+                    ${cap.pingMs < 200 ? "text-emerald-400" : cap.pingMs < 500 ? "text-yellow-400" : "text-red-400"}`}>
+                    {cap.pingMs}ms
+                  </p>
+                  <p className="text-[10px] text-white/30">latência</p>
+                </div>
+              )}
+            </div>
+
+            {/* Detalhes SSL */}
+            <div className="border border-white/8 rounded-xl bg-black/20 p-4">
+              <p className="text-xs font-semibold text-white/60 mb-3 flex items-center gap-2">
+                <Lock size={12} className="text-[#bc13fe]/70" /> Certificado SSL/TLS
+              </p>
+              <div className="space-y-2">
+                {cap.sslIssuer && cap.sslIssuer !== "N/A"
+                  ? <>
+                      <InfoRow icon={Shield} label="Emissor" value={cap.sslIssuer} />
+                      {cap.sslExpiry && <InfoRow icon={Clock} label="Validade até" value={cap.sslExpiry}
+                        color={new Date(cap.sslExpiry) > new Date() ? "emerald" : "red"} />}
+                      {cap.sslFingerprint && <InfoRow icon={Hash} label="Fingerprint" value={cap.sslFingerprint} mono />}
+                    </>
+                  : <p className="text-xs text-white/25">SSL não disponível (HTTP ou captura rápida)</p>
+                }
+              </div>
+            </div>
+
+            {/* IP e Localização */}
+            <div className="border border-white/8 rounded-xl bg-black/20 p-4">
+              <p className="text-xs font-semibold text-white/60 mb-3 flex items-center gap-2">
+                <Server size={12} className="text-[#bc13fe]/70" /> Servidor
+              </p>
+              <div className="space-y-2">
+                {cap.serverIp && <InfoRow icon={Server} label="Endereço IP" value={cap.serverIp} mono color="cyan" />}
+                {cap.serverLocation && <InfoRow icon={MapPin} label="Geolocalização" value={cap.serverLocation} />}
+                <InfoRow icon={Globe} label="URL" value={cap.url} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─ Código Fonte ─ */}
+        {tab === "fonte" && <SourceCodeViewer cap={cap} />}
+
+        {/* ─ OSINT ─ */}
+        {tab === "osint" && <OSINTPanel cap={cap} />}
+
+        {/* ─ Evidências ─ */}
+        {tab === "evidencias" && <EvidencePanel cap={cap} />}
+      </div>
+    </div>
+  );
+}
+
+// ─── CaptureListRow ───────────────────────────────────────────────────────────
+
+function CaptureListRow({ cap, onSelect, selected }: {
+  cap: Capture; onSelect: (c: Capture) => void; selected: boolean;
+}) {
+  const isOnline = (cap.siteStatus ?? 0) > 0 && (cap.siteStatus ?? 0) < 500;
+  return (
+    <tr
+      className={`border-b border-white/5 cursor-pointer transition-colors
+        ${selected ? "bg-[#bc13fe]/8" : "hover:bg-white/2"}`}
+      onClick={() => onSelect(cap)}
+    >
+      <td className="px-3 py-2 text-xs text-white/70 font-mono max-w-[220px]">
+        <span className="block truncate">{truncate(cap.url, 45)}</span>
+      </td>
+      <td className="px-3 py-2 text-xs text-white/40 whitespace-nowrap">{fmtDate(cap.createdAt)}</td>
+      <td className="px-3 py-2">
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium
+          ${cap.profile === "completa"
+            ? "bg-[#bc13fe]/20 text-[#bc13fe]"
+            : "bg-cyan-500/20 text-cyan-400"}`}>
+          {cap.profile}
+        </span>
+      </td>
+      <td className="px-3 py-2"><StatusBadge status={cap.status} /></td>
+      <td className="px-3 py-2">
+        {cap.status === "done" && (
+          <span className={`text-[10px] font-semibold ${isOnline ? "text-emerald-400" : "text-red-400"}`}>
+            {isOnline ? "●" : "○"} {cap.siteStatus || "—"}
+          </span>
+        )}
+      </td>
+      <td className="px-3 py-2">
+        <button
+          className="text-[10px] px-2 py-1 rounded border border-white/10 text-white/40
+            hover:border-[#00f3ff]/40 hover:text-[#00f3ff] transition-all"
+          onClick={e => { e.stopPropagation(); onSelect(cap); }}
+        >
+          <Eye size={10} className="inline mr-1" />Ver
+        </button>
+      </td>
+    </tr>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CapturaWebPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   const [url, setUrl] = useState("");
-  const [urlError, setUrlError] = useState("");
-
-  // Scrape selectors
-  const [selectors, setSelectors] = useState(["body"]);
-
-  // Per-action loading/error
-  const [loadingAction, setLoadingAction] = useState<Action | null>(null);
-  const [actionErrors, setActionErrors] = useState<Partial<Record<Action, string>>>({});
-
-  // Rate limit & cooldown
-  const [cooldown, setCooldown] = useState(0);
+  const [profile, setProfile] = useState<"rapida" | "completa">("completa");
+  const [capturing, setCapturing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [monthlyUsage, setMonthlyUsage] = useState<{ month: string; units: number }>({
-    month: currentMonth(),
-    units: 0,
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<Capture | null>(null);
 
-  // Collection
-  const [collection, setCollection] = useState<CollectedItem[]>([]);
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
-  const [previewItem, setPreviewItem] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // Save
-  const [saving, setSaving] = useState(false);
-  const [savedCapture, setSavedCapture] = useState<Capture | null>(null);
+  const [captures, setCaptures] = useState<Capture[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null);
 
-  // History
-  const [history, setHistory] = useState<Capture[]>([]);
-  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
-  const [reportLoading, setReportLoading] = useState<string | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Help
-  const [showHelp, setShowHelp] = useState(false);
-
-  // ── Load monthly usage from localStorage ─────────────────────────────────
   useEffect(() => {
-    const month = currentMonth();
+    if (status === "unauthenticated") router.push("/login");
+    if (status === "authenticated" && (session?.user as any)?.role !== "admin") router.push("/admin");
+  }, [status, session, router]);
+
+  useEffect(() => { loadCaptures(); }, []);
+
+  useEffect(() => {
+    if (capturing) {
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [capturing]);
+
+  async function loadCaptures() {
+    setLoadingList(true);
     try {
-      const stored = localStorage.getItem("bl_usage");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.month === month) {
-          setMonthlyUsage(parsed);
-          return;
-        }
-      }
+      const res = await fetch("/api/capture");
+      const data = await res.json();
+      if (data.captures) setCaptures(data.captures);
     } catch {}
-    const fresh = { month, units: 0 };
-    setMonthlyUsage(fresh);
-    try { localStorage.setItem("bl_usage", JSON.stringify(fresh)); } catch {}
-  }, []);
-
-  // ── Cooldown countdown ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [cooldown]);
-
-  // ── Elapsed timer while loading (session timeout warning) ────────────────
-  useEffect(() => {
-    if (!loadingAction) { setElapsed(0); return; }
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
-  }, [loadingAction]);
-
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  // ── Track unit usage ──────────────────────────────────────────────────────
-  function addUnits(action: Action) {
-    const month = currentMonth();
-    setMonthlyUsage((prev) => {
-      const base = prev.month === month ? prev.units : 0;
-      const updated = { month, units: base + UNIT_COSTS[action] };
-      try { localStorage.setItem("bl_usage", JSON.stringify(updated)); } catch {}
-      return updated;
-    });
-    setCooldown(COOLDOWN_SECS);
+    finally { setLoadingList(false); }
   }
 
-  async function fetchHistory() {
-    try {
-      const r = await fetch("/api/capture");
-      if (r.ok) setHistory((await r.json()).captures || []);
-    } catch {}
-  }
-
-  function validateUrl(v: string): boolean {
-    try {
-      new URL(v);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async function handleAction(action: Action) {
-    // Hard limits
-    if (cooldown > 0) return;
-    if (monthlyUsage.units >= MAX_UNITS) {
-      setUrlError(`Limite mensal de ${MAX_UNITS} unidades atingido. Reinicia no próximo mês.`);
+  async function handlePreview() {
+    const trimmed = url.trim();
+    if (!trimmed || !trimmed.startsWith("http")) {
+      setPreviewError("URL deve começar com http:// ou https://");
       return;
     }
-
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) {
-      setUrlError("Informe a URL antes de capturar");
-      return;
-    }
-    if (!validateUrl(trimmedUrl)) {
-      setUrlError("URL inválida — use https://...");
-      return;
-    }
-    setUrlError("");
-    setLoadingAction(action);
-    setActionErrors((prev) => ({ ...prev, [action]: undefined }));
-
+    setPreviewing(true);
+    setPreviewError(null);
+    setPreviewImg(null);
     try {
-      const body: any = { url: trimmedUrl, action };
-      if (action === "scrape") {
-        body.selectors = selectors.filter((s) => s.trim());
-        if (!body.selectors.length) body.selectors = ["body"];
+      const res = await fetch("/api/capture/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setPreviewError(data.error || "Falha no preview");
+      } else {
+        setPreviewImg(data.preview);
       }
-
-      const res = await fetch("/api/capture/browserless", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.detail || "Falha na requisição");
-
-      const actionDef = ACTIONS.find((a) => a.key === action)!;
-      const item: CollectedItem = {
-        id: `${action}-${Date.now()}`,
-        action,
-        name: actionDef.name,
-        mime: actionDef.mime,
-        sizeBytes: json.sizeBytes || (json.data ? JSON.stringify(json.data).length : 0),
-        addedAt: new Date(),
-      };
-
-      if (json.base64) item.base64 = json.base64;
-      if (json.data) item.data = json.data;
-
-      setCollection((prev) => [...prev, item]);
-      setSavedCapture(null);
-      addUnits(action); // start cooldown + track usage
-    } catch (err: any) {
-      setActionErrors((prev) => ({ ...prev, [action]: err.message }));
+    } catch (e: any) {
+      setPreviewError(e.message || "Falha de rede");
     } finally {
-      setLoadingAction(null);
+      setPreviewing(false);
     }
   }
 
-  function removeItem(id: string) {
-    setCollection((prev) => prev.filter((i) => i.id !== id));
-    if (expandedItem === id) setExpandedItem(null);
-    if (previewItem === id) setPreviewItem(null);
-  }
-
-  function downloadItem(item: CollectedItem) {
-    if (item.base64) {
-      const a = document.createElement("a");
-      a.href = `data:${item.mime};base64,${item.base64}`;
-      a.download = item.name;
-      a.click();
-    } else if (item.data) {
-      const blob = new Blob([JSON.stringify(item.data, null, 2)], {
-        type: "application/json",
-      });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = item.name;
-      a.click();
-      URL.revokeObjectURL(a.href);
+  async function handleCapture() {
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      setError("URL deve começar com http:// ou https://");
+      return;
     }
-  }
-
-  async function handleSave() {
-    if (!collection.length || !url.trim()) return;
-    setSaving(true);
+    setCapturing(true);
+    setError(null);
+    setResult(null);
+    setSelectedCapture(null);
     try {
-      const files = collection.map((item) => ({
-        name: item.name,
-        ...(item.base64 ? { base64: item.base64 } : {}),
-        ...(item.data !== undefined ? { data: item.data } : {}),
-      }));
-
-      const res = await fetch("/api/capture/browserless/save", {
+      const res = await fetch("/api/capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), files }),
+        body: JSON.stringify({ url: trimmed, profile }),
       });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Falha ao salvar");
-
-      setSavedCapture(json.capture);
-      setCollection([]);
-      fetchHistory();
-    } catch (err: any) {
-      alert("Erro ao salvar: " + err.message);
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setError(data.error || "Erro desconhecido na captura");
+      } else {
+        setResult(data.capture);
+        setPreviewImg(null);
+        await loadCaptures();
+      }
+    } catch (e: any) {
+      setError(e?.message || "Falha de rede ao capturar");
     } finally {
-      setSaving(false);
+      setCapturing(false);
     }
   }
 
-  async function handleRelatorio(captureId: string) {
-    setReportLoading(captureId);
-    try {
-      const r = await fetch("/api/capture/relatorio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captureId }),
-      });
-      if (!r.ok) throw new Error("Falha ao gerar relatório");
-      const blob = await r.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `relatorio_forense_${captureId.slice(0, 8)}.pdf`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } catch (err: any) {
-      alert("Erro: " + err.message);
-    } finally {
-      setReportLoading(null);
+  function selectCapture(cap: Capture) {
+    setSelectedCapture(prev => prev?.id === cap.id ? null : cap);
+    setResult(null);
+  }
+
+  function captureProgressLabel() {
+    if (profile === "rapida") {
+      if (elapsed < 8) return "Iniciando browser…";
+      if (elapsed < 20) return "Capturando screenshot e HTML…";
+      return "Gerando certidão e salvando…";
+    } else {
+      if (elapsed < 8) return "Iniciando browser Playwright…";
+      if (elapsed < 20) return "Capturando screenshot + PDF + HTML…";
+      if (elapsed < 35) return "Consultando DNS, WHOIS e SSL…";
+      if (elapsed < 50) return "Analisando com Web-Check…";
+      if (elapsed < 70) return "Submetendo ao Wayback Machine…";
+      if (elapsed < 85) return "Registrando hash no blockchain (OTS)…";
+      return "Gerando Certidão Forense e salvando…";
     }
+  }
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#bc13fe]" size={32} />
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-20 px-4 pt-8 space-y-8">
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center p-3 bg-[#00f3ff]/10 border border-[#00f3ff]/30 rounded-full mb-2">
-          <Camera className="w-7 h-7 text-[#00f3ff]" />
+    <div className="min-h-screen bg-black text-white p-4 md:p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-8 h-8 rounded-lg bg-[#bc13fe]/20 border border-[#bc13fe]/40 flex items-center justify-center">
+            <Camera size={16} className="text-[#bc13fe]" />
+          </div>
+          <h1 className="text-lg font-bold tracking-tight">Captura Web Forense</h1>
         </div>
-        <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#00f3ff] to-[#bc13fe] tracking-tighter">
-          CAPTURA FORENSE DA WEB
-        </h1>
-        <p className="text-gray-500 text-xs font-mono uppercase tracking-widest">
-          Powered by Browserless.io · Evidências digitais com valor probatório
+        <p className="text-xs text-white/40 ml-11">
+          Evidências digitais com screenshot, código fonte, OSINT, blockchain e RFC 3161
         </p>
-        <div className="flex justify-center mt-2">
-          <button
-            onClick={() => setShowHelp(true)}
-            className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition"
-          >
-            <HelpCircle size={13} /> Como funciona
-          </button>
-        </div>
       </div>
 
-      {/* ── Main Panel ─────────────────────────────────────────────────────── */}
-      <div className="glass-panel rounded-2xl border border-[#00f3ff]/20 p-6 space-y-6">
+      {/* Form */}
+      <div className="glass-panel rounded-2xl border border-[#bc13fe]/20 bg-black/40 backdrop-blur-sm p-5 mb-6">
+        <h2 className="text-sm font-semibold text-white/70 mb-4 flex items-center gap-2">
+          <Globe size={14} className="text-[#00f3ff]" /> Nova Captura
+        </h2>
 
-        {/* ── Monthly Usage Meter ─────────────────────────────────────────── */}
-        {(() => {
-          const pct = Math.min((monthlyUsage.units / MAX_UNITS) * 100, 100);
-          const remaining = MAX_UNITS - monthlyUsage.units;
-          const isCritical = remaining <= 0;
-          const isWarning = pct >= 80 && !isCritical;
-          return (
-            <div className={`rounded-xl border px-4 py-3 space-y-2 ${
-              isCritical
-                ? "bg-red-950/30 border-red-500/40"
-                : isWarning
-                ? "bg-amber-950/20 border-amber-500/30"
-                : "bg-white/3 border-white/8"
-            }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Activity className={`w-3.5 h-3.5 ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-gray-500"}`} />
-                  <span className={`text-xs font-bold uppercase tracking-widest ${isCritical ? "text-red-400" : isWarning ? "text-amber-400" : "text-gray-500"}`}>
-                    Uso Mensal — Plano Gratuito
-                  </span>
-                </div>
-                <span className={`text-xs font-mono font-bold ${isCritical ? "text-red-400" : isWarning ? "text-amber-300" : "text-gray-400"}`}>
-                  {monthlyUsage.units} / {MAX_UNITS} unidades
-                </span>
-              </div>
-              {/* Progress bar */}
-              <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    isCritical ? "bg-red-500" : isWarning ? "bg-amber-500" : "bg-[#00f3ff]/60"
-                  }`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[10px] text-gray-600 font-mono">
-                <span>· 2 navegadores simultâneos · 1 min/sessão · Performance = 5 unidades</span>
-                <span>{isCritical ? "ESGOTADO" : `${remaining} restantes`}</span>
-              </div>
-              {(isWarning || isCritical) && (
-                <p className={`text-xs font-bold flex items-center gap-1.5 ${isCritical ? "text-red-400" : "text-amber-400"}`}>
-                  <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                  {isCritical
-                    ? "Limite atingido. As capturas serão desbloqueadas no próximo mês."
-                    : `Atenção: apenas ${remaining} unidades restantes este mês.`}
-                </p>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* ── URL Input ──────────────────────────────────────────────────── */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">
-            URL Alvo
-          </label>
-          <div className="relative">
-            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        {/* URL + Preview */}
+        <div className="mb-4">
+          <label className="block text-xs text-white/40 mb-1.5 uppercase tracking-wider">URL alvo</label>
+          <div className="flex gap-2">
             <input
               type="url"
               value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                setUrlError("");
-                setSavedCapture(null);
-              }}
-              placeholder="https://exemplo.com/pagina-suspeita"
-              className={`w-full bg-black/50 border rounded-lg pl-10 pr-4 py-3 text-white text-sm font-mono focus:outline-none transition ${
-                urlError
-                  ? "border-red-500/60 focus:border-red-500"
-                  : "border-gray-700 focus:border-[#00f3ff]/60"
-              }`}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !capturing && !previewing && handleCapture()}
+              placeholder="https://exemplo.com"
+              disabled={capturing || previewing}
+              className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm
+                text-white placeholder-white/20 font-mono focus:outline-none focus:border-[#00f3ff]/50
+                focus:ring-1 focus:ring-[#00f3ff]/20 disabled:opacity-40 transition-all"
             />
-          </div>
-          {urlError && (
-            <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" /> {urlError}
-            </p>
-          )}
-        </div>
-
-        {/* CSS Selectors (for Scrape) */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-yellow-400/70">
-              Seletores CSS <span className="text-gray-600 normal-case font-normal">(para Raspar Dados)</span>
-            </label>
             <button
-              onClick={() => setSelectors((prev) => [...prev, ""])}
-              className="flex items-center gap-1 text-xs text-yellow-400/60 hover:text-yellow-400 transition"
+              onClick={handlePreview}
+              disabled={previewing || capturing || !url.trim()}
+              title="Preview rápido da página (sem salvar)"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#00f3ff]/30
+                text-[#00f3ff] text-sm font-medium bg-[#00f3ff]/5 hover:bg-[#00f3ff]/10
+                disabled:opacity-30 disabled:cursor-not-allowed transition-all whitespace-nowrap"
             >
-              <Plus className="w-3 h-3" /> Adicionar
+              {previewing ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
+              {previewing ? "Carregando…" : "Preview"}
             </button>
           </div>
-          <div className="space-y-2">
-            {selectors.map((sel, idx) => (
-              <div key={idx} className="flex gap-2">
-                <input
-                  type="text"
-                  value={sel}
-                  onChange={(e) =>
-                    setSelectors((prev) =>
-                      prev.map((s, i) => (i === idx ? e.target.value : s))
-                    )
-                  }
-                  placeholder="h1, .titulo, #conteudo, table tr..."
-                  className="flex-1 bg-black/40 border border-gray-800 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-yellow-500/50 placeholder:text-gray-700"
-                />
-                {selectors.length > 1 && (
-                  <button
-                    onClick={() => setSelectors((prev) => prev.filter((_, i) => i !== idx))}
-                    className="p-2 text-gray-700 hover:text-red-400 transition"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* ── CSS Selector reference ──────────────────────────────────── */}
-          <div className="mt-3 rounded-xl border border-yellow-500/10 bg-yellow-950/10 p-4 space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-500/60">
-              Referência de Seletores CSS
-            </p>
-            {/* Most important */}
-            <div>
-              <p className="text-[9px] uppercase tracking-widest text-yellow-400/80 font-bold mb-1.5 flex items-center gap-1">
-                ★ Mais usados em investigação
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { sel: "body", tip: "todo o conteúdo da página" },
-                  { sel: "p", tip: "todos os parágrafos" },
-                  { sel: "h1, h2, h3", tip: "títulos e subtítulos" },
-                  { sel: "a", tip: "todos os links" },
-                  { sel: "a[href]", tip: "links com URL" },
-                  { sel: "img", tip: "todas as imagens" },
-                  { sel: "table", tip: "tabelas de dados" },
-                  { sel: "table tr", tip: "linhas de tabela" },
-                  { sel: "meta[name='description']", tip: "meta descrição" },
-                  { sel: "time", tip: "datas/horas marcadas" },
-                  { sel: "[class*='price']", tip: "elementos com 'price' na classe" },
-                  { sel: "form", tip: "formulários" },
-                ].map(({ sel, tip }) => (
-                  <button
-                    key={sel}
-                    type="button"
-                    title={tip}
-                    onClick={() => {
-                      if (!selectors.includes(sel)) setSelectors((prev) => [...prev.filter(s => s !== ""), sel]);
-                    }}
-                    className="px-2 py-1 rounded-md bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 text-[10px] font-mono hover:bg-yellow-500/25 transition cursor-pointer"
-                  >
-                    {sel}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Other selectors */}
-            <div>
-              <p className="text-[9px] uppercase tracking-widest text-gray-600 font-bold mb-1.5">
-                Outros seletores
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { sel: "#main", tip: "elemento com id='main'" },
-                  { sel: ".classe", tip: "elementos com classe específica" },
-                  { sel: "article", tip: "artigos/posts" },
-                  { sel: "span", tip: "trechos de texto inline" },
-                  { sel: "li", tip: "itens de lista" },
-                  { sel: "script", tip: "código JavaScript inline" },
-                  { sel: "input, select", tip: "campos de formulário" },
-                  { sel: "[data-*]", tip: "atributos data-*" },
-                  { sel: "header", tip: "cabeçalho da página" },
-                  { sel: "footer", tip: "rodapé da página" },
-                  { sel: "nav a", tip: "links do menu de navegação" },
-                  { sel: "strong, b", tip: "texto em negrito" },
-                ].map(({ sel, tip }) => (
-                  <button
-                    key={sel}
-                    type="button"
-                    title={tip}
-                    onClick={() => {
-                      if (!selectors.includes(sel)) setSelectors((prev) => [...prev.filter(s => s !== ""), sel]);
-                    }}
-                    className="px-2 py-1 rounded-md bg-gray-800/60 border border-gray-700/50 text-gray-400 text-[10px] font-mono hover:bg-gray-700/50 hover:text-gray-200 transition cursor-pointer"
-                  >
-                    {sel}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="text-[9px] text-gray-700 font-mono">
-              Clique para adicionar · Cada seletor retorna texto, atributos e HTML do elemento encontrado
-            </p>
-          </div>
         </div>
 
-        {/* ── Session timeout warning ──────────────────────────────────── */}
-        {loadingAction && elapsed >= 45 && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-950/30 border border-amber-500/40">
-            <Clock className="w-4 h-4 text-amber-400 flex-shrink-0 animate-pulse" />
-            <div className="flex-1">
-              <p className="text-xs font-bold text-amber-400">
-                Sessão longa — {elapsed}s (limite: 60s)
-              </p>
-              <div className="w-full h-1 bg-white/5 rounded-full mt-1.5 overflow-hidden">
-                <div
-                  className="h-full bg-amber-500 rounded-full transition-all"
-                  style={{ width: `${Math.min((elapsed / 60) * 100, 100)}%` }}
+        {/* Preview Panel */}
+        {(previewImg || previewError) && (
+          <div className="mb-4 border border-[#00f3ff]/20 rounded-xl overflow-hidden bg-black/20">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-white/2">
+              <span className="text-[11px] text-[#00f3ff]/80 flex items-center gap-1.5">
+                <Monitor size={11} /> Preview — {truncate(url, 50)}
+              </span>
+              <button onClick={() => { setPreviewImg(null); setPreviewError(null); }}
+                className="text-white/25 hover:text-white/50 transition-colors">
+                <X size={12} />
+              </button>
+            </div>
+            {previewError ? (
+              <div className="px-4 py-3 text-xs text-red-300 flex items-center gap-2">
+                <AlertTriangle size={13} /> {previewError}
+              </div>
+            ) : previewImg ? (
+              <div className="overflow-auto max-h-[400px]">
+                <img
+                  src={`data:image/jpeg;base64,${previewImg}`}
+                  alt="Preview"
+                  className="w-full object-top"
                 />
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Cooldown banner ───────────────────────────────────────────── */}
-        {cooldown > 0 && (
-          <div className="rounded-xl border border-[#00f3ff]/25 bg-[#00f3ff]/5 px-4 py-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#00f3ff] animate-pulse" />
-                <span className="text-xs font-black text-[#00f3ff] uppercase tracking-widest">
-                  AGUARDE {cooldown}s PARA UMA NOVA CAPTURA
-                </span>
+            ) : null}
+            {previewImg && (
+              <div className="px-3 py-2 border-t border-white/5 bg-white/2">
+                <p className="text-[10px] text-white/30">
+                  Preview rápido — não armazenado. Use "Capturar" para gerar a evidência forense completa.
+                </p>
               </div>
-              <span className="text-xs text-gray-500 font-mono">
-                2 navegadores simultâneos
-              </span>
-            </div>
-            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-[#00f3ff] to-[#bc13fe] rounded-full transition-all duration-1000"
-                style={{ width: `${((COOLDOWN_SECS - cooldown) / COOLDOWN_SECS) * 100}%` }}
-              />
-            </div>
-            <p className="text-[10px] text-gray-600 font-mono">
-              Plano gratuito · 1 min/sessão · 1 000 unidades/mês · São Francisco · Londres · Amsterdã
-            </p>
+            )}
           </div>
         )}
 
-        {/* ── Action Buttons ─────────────────────────────────────────────── */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
-            Ações de Captura
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            {ACTIONS.map((action) => {
-              const isLoading = loadingAction === action.key;
-              const err = actionErrors[action.key];
-              const isDisabled = !!loadingAction || cooldown > 0 || monthlyUsage.units >= MAX_UNITS;
-              const cost = UNIT_COSTS[action.key];
+        {/* Profile toggle */}
+        <div className="mb-5">
+          <label className="block text-xs text-white/40 mb-2 uppercase tracking-wider">Perfil de Captura</label>
+          <div className="flex gap-2">
+            {(["rapida", "completa"] as const).map(p => {
+              const active = profile === p;
               return (
                 <button
-                  key={action.key}
-                  onClick={() => handleAction(action.key)}
-                  disabled={isDisabled}
-                  className={`p-4 rounded-xl border text-left transition-all ${action.bg} ${action.border} ${isDisabled ? "opacity-40 cursor-not-allowed" : action.hover}`}
+                  key={p}
+                  onClick={() => setProfile(p)}
+                  disabled={capturing}
+                  className={`flex-1 flex flex-col items-center gap-1 px-3 py-3 rounded-xl border
+                    text-xs font-medium transition-all disabled:opacity-40
+                    ${active
+                      ? p === "rapida"
+                        ? "border-[#00f3ff]/60 bg-[#00f3ff]/10 text-[#00f3ff]"
+                        : "border-[#bc13fe]/60 bg-[#bc13fe]/10 text-[#bc13fe]"
+                      : "border-white/10 text-white/40 hover:border-white/20"}`}
                 >
-                  <div className="mb-2">
-                    {isLoading ? (
-                      <Loader2 className={`w-5 h-5 ${action.color} animate-spin`} />
-                    ) : (
-                      <action.icon className={`w-5 h-5 ${action.color}`} />
-                    )}
-                  </div>
-                  <p className={`text-xs font-black ${action.color}`}>{action.label}</p>
-                  <p className="text-[10px] text-gray-600 mt-0.5 leading-tight">{action.desc}</p>
-                  <p className="text-[9px] text-gray-700 mt-1 font-mono">{cost} unidade{cost !== 1 ? "s" : ""}</p>
-                  {err && (
-                    <p className="text-[9px] text-red-400 mt-1 leading-tight">{err.slice(0, 80)}</p>
-                  )}
+                  {p === "rapida" ? <Zap size={16} /> : <Shield size={16} />}
+                  <span className="font-semibold capitalize">{p}</span>
+                  <span className="text-[10px] opacity-70">
+                    {p === "rapida"
+                      ? "~30s · screenshot + HTML + hashes"
+                      : "~90s · tudo + OSINT + blockchain + Wayback"}
+                  </span>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* ── Collection Area ────────────────────────────────────────────── */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                Coleção de Artefatos
-              </label>
-              {collection.length > 0 && (
-                <span className="px-2 py-0.5 bg-[#00f3ff]/10 border border-[#00f3ff]/30 rounded-full text-[#00f3ff] text-xs font-mono font-bold">
-                  {collection.length}
-                </span>
-              )}
-            </div>
-            {collection.length > 0 && (
-              <button
-                onClick={() => {
-                  setCollection([]);
-                  setExpandedItem(null);
-                  setPreviewItem(null);
-                }}
-                className="flex items-center gap-1 text-xs text-gray-600 hover:text-red-400 transition"
-              >
-                <Trash2 className="w-3 h-3" /> Limpar tudo
-              </button>
-            )}
-          </div>
-
-          {collection.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-800 p-10 text-center space-y-1">
-              <p className="text-gray-600 text-sm">Nenhum artefato coletado</p>
-              <p className="text-gray-700 text-xs">
-                Informe a URL e clique nas ações acima para capturar
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {collection.map((item) => {
-                const def = ACTIONS.find((a) => a.key === item.action)!;
-                const isExpanded = expandedItem === item.id;
-                const isPreviewing = previewItem === item.id;
-                const hasExpandable = item.action === "performance" || item.action === "scrape";
-
-                return (
-                  <div
-                    key={item.id}
-                    className={`rounded-xl border ${def.border} ${def.bg} overflow-hidden`}
-                  >
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <def.icon className={`w-4 h-4 ${def.color} flex-shrink-0`} />
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-bold font-mono ${def.color}`}>{item.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {formatBytes(item.sizeBytes)} · {item.addedAt.toLocaleTimeString("pt-BR")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        {/* Preview toggle (screenshot) */}
-                        {item.action === "screenshot" && item.base64 && (
-                          <button
-                            onClick={() => setPreviewItem(isPreviewing ? null : item.id)}
-                            title="Visualizar screenshot"
-                            className="p-1.5 rounded-lg bg-black/20 border border-white/10 hover:border-white/30 transition"
-                          >
-                            <Eye className={`w-3.5 h-3.5 ${isPreviewing ? def.color : "text-gray-400"}`} />
-                          </button>
-                        )}
-                        {/* Expand JSON (scrape / performance) */}
-                        {hasExpandable && (
-                          <button
-                            onClick={() => setExpandedItem(isExpanded ? null : item.id)}
-                            className="p-1.5 rounded-lg bg-black/20 border border-white/10 hover:border-white/30 transition"
-                          >
-                            {isExpanded ? (
-                              <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                            )}
-                          </button>
-                        )}
-                        {/* Download */}
-                        <button
-                          onClick={() => downloadItem(item)}
-                          title="Baixar artefato"
-                          className="p-1.5 rounded-lg bg-black/20 border border-white/10 hover:border-white/30 transition"
-                        >
-                          <Download className="w-3.5 h-3.5 text-gray-400" />
-                        </button>
-                        {/* Remove */}
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          title="Remover da coleção"
-                          className="p-1.5 rounded-lg bg-black/20 border border-white/10 hover:border-red-500/30 transition text-gray-600 hover:text-red-400"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Screenshot preview */}
-                    {isPreviewing && item.base64 && (
-                      <div className="px-4 pb-4 border-t border-white/5">
-                        <img
-                          src={`data:image/png;base64,${item.base64}`}
-                          alt="Screenshot"
-                          className="w-full rounded-lg border border-white/10 max-h-72 object-cover object-top"
-                        />
-                      </div>
-                    )}
-
-                    {/* JSON expand */}
-                    {isExpanded && item.data && (
-                      <div className="px-4 pb-4 border-t border-white/5">
-                        {item.action === "performance" && <PerformanceView data={item.data} />}
-                        {item.action === "scrape" && <ScrapeView data={item.data} />}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* ── Save Button ────────────────────────────────────────────────── */}
-        {collection.length > 0 && (
-          <div className="space-y-3">
-            {savedCapture && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/10 border border-green-500/30">
-                <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-                <div className="text-xs">
-                  <p className="text-green-400 font-bold">Salvo na Pasta 7 com sucesso</p>
-                  <p className="text-gray-500 font-mono">{savedCapture.id}</p>
-                </div>
-              </div>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={saving || !url.trim() || cooldown > 0}
-              className="w-full py-4 rounded-xl font-black uppercase tracking-widest text-sm transition-all bg-gradient-to-r from-[#00f3ff]/20 to-[#bc13fe]/20 border border-[#00f3ff]/40 hover:border-[#00f3ff]/70 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-[0_0_24px_rgba(0,243,255,0.15)] flex items-center justify-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Salvando na Pasta 7...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" /> Salvar{" "}
-                  {collection.length} artefato{collection.length !== 1 ? "s" : ""} na Pasta 7
-                </>
-              )}
+        {/* Error */}
+        {error && (
+          <div className="mb-4 flex items-start gap-2 bg-red-900/20 border border-red-500/30
+            rounded-xl px-4 py-3 text-xs text-red-300">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto opacity-60 hover:opacity-100">
+              <X size={12} />
             </button>
           </div>
         )}
+
+        {/* Progress */}
+        {capturing && (
+          <div className="mb-4 border border-yellow-500/20 rounded-xl bg-yellow-500/5 px-4 py-4">
+            <div className="flex items-center gap-3 mb-2">
+              <Loader2 size={16} className="animate-spin text-yellow-400" />
+              <span className="text-sm font-semibold text-yellow-300">Capturando… {elapsed}s</span>
+            </div>
+            <p className="text-xs text-white/40 pl-7">{captureProgressLabel()}</p>
+            <div className="mt-3 h-1 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-yellow-500 to-[#bc13fe] rounded-full transition-all duration-1000"
+                style={{ width: `${Math.min(100, (elapsed / (profile === "rapida" ? 35 : 100)) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Submit */}
+        <button
+          onClick={handleCapture}
+          disabled={capturing || !url.trim()}
+          className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl
+            font-semibold text-sm transition-all
+            bg-gradient-to-r from-[#bc13fe]/80 to-[#00f3ff]/60
+            hover:from-[#bc13fe] hover:to-[#00f3ff]
+            disabled:opacity-40 disabled:cursor-not-allowed
+            border border-[#bc13fe]/40 hover:border-[#bc13fe]/80"
+        >
+          {capturing
+            ? <><Loader2 size={15} className="animate-spin" /> Capturando…</>
+            : <><Camera size={15} /> Capturar Evidência Forense</>}
+        </button>
       </div>
 
-      {/* ── Help Modal ─────────────────────────────────────────────────────── */}
-      {showHelp && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setShowHelp(false)}
-              className="absolute top-4 right-4 text-gray-600 hover:text-white"
-            >
-              <X size={18} />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[#00f3ff]/10 rounded-xl border border-[#00f3ff]/30">
-                <HelpCircle className="w-5 h-5 text-[#00f3ff]" />
-              </div>
-              <h2 className="font-black text-white text-lg uppercase tracking-widest">
-                COMO FUNCIONA
-              </h2>
-            </div>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              Powered by{" "}
-              <strong className="text-white">Browserless.io</strong> — browser headless gerenciado
-              na nuvem com API REST. Cada ação abre um Chrome real na nuvem, executa a operação e
-              retorna o resultado.
-            </p>
-            <div className="space-y-3">
-              {ACTIONS.map((a) => (
-                <div key={a.key} className="flex gap-3">
-                  <a.icon className={`w-4 h-4 ${a.color} flex-shrink-0 mt-0.5`} />
-                  <div>
-                    <span className={`font-bold text-sm ${a.color}`}>{a.label}:</span>{" "}
-                    <span className="text-gray-400 text-sm">{a.desc}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="p-3 bg-[#00f3ff]/5 border border-[#00f3ff]/20 rounded-xl text-xs text-gray-400 leading-relaxed">
-              Após coletar os artefatos desejados, clique em{" "}
-              <strong className="text-white">Salvar na Pasta 7</strong> para registrar em custódia
-              forense com hashes SHA-256 e carimbo temporal RFC 3161.
-            </div>
-          </div>
+      {/* Resultado inline */}
+      {result && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-white/60 mb-2 flex items-center gap-2">
+            <CheckCircle size={14} className="text-emerald-400" /> Resultado da Captura
+          </h2>
+          <CaptureDetailCard cap={result} />
         </div>
       )}
 
-      {/* ── History ────────────────────────────────────────────────────────── */}
-      {history.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <h3 className="text-lg font-black uppercase tracking-wider text-gray-300">
-              Histórico de Capturas
-            </h3>
-            <div className="h-px bg-gray-800 flex-grow" />
+      {/* Lista de capturas */}
+      <div className="glass-panel rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <h2 className="text-sm font-semibold text-white/70 flex items-center gap-2">
+            <Archive size={14} className="text-[#bc13fe]" /> Capturas Anteriores
+            {captures.length > 0 && (
+              <span className="text-xs bg-[#bc13fe]/20 text-[#bc13fe] px-2 py-0.5 rounded-full">
+                {captures.length}
+              </span>
+            )}
+          </h2>
+          <button
+            onClick={loadCaptures}
+            disabled={loadingList}
+            className="text-white/30 hover:text-white/60 transition-colors disabled:opacity-30"
+            title="Recarregar"
+          >
+            <RefreshCw size={14} className={loadingList ? "animate-spin" : ""} />
+          </button>
+        </div>
+
+        {loadingList ? (
+          <div className="flex items-center justify-center py-12 text-white/30">
+            <Loader2 size={20} className="animate-spin mr-2" /> Carregando…
           </div>
+        ) : captures.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-white/20">
+            <Camera size={32} className="mb-2 opacity-40" />
+            <p className="text-sm">Nenhuma captura ainda</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    {["URL", "Data", "Perfil", "Status", "HTTP", ""].map(h => (
+                      <th key={h} className="px-3 py-2 text-[10px] uppercase tracking-widest text-white/25 font-medium">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {captures.map(cap => (
+                    <CaptureListRow
+                      key={cap.id}
+                      cap={cap}
+                      onSelect={selectCapture}
+                      selected={selectedCapture?.id === cap.id}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <div className="space-y-2">
-            {history.map((cap) => {
-              const isOnline = cap.siteStatus && cap.siteStatus > 0 && cap.siteStatus < 500;
-              const isExpanded = expandedHistory === cap.id;
-
-              return (
-                <div key={cap.id} className="glass-panel rounded-xl border border-gray-800 overflow-hidden">
+            {selectedCapture && (
+              <div className="px-4 pb-4">
+                <div className="flex items-center justify-between mt-2 mb-1">
+                  <span className="text-xs text-white/30">
+                    Detalhes — {truncate(selectedCapture.url, 55)}
+                  </span>
                   <button
-                    onClick={() => setExpandedHistory(isExpanded ? null : cap.id)}
-                    className="w-full p-4 flex items-center gap-4 hover:bg-white/5 transition text-left"
+                    onClick={() => setSelectedCapture(null)}
+                    className="text-white/20 hover:text-white/50 transition-colors"
                   >
-                    {cap.status === "done" ? (
-                      <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-                    ) : cap.status === "error" ? (
-                      <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                    ) : (
-                      <Loader2 className="w-4 h-4 text-yellow-400 animate-spin flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white font-mono truncate">{cap.url}</p>
-                      <p className="text-xs text-gray-500">
-                        {formatDate(cap.createdAt)} · {cap.profile}
-                      </p>
-                    </div>
-                    {cap.siteStatus ? (
-                      <span
-                        className={`hidden sm:flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${
-                          isOnline
-                            ? "bg-green-500/10 border-green-500/30 text-green-400"
-                            : "bg-red-500/10 border-red-500/30 text-red-400"
-                        }`}
-                      >
-                        {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                        {cap.siteStatus}
-                      </span>
-                    ) : null}
-                    {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-gray-500" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-500" />
-                    )}
+                    <X size={14} />
                   </button>
-
-                  {isExpanded && (
-                    <div className="px-4 pb-4 space-y-4 border-t border-gray-800 pt-3">
-                      {cap.errorMessage && (
-                        <p className="text-red-400 text-xs font-mono">{cap.errorMessage}</p>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-gray-500">IP: </span>
-                          <span className="text-white font-mono">{cap.serverIp || "N/A"}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Local: </span>
-                          <span className="text-white">{cap.serverLocation || "N/A"}</span>
-                        </div>
-                        {cap.hashScreenshot && (
-                          <div className="col-span-2 flex items-center gap-2">
-                            <Hash className="w-3 h-3 text-green-400 flex-shrink-0" />
-                            <span className="text-gray-500">SHA-256: </span>
-                            <span className="text-green-400 font-mono">
-                              {cap.hashScreenshot.slice(0, 16)}...{cap.hashScreenshot.slice(-8)}
-                            </span>
-                          </div>
-                        )}
-                        {cap.pingMs !== undefined && cap.pingMs >= 0 && (
-                          <div>
-                            <span className="text-gray-500">Latência: </span>
-                            <span className="text-white font-mono">{cap.pingMs}ms</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Download links */}
-                      <div className="flex gap-2 flex-wrap">
-                        {cap.certidaoPdf && (
-                          <a
-                            href={`/api/download?folder=capturas_web/${cap.id}&filename=certidao_captura.pdf`}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#bc13fe]/10 border border-[#bc13fe]/30 text-[#bc13fe] text-xs hover:bg-[#bc13fe]/20 transition"
-                          >
-                            <Shield className="w-3 h-3" /> Certidão PDF
-                          </a>
-                        )}
-                        {cap.screenshotFile && (
-                          <a
-                            href={`/api/download?folder=capturas_web/${cap.id}&filename=screenshot.png`}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-gray-700 text-gray-300 text-xs hover:bg-white/10 transition"
-                          >
-                            <Camera className="w-3 h-3" /> Screenshot
-                          </a>
-                        )}
-                        <a
-                          href={cap.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-gray-700 text-gray-300 text-xs hover:bg-white/10 transition"
-                        >
-                          <ExternalLink className="w-3 h-3" /> Abrir URL
-                        </a>
-                      </div>
-
-                      {/* Web-Check panel */}
-                      {cap.status === "done" && (
-                        <WebCheckPanel
-                          data={cap.webCheckData}
-                          waybackUrl={cap.waybackUrl}
-                          blockchainVerify={cap.blockchainVerify}
-                          pingMs={cap.pingMs}
-                          siteStatus={cap.siteStatus}
-                        />
-                      )}
-
-                      {/* Forensic Report */}
-                      {cap.status === "done" && (
-                        <button
-                          onClick={() => handleRelatorio(cap.id)}
-                          disabled={reportLoading === cap.id}
-                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all bg-gradient-to-r from-[#bc13fe]/20 to-[#00f3ff]/10 border border-[#bc13fe]/40 hover:border-[#bc13fe]/70 text-[#bc13fe] disabled:opacity-50 hover:shadow-[0_0_15px_rgba(188,19,254,0.2)]"
-                        >
-                          {reportLoading === cap.id ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" /> Gerando Relatório...
-                            </>
-                          ) : (
-                            <>
-                              <FileText className="w-4 h-4" /> Gerar Relatório Forense
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                <CaptureDetailCard cap={selectedCapture} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

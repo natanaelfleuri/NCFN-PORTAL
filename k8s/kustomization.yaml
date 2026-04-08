@@ -6,9 +6,15 @@ namespace: ncfn
 resources:
   - namespace.yaml
   - pv-pvc.yaml
+  - postgresql.yaml
   - configmap-caddy.yaml
   - services.yaml
+  - networkpolicy.yaml
   - deployment-portal.yaml
   - deployment-caddy.yaml
   - deployment-cloudflared.yaml
+  - hpa-pdb.yaml
+  - backup-cronjob.yaml
+  # migration-job.yaml → aplicar manualmente antes do primeiro deploy:
+  #   kubectl apply -f k8s/migration-job.yaml
   # secrets.yaml é gerado pelo migration.sh e aplicado separadamente

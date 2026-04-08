@@ -64,11 +64,11 @@ export default function HashBackground() {
 
           // t=0 → tail (faint), t=1 → head (bright)
           const t = i / col.len;
-          const alpha = 0.04 + t * 0.20;
+          const alpha = 0.02 + t * 0.10;
 
           ctx.fillStyle =
             i === col.len - 1
-              ? "rgba(200, 255, 255, 0.30)"  // bright leading char
+              ? "rgba(200, 255, 255, 0.15)"  // bright leading char
               : `rgba(0, 243, 255, ${alpha})`;
 
           ctx.fillText(col.chars[i], col.x, y);

@@ -1,0 +1,53 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - link "■ NCFN.NET Nexus Cyber Forensic Network" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: ■
+        - generic [ref=e6]:
+          - generic [ref=e7]: NCFN.NET
+          - generic [ref=e8]: Nexus Cyber Forensic Network
+      - navigation [ref=e10]:
+        - link "Vitrine" [ref=e11] [cursor=pointer]:
+          - /url: /vitrine
+          - img [ref=e12]
+          - text: Vitrine
+        - link "Auditor" [ref=e15] [cursor=pointer]:
+          - /url: /auditor
+          - img [ref=e16]
+          - text: Auditor
+        - link "Guia" [ref=e18] [cursor=pointer]:
+          - /url: /doc
+          - img [ref=e19]
+          - text: Guia
+        - link "Entrar" [ref=e22] [cursor=pointer]:
+          - /url: /login
+    - main [ref=e23]:
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - img [ref=e27]
+            - text: Canal de Distribuição Forense Certificada
+          - heading "VITRINE PÚBLICA" [level=1] [ref=e30]
+          - paragraph [ref=e31]: Repositório de ativos forenses autorizados pelo protocolo NCFN — cadeia de custódia verificável
+          - button "Como funciona" [ref=e33] [cursor=pointer]:
+            - img [ref=e34]
+            - text: Como funciona
+        - generic [ref=e37]:
+          - img [ref=e38]
+          - textbox "BUSCAR POR DESTINATÁRIO OU ARQUIVO..." [ref=e41]
+        - generic [ref=e47]:
+          - generic [ref=e48]:
+            - img [ref=e49]
+            - text: NCFN Zero-Trust Global Delivery
+          - paragraph [ref=e51]: Os ativos listados nesta vitrine são protegidos por algoritmos de integridade SHA-256 e estão em conformidade com o protocolo NCFN de preservação de materialidade digital.
+    - contentinfo [ref=e52]:
+      - generic [ref=e53]:
+        - paragraph [ref=e54]: "Security Level: Grade A | Neural Multi-Layer Active"
+        - paragraph [ref=e55]: "NCFN: Nexus Cloud Forensic Network | CopyLeft 2026"
+        - generic [ref=e56]:
+          - generic [ref=e57]: ncfn@ncfn.net
+          - generic [ref=e58]: "|"
+          - link "Política de Uso" [ref=e59] [cursor=pointer]:
+            - /url: /politica
+  - alert [ref=e60]

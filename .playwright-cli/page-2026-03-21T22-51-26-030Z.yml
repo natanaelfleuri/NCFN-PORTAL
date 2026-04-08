@@ -1,0 +1,97 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - link "■ NCFN.NET Nexus Cyber Forensic Network" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: ■
+        - generic [ref=e6]:
+          - generic [ref=e7]: NCFN.NET
+          - generic [ref=e8]: Nexus Cyber Forensic Network
+      - navigation [ref=e10]:
+        - link "Vitrine" [ref=e11] [cursor=pointer]:
+          - /url: /vitrine
+          - img [ref=e12]
+          - text: Vitrine
+        - link "Auditor" [ref=e15] [cursor=pointer]:
+          - /url: /auditor
+          - img [ref=e16]
+          - text: Auditor
+        - link "Guia" [ref=e18] [cursor=pointer]:
+          - /url: /doc
+          - img [ref=e19]
+          - text: Guia
+        - link "Entrar" [ref=e22] [cursor=pointer]:
+          - /url: /login
+    - main [ref=e23]:
+      - generic [ref=e24]:
+        - complementary [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e27]: Links Úteis
+            - generic [ref=e28]:
+              - button "Nova pasta (Ctrl+Shift+N)" [ref=e29] [cursor=pointer]:
+                - img [ref=e30]
+              - button "Nova nota (Ctrl+N)" [ref=e32] [cursor=pointer]:
+                - img [ref=e33]
+          - generic [ref=e34]:
+            - button "Nova Pasta" [ref=e35] [cursor=pointer]:
+              - img [ref=e36]
+              - text: Nova Pasta
+            - button "Nova Nota" [ref=e38] [cursor=pointer]:
+              - img [ref=e39]
+              - text: Nova Nota
+          - generic [ref=e41]:
+            - img [ref=e42]
+            - textbox "Pesquisar..." [ref=e45]
+          - generic [ref=e49]:
+            - button "Dirs Mestres" [ref=e50] [cursor=pointer]:
+              - img [ref=e51]
+              - generic [ref=e56]: Dirs Mestres
+            - button "Analytics" [ref=e57] [cursor=pointer]:
+              - img [ref=e58]
+              - generic [ref=e59]: Analytics
+            - button "Salvar tudo" [ref=e60] [cursor=pointer]:
+              - img [ref=e61]
+              - generic [ref=e64]: Salvar tudo
+            - button "Apagar tudo" [ref=e65] [cursor=pointer]:
+              - img [ref=e66]
+              - generic [ref=e69]: Apagar tudo
+          - generic [ref=e70]: 0 notas · 0 pastas · 0 fixadas
+        - generic [ref=e71]:
+          - generic [ref=e72]:
+            - textbox "Título..." [ref=e73]
+            - generic [ref=e74]:
+              - generic [ref=e75]: "Pasta:"
+              - button "Sem pasta" [ref=e76] [cursor=pointer]:
+                - img [ref=e77]
+                - generic [ref=e79]: Sem pasta
+                - img [ref=e80]
+            - button "Ver" [ref=e82] [cursor=pointer]:
+              - img [ref=e83]
+              - text: Ver
+            - button "Editar" [ref=e86] [cursor=pointer]:
+              - img [ref=e87]
+              - text: Editar
+            - button "Split" [ref=e88] [cursor=pointer]:
+              - img [ref=e89]
+              - text: Split
+            - button "Salvar" [disabled] [ref=e91]:
+              - img [ref=e92]
+              - text: Salvar
+          - paragraph [ref=e98]: Preview aparece aqui...
+          - generic [ref=e101]: Markdown · Ctrl+S · Tab=indent
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - paragraph: Selecione uma nota ou crie uma nova
+            - paragraph: Markdown · Pastas · Tabelas · Ctrl+S · Destaques
+    - contentinfo [ref=e102]:
+      - generic [ref=e103]:
+        - paragraph [ref=e104]: "Security Level: Grade A | Neural Multi-Layer Active"
+        - paragraph [ref=e105]: "NCFN: Nexus Cloud Forensic Network | CopyLeft 2026"
+        - generic [ref=e106]:
+          - generic [ref=e107]: ncfn@ncfn.net
+          - generic [ref=e108]: "|"
+          - link "Política de Uso" [ref=e109] [cursor=pointer]:
+            - /url: /politica
+  - alert [ref=e110]

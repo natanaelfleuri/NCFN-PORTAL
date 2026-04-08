@@ -72,8 +72,8 @@ export default function MapDashboard() {
 
       {/* Main layout: map + operator panel */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
-        {/* Map */}
-        <div className="glass-panel rounded-2xl border border-[#bc13fe]/30 overflow-hidden relative h-[560px] xl:h-[600px] shadow-[0_0_40px_rgba(188,19,254,0.1)]">
+        {/* Map — no backdrop-blur (breaks leaflet tile rendering) */}
+        <div className="rounded-2xl border border-[#bc13fe]/30 overflow-hidden relative h-[560px] xl:h-[600px] shadow-[0_0_40px_rgba(188,19,254,0.1)] bg-[#000814]">
           {loading ? (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">

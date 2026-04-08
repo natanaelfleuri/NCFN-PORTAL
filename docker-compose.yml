@@ -1,20 +1,69 @@
 version: '3.8'
 
 services:
-  portal:
-    image: node:18-alpine
-    container_name: portal_ncfn_dev
-    working_dir: /app
-    user: "root"
+
+  # ─── PostgreSQL (migração futura do SQLite) ──────────────────────────────────
+  # Ativar: docker compose --profile postgres up -d postgres
+  # Depois trocar DATABASE_URL no .env para: postgresql://ncfn:ncfn2026@postgres:5432/ncfn_db
+  postgres:
+    image: postgres:16-alpine
+    container_name: ncfn_postgres
+    profiles:
+      - postgres
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: "2"
+    environment:
+      POSTGRES_DB: ncfn_db
+      POSTGRES_USER: ncfn
+      POSTGRES_PASSWORD: ncfn2026
     volumes:
-      - ./app:/app
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ncfn -d ncfn_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Redis (cache, rate limiting, pub/sub SSE) ───────────────────────────────
+  # Ativar: docker compose --profile cache up -d redis
+  # Adicionar no .env: REDIS_URL=redis://redis:6379
+  redis:
+    image: redis:7-alpine
+    container_name: ncfn_redis
+    profiles:
+      - cache
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+
+  portal:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+    container_name: portal_ncfn_dev
+    user: "root"
+    mem_limit: 2g
+    mem_reservation: 512m
+    cpus: "4"
+    volumes:
+      - ./app/prisma/dev.db:/app/prisma/dev.db
       - ./arquivos:/arquivos
       - ./COFRE_NCFN:/COFRE_NCFN
       - /var/run/docker.sock:/var/run/docker.sock
+      - /home/roaaxxz/ncfn-internxt:/internxt-drive
     ports:
       - "127.0.0.1:3002:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3002}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-fleuriengenharia@gmail.com}
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
@@ -25,20 +74,48 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - CRON_SECRET=${CRON_SECRET}
       - MASTER_UNLOCK_KEY=${MASTER_UNLOCK_KEY}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-ncfn-vault}
       - PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
       - WEB_CHECK_URL=http://web-check:3000
       - PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
       - DEV_BYPASS=true
+      - DATABASE_URL=postgresql://ncfn:ncfn2026@ncfn_postgres:5432/ncfn_db
+      # Redis (ativar com --profile cache):
+      # - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: sh -c "apk add --no-cache exiftool file python3 make g++ chromium nss freetype harfbuzz ca-certificates ttf-freefont 2>/dev/null || true && chmod 666 /app/prisma/dev.db 2>/dev/null || true && npm install --legacy-peer-deps && npx prisma db push --skip-generate 2>&1 && npx prisma generate && NODE_ENV=production npm run build && NODE_ENV=production npm start"
+    restart: unless-stopped
+
+  # ─── Terminal Web (ttyd) ────────────────────────────────────────────────────
+  # Acesso: /terminal/ (via Caddy, protegido por CF Access)
+  # Fornece terminal root da VPS + acesso ao Docker socket
+  ttyd:
+    image: tsl0922/ttyd:latest
+    container_name: ncfn_ttyd
+    command: ["ttyd", "-W", "-b", "/terminal", "-t", "fontSize=14", "nsenter", "-t", "1", "-m", "-u", "-i", "-n", "-p", "--", "bash", "--login"]
+    privileged: true
+    pid: host
+    mem_limit: 512m
+    cpus: "2"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /:/host:rw
+      - ./:/workspace:rw
+    working_dir: /workspace
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
     restart: unless-stopped
 
   web-check:
     image: lissy93/web-check
     container_name: ncfn_web_check
+    mem_limit: 512m
+    cpus: "2"
     ports:
       - "3005:3000"
     environment:
@@ -57,17 +134,13 @@ services:
       - caddy_config:/config
 
   # ─── Cloudflare Tunnel ──────────────────────────────────────────────────────
-  # Conecta o portal à edge da Cloudflare sem expor portas públicas
-  # Usa config file (/etc/cloudflared/config.yml) com ingress rules locais
+  # Tunnel e0423fdb-84ac-4b6c-8a73-0fa4a5765c43 (ativo no Zero Trust)
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: ncfn_cloudflared
     restart: unless-stopped
-    # network_mode: host → 127.0.0.1:3002 resolve para o host (onde portal expõe a porta)
     network_mode: host
-    volumes:
-      - ./cloudflared:/etc/cloudflared
-    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    command: tunnel --no-autoupdate run --token eyJhIjoiNGQyOWY1MTBjZWZkNDZjMDdmNWMxZWM3OGUyNzI3OTIiLCJ0IjoiZTA0MjNmZGItODRhYy00YjZjLThhNzMtMGZhNGE1NzY1YzQzIiwicyI6Ik5UWmxZakk0TlRrdFkySTVNQzAwWmpjMExXRXlNelV0TldKallXSXhNekl5Tm1NNSJ9
 
   # ─── Whisper ASR (Transcrição de Áudio) ────────────────────────────────────
   # Ativar: docker compose --profile whisper up -d
@@ -106,6 +179,9 @@ services:
     container_name: ncfn_osint
     profiles:
       - osint
+    mem_limit: 4g
+    mem_reservation: 1g
+    cpus: "6"
     ports:
       - "3003:3000"
     environment:
@@ -113,10 +189,11 @@ services:
       - PGID=1000
       - TZ=America/Sao_Paulo
       - PASSWD=${OSINT_DESKTOP_PASSWORD:-OsintNcfn@2026!}
+      - SUBFOLDER=/osint/
     volumes:
       - osint_home:/config
       - ./scripts/osint-install.sh:/custom-cont-init.d/99-osint.sh:ro
-    shm_size: "1gb"
+    shm_size: "2gb"
     restart: unless-stopped
 
 volumes:
@@ -124,3 +201,5 @@ volumes:
   caddy_config:
   osint_home:
   chroma_data:
+  postgres_data:
+  redis_data:

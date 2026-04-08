@@ -17,10 +17,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Caminho não fornecido' }, { status: 400 });
   }
 
-  if (filePathParam.includes('..') || filePathParam.startsWith('/')) {
-    return NextResponse.json({ error: 'Caminho inválido' }, { status: 403 });
-  }
-
   const session = await getSession();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
@@ -32,8 +28,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Acesso restrito (Admin)' }, { status: 403 });
   }
 
-  const vaultDir = path.join(process.cwd(), '../COFRE_NCFN');
-  const fullPath = path.join(vaultDir, filePathParam);
+  const vaultDir = path.resolve(process.cwd(), '../COFRE_NCFN');
+  const fullPath = path.resolve(vaultDir, filePathParam);
+
+  // Path traversal guard — resolved path must stay within vaultDir
+  if (!fullPath.startsWith(vaultDir + path.sep) && fullPath !== vaultDir) {
+    return NextResponse.json({ error: 'Caminho inválido' }, { status: 403 });
+  }
 
   if (!fs.existsSync(fullPath)) {
     return NextResponse.json({ error: 'Arquivo não encontrado' }, { status: 404 });

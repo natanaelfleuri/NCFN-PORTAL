@@ -8,8 +8,11 @@ function LoginContent() {
     const { status } = useSession();
     const router     = useRouter();
 
-    const [phase,    setPhase]    = useState<'checking' | 'failed'>('checking');
-    const [errorMsg, setErrorMsg] = useState('');
+    const [phase,      setPhase]      = useState<'checking' | 'form'>('checking');
+    const [errorMsg,   setErrorMsg]   = useState('');
+    const [email,      setEmail]      = useState('');
+    const [passphrase, setPassphrase] = useState('');
+    const [loading,    setLoading]    = useState(false);
 
     // Redireciona se já autenticado
     useEffect(() => {
@@ -37,11 +40,29 @@ function LoginContent() {
             } catch (_) {
                 // Sem CF Access header
             }
-            setPhase('failed');
+            setPhase('form');
         }
 
         tryCfLogin();
     }, [status, router]);
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        setLoading(true);
+        setErrorMsg('');
+        const result = await signIn('credentials', {
+            email,
+            passphrase,
+            redirect: false,
+            callbackUrl: '/admin',
+        });
+        setLoading(false);
+        if (result?.ok) {
+            window.location.href = '/admin';
+        } else {
+            setErrorMsg('Credenciais inválidas.');
+        }
+    }
 
     if (status === 'loading' || status === 'authenticated' || phase === 'checking') {
         return (
@@ -54,7 +75,7 @@ function LoginContent() {
                     </div>
                 </div>
                 <p className="text-[11px] font-mono text-gray-500 uppercase tracking-widest animate-pulse">
-                    Verificando acesso Cloudflare…
+                    Verificando acesso…
                 </p>
             </div>
         );
@@ -65,35 +86,63 @@ function LoginContent() {
             <div className="glass-panel p-10 rounded-2xl w-full max-w-sm text-center space-y-5"
                 style={{ border: '1px solid rgba(188,19,254,0.25)' }}>
 
-                {errorMsg
-                    ? <AlertTriangle className="w-16 h-16 mx-auto text-red-500"
-                        style={{ filter: 'drop-shadow(0 0 12px rgba(239,68,68,0.6))' }} />
-                    : <Shield className="w-16 h-16 mx-auto text-[#bc13fe]"
-                        style={{ filter: 'drop-shadow(0 0 12px rgba(188,19,254,0.6))' }} />
-                }
+                <Shield className="w-16 h-16 mx-auto text-[#bc13fe]"
+                    style={{ filter: 'drop-shadow(0 0 12px rgba(188,19,254,0.6))' }} />
 
                 <h2 className="text-3xl font-black text-white tracking-tighter">
-                    ACESSO RESTRITO
+                    NCFN
                 </h2>
 
-                {errorMsg ? (
+                {errorMsg && (
                     <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-left">
                         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                         <p className="text-xs">{errorMsg}</p>
                     </div>
-                ) : (
-                    <div className="space-y-3">
-                        <p className="text-sm text-gray-400">
-                            Autenticação via <span className="text-[#bc13fe] font-semibold">Cloudflare Zero Trust</span> necessária.
-                        </p>
-                        <p className="text-[11px] text-gray-600 font-mono">
-                            Certifique-se de acessar via ncfn.net com Zero Trust ativo ou use o link de acesso direto do dispositivo confiável.
-                        </p>
-                    </div>
                 )}
 
+                <form onSubmit={handleSubmit} className="space-y-3 text-left">
+                    <div>
+                        <label className="text-[11px] text-gray-500 font-mono uppercase tracking-widest block mb-1">
+                            Usuário
+                        </label>
+                        <input
+                            type="text"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            required
+                            autoComplete="username"
+                            className="w-full bg-black/40 border border-[#bc13fe]/20 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#bc13fe]/60 transition-colors"
+                            placeholder="ncfn"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[11px] text-gray-500 font-mono uppercase tracking-widest block mb-1">
+                            Senha
+                        </label>
+                        <input
+                            type="password"
+                            value={passphrase}
+                            onChange={e => setPassphrase(e.target.value)}
+                            required
+                            autoComplete="current-password"
+                            className="w-full bg-black/40 border border-[#bc13fe]/20 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-[#bc13fe]/60 transition-colors"
+                            placeholder="••••••••"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-[#bc13fe] hover:bg-[#bc13fe]/80 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-2"
+                    >
+                        {loading
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : 'Entrar'
+                        }
+                    </button>
+                </form>
+
                 <p className="text-gray-700 text-[10px] font-mono pt-2">
-                    TLS 1.3 · Cloudflare Access · NCFN
+                    TLS 1.3 · NCFN Portal
                 </p>
             </div>
         </div>

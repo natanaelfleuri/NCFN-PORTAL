@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import TotpSetup from '@/app/components/TotpSetup';
+import WebAuthnDevices from '@/app/components/WebAuthnDevices';
 
 interface DbUser {
     id: string;
@@ -354,6 +355,7 @@ export default function ProfileClient({ dbUser }: { dbUser: DbUser }) {
                         </div>
                     </div>
                     <TotpSetup totpEnabled={dbUser.totpEnabled} />
+                    <WebAuthnDevices />
                 </div>
 
                 {/* AI Config */}

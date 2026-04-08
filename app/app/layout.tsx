@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import type { Metadata } from 'next'
 import './globals.css'
+import 'leaflet/dist/leaflet.css'
 import { Michroma } from 'next/font/google'
 import Navigation from './components/Navigation'
 
@@ -14,8 +15,8 @@ import PolicyGuard from './components/PolicyGuard'
 import ToastProvider from './components/ToastProvider'
 import ServiceWorkerRegister from './components/ServiceWorkerRegister'
 import HashBackground from './components/HashBackground'
-import VpsMonitor from './components/VpsMonitor'
 import BottomNav from './components/BottomNav'
+import FileContextNav from './components/FileContextNav'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
@@ -44,7 +45,6 @@ export default function RootLayout({
           <SpotlightSearch />
           <GuestHeartbeat />
           <BiometricSecurity>
-            <VpsMonitor />
             <div className="min-h-screen flex flex-col items-center ml-auto mr-auto military-hardened relative overflow-hidden">
               <div className="scanline-overlay absolute inset-0 z-0 opacity-10 pointer-events-none"></div>
               <HashBackground />
@@ -89,12 +89,13 @@ export default function RootLayout({
                 <Navigation />
               </header>
 
-              <main className="w-full p-4 pb-20 md:pb-4 flex-grow relative z-10">
+              <main className="w-full p-4 pb-28 md:pb-4 flex-grow relative z-10">
                 <PolicyGuard>
                   {children}
                 </PolicyGuard>
               </main>
               <BottomNav />
+              <FileContextNav />
 
               <footer className="w-full text-center py-8 text-gray-500 text-[10px] sm:text-xs border-t border-white/5 mt-12 bg-black/40 relative z-10">
                 <div className="flex flex-col items-center gap-2">

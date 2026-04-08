@@ -31,6 +31,18 @@ export default withAuth(
             return NextResponse.redirect(new URL('/login?error=unauthorized', nextUrl));
         }
 
+        // ── TOTP second factor ──────────────────────────────────────────────────
+        // Se TOTP está ativo e ainda não foi verificado nesta sessão, bloqueia admin
+        if (
+            nextUrl.pathname.startsWith('/admin') &&
+            token?.totpEnabled === true &&
+            token?.totpVerified !== true
+        ) {
+            const url = new URL('/verify-totp', nextUrl);
+            url.searchParams.set('callbackUrl', nextUrl.pathname + nextUrl.search);
+            return NextResponse.redirect(url);
+        }
+
         // ── Session Binding: IP /24 check ──────────────────────────────────────
         // Armazena IP na primeira requisição via cookie, compara nas subsequentes
         const currentIp = getRequestIp(req);

@@ -5,7 +5,7 @@ const nextConfig = {
     },
     experimental: {
         instrumentationHook: true,
-        serverComponentsExternalPackages: ['geoip-lite'],
+        serverComponentsExternalPackages: ['geoip-lite', '@aws-sdk/client-s3', '@aws-sdk/s3-request-presigner', 'playwright', 'playwright-core', 'googleapis', 'webdav'],
     },
     eslint: {
         ignoreDuringBuilds: true,

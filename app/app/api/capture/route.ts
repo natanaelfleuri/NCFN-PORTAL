@@ -104,7 +104,7 @@ async function queryWebCheck(url: string): Promise<Record<string, any> | null> {
   const baseUrl = process.env.WEB_CHECK_URL || 'http://web-check:3000';
   const enc = encodeURIComponent(url);
 
-  const endpoints = ['ip', 'ssl', 'dns', 'headers', 'cookies', 'robots-txt', 'tech-stack', 'ports', 'redirects', 'quality-summary'];
+  const endpoints = ['get-ip', 'ssl', 'dns', 'headers', 'cookies', 'robots-txt', 'ports', 'redirects'];
 
   const results: Record<string, any> = {};
 
@@ -127,22 +127,31 @@ async function queryWebCheck(url: string): Promise<Record<string, any> | null> {
 }
 
 async function saveToWayback(url: string): Promise<string | null> {
+  // Submete à fila do Wayback Machine
   try {
-    const res = await fetch(`https://web.archive.org/save/${url}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `url=${encodeURIComponent(url)}`,
-      signal: AbortSignal.timeout(40000),
-      redirect: 'manual',
+    await fetch(`https://web.archive.org/save/${url}`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(30000),
+      redirect: 'follow',
     });
-    const location = res.headers.get('Content-Location') || res.headers.get('Location');
-    if (location) {
-      return location.startsWith('http') ? location : `https://web.archive.org${location}`;
+  } catch { /* submissão silenciosa */ }
+
+  // Aguarda 5s e consulta CDX para obter o snapshot mais recente
+  await new Promise(r => setTimeout(r, 5000));
+  try {
+    const cdxUrl = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(url)}&output=json&limit=1&fl=timestamp,original&filter=statuscode:200&from=&to=`;
+    const res = await fetch(cdxUrl, { signal: AbortSignal.timeout(10000) });
+    if (res.ok) {
+      const data = await res.json();
+      // data[0] é o header, data[1] é o primeiro resultado
+      if (Array.isArray(data) && data.length > 1 && data[1]?.[0]) {
+        const [timestamp] = data[1];
+        return `https://web.archive.org/web/${timestamp}/${url}`;
+      }
     }
-    return `https://web.archive.org/web/*/${url}`;
-  } catch {
-    return `https://web.archive.org/web/*/${url}`;
-  }
+  } catch {}
+
+  return `https://web.archive.org/web/*/${url}`;
 }
 
 // OpenTimestamps — submete hash a 3 calendários Bitcoin (sem API key)
@@ -544,43 +553,7 @@ export async function POST(req: NextRequest) {
     // ── 2. Wayback Machine (em paralelo com Playwright) ───────────────────
     const waybackPromise = saveToWayback(url);
 
-    // ── 3. Captura com Playwright ─────────────────────────────────────────
-    const playwrightScript = `
-const { chromium } = require('playwright');
-const fs = require('fs');
-const path = require('path');
-
-(async () => {
-  const launchOpts = { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] };
-  if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
-    launchOpts.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
-  }
-  const browser = await chromium.launch(launchOpts);
-  const ctx = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-    recordHar: ${profile !== 'rapida' ? `{ path: '${captureDir}/network.har' }` : 'undefined'},
-  });
-  const page = await ctx.newPage();
-
-  await page.goto('${url.replace(/'/g, "\\'")}', { waitUntil: 'networkidle', timeout: 30000 });
-  await page.waitForTimeout(2000);
-
-  await page.screenshot({ path: '${captureDir}/screenshot.png', fullPage: true });
-  await page.pdf({ path: '${captureDir}/pagina.pdf', format: 'A4', printBackground: true });
-
-  const html = await page.content();
-  fs.writeFileSync('${captureDir}/dom.html', html);
-
-  await ctx.close();
-  await browser.close();
-  console.log('OK');
-})().catch(e => { console.error(e.message); process.exit(1); });
-`;
-
-    const scriptPath = path.join(captureDir, '_capture.js');
-    await fs.writeFile(scriptPath, playwrightScript);
-
+    // ── 3. Captura com Playwright (direto, sem subprocess) ────────────────
     let screenshotFile: string | null = null;
     let pdfFile: string | null = null;
     let htmlFile: string | null = null;
@@ -590,20 +563,42 @@ const path = require('path');
     let hashHtml: string | null = null;
 
     try {
-      await execAsync(`node ${scriptPath}`, { timeout: 60000, env: process.env });
+      const { chromium } = require('playwright');
+      const launchOpts: any = {
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      };
+      if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+        launchOpts.executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+      }
+      const browser = await chromium.launch(launchOpts);
+      const ctxOpts: any = {
+        viewport: { width: 1440, height: 900 },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+      };
+      if (profile !== 'rapida') {
+        ctxOpts.recordHar = { path: path.join(captureDir, 'network.har') };
+      }
+      const ctx = await browser.newContext(ctxOpts);
+      const page = await ctx.newPage();
 
-      if (fs.existsSync(path.join(captureDir, 'screenshot.png'))) {
-        screenshotFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/screenshot.png`;
-        hashScreenshot = sha256(path.join(captureDir, 'screenshot.png'));
-      }
-      if (fs.existsSync(path.join(captureDir, 'pagina.pdf'))) {
-        pdfFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/pagina.pdf`;
-        hashPdf = sha256(path.join(captureDir, 'pagina.pdf'));
-      }
-      if (fs.existsSync(path.join(captureDir, 'dom.html'))) {
-        htmlFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/dom.html`;
-        hashHtml = sha256(path.join(captureDir, 'dom.html'));
-      }
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+      await page.waitForTimeout(2000);
+
+      await page.screenshot({ path: path.join(captureDir, 'screenshot.png'), fullPage: true });
+      await page.pdf({ path: path.join(captureDir, 'pagina.pdf'), format: 'A4', printBackground: true });
+
+      const html = await page.content();
+      await fs.writeFile(path.join(captureDir, 'dom.html'), html);
+
+      await ctx.close();
+      await browser.close();
+
+      screenshotFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/screenshot.png`;
+      hashScreenshot = sha256(path.join(captureDir, 'screenshot.png'));
+      pdfFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/pagina.pdf`;
+      hashPdf = sha256(path.join(captureDir, 'pagina.pdf'));
+      htmlFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/dom.html`;
+      hashHtml = sha256(path.join(captureDir, 'dom.html'));
       if (fs.existsSync(path.join(captureDir, 'network.har'))) {
         harFile = `7_NCFN-CAPTURAS-WEB_OSINT/${capture.id}/network.har`;
       }
@@ -676,7 +671,6 @@ const path = require('path');
       }
     });
 
-    await fs.remove(scriptPath).catch(() => {});
 
     return NextResponse.json({ ok: true, capture: updated });
 

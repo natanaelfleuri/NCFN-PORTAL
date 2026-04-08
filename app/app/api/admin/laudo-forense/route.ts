@@ -20,43 +20,76 @@ export async function GET(req: NextRequest) {
     const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
     if (!isAdmin(token)) return NextResponse.json({ error: "Acesso restrito." }, { status: 403 });
 
-    // Return all custody-report pericias from VaultAccessLog, newest first
+    // Lazy cleanup: delete expired final reports
+    try {
+        const expiredFinals = await prisma.laudoForense.findMany({
+            where: { reportType: 'final', finalReportExpiresAt: { lt: new Date() } },
+        });
+        for (const ef of expiredFinals) {
+            if (ef.pdfFile) {
+                const pdfPath = path.join(VAULT_BASE, ef.pdfFile);
+                if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
+            }
+            await prisma.laudoForense.delete({ where: { id: ef.id } });
+        }
+    } catch {}
+
+    // Return manual pericias from VaultAccessLog, newest first
     const logs = await prisma.vaultAccessLog.findMany({
         where: { action: 'pericia' },
         orderBy: { createdAt: 'desc' },
     });
 
-    // Annotate with version: for each filePath, count how many there are total and assign v1..vN
-    // (oldest = v1, newest = vN)
+    // Annotate with version
     const countByPath: Record<string, number> = {};
     const versionByPath: Record<string, number> = {};
-    // Walk from oldest to newest to assign ascending version numbers
     const sorted = [...logs].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     for (const log of sorted) {
         versionByPath[log.id] = (countByPath[log.filePath] || 0) + 1;
         countByPath[log.filePath] = versionByPath[log.id];
     }
-    const totalByPath: Record<string, number> = countByPath;
 
     const pericias = logs.map(log => {
         const parts = log.filePath.split('/');
         const folder = parts[0];
         const filename = parts.slice(1).join('/');
-        const version = versionByPath[log.id];
-        const total = totalByPath[log.filePath];
         return {
             id: log.id,
             filePath: log.filePath,
             folder,
             filename,
-            version,
-            totalVersions: total,
+            version: versionByPath[log.id],
+            totalVersions: countByPath[log.filePath],
             userEmail: log.userEmail,
             createdAt: log.createdAt,
+            reportType: 'manual',
+            finalReportExpiresAt: null,
         };
     });
 
-    return NextResponse.json({ pericias });
+    // Also return typed reports from LaudoForense (inicial, intermediario, final)
+    const typedLaudos = await prisma.laudoForense.findMany({
+        where: { reportType: { in: ['inicial', 'intermediario', 'final', 'manual'] } },
+        orderBy: { createdAt: 'desc' },
+    });
+
+    const typedPericias = typedLaudos.map(l => ({
+        id: l.id,
+        filePath: l.folder && l.filename ? `${l.folder}/${l.filename}` : '',
+        folder: l.folder || '',
+        filename: l.filename || '',
+        version: 1,
+        totalVersions: 1,
+        userEmail: l.operatorEmail,
+        createdAt: l.createdAt,
+        reportType: l.reportType,
+        titulo: l.titulo,
+        finalReportExpiresAt: l.finalReportExpiresAt || null,
+    }));
+
+    return NextResponse.json({ pericias: [...pericias, ...typedPericias].sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )});
 }
 
 export async function POST(req: NextRequest) {
@@ -307,7 +340,7 @@ Responda EXCLUSIVAMENTE em formato JSON válido com os campos:
 
         const pdfBytes = await pdfDoc.save();
 
-        const outDir = path.join(VAULT_BASE, "09_BURN_IMMUTABILITY");
+        const outDir = path.join(VAULT_BASE, "RELATORIOS");
         if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
         const filename = `laudo_${id.slice(0, 8)}_${Date.now()}.pdf`;
         const outPath = path.join(outDir, filename);
@@ -315,7 +348,7 @@ Responda EXCLUSIVAMENTE em formato JSON válido com os campos:
 
         const updated = await prisma.laudoForense.update({
             where: { id },
-            data: { pdfFile: `09_BURN_IMMUTABILITY/${filename}`, status: "final" },
+            data: { pdfFile: `RELATORIOS/${filename}`, status: "final" },
         });
 
         return NextResponse.json({ ok: true, laudo: updated, pdfFile: `09_BURN_IMMUTABILITY/${filename}` });

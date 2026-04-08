@@ -68,29 +68,145 @@ export async function GET(req: NextRequest) {
     const encSha256 = createHash('sha256').update(encBuffer).digest('hex');
 
     // Gerar PDFs via custody-report: versão digital (dark) e versão impressão (white)
-    const baseUrl = new URL(req.url).origin;
+    // Usa localhost:3000 diretamente para evitar round-trip externo via Cloudflare/DNS
+    const internalBase = 'http://localhost:3000';
     const custodyHeaders = {
       'Content-Type': 'application/json',
       'cookie': req.headers.get('cookie') || '',
     };
-    const custodyBody = { filePath: `${folder}/${filename}` };
+
+    // Try to find the latest typed report for this file (final > intermediario > inicial)
+    let reportId: string | null = null;
+    try {
+      // Prefer the most recent report of the highest cycle stage
+      const latestTyped = await prisma.laudoForense.findFirst({
+        where: {
+          folder,
+          filename: { in: [filename, baseFilename] },
+          reportType: { in: ['final', 'intermediario', 'inicial'] },
+        },
+        orderBy: [
+          // Prioritize by type rank, then by date
+          { createdAt: 'desc' },
+        ],
+      });
+
+      if (latestTyped) {
+        // Pick highest stage available: final > intermediario > inicial
+        const stageRank: Record<string, number> = { final: 3, intermediario: 2, inicial: 1 };
+        const candidates = await prisma.laudoForense.findMany({
+          where: {
+            folder,
+            filename: { in: [filename, baseFilename] },
+            reportType: { in: ['final', 'intermediario', 'inicial'] },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        const best = candidates.sort((a, b) =>
+          (stageRank[b.reportType] || 0) - (stageRank[a.reportType] || 0)
+        )[0];
+        reportId = best?.id || null;
+      }
+
+      // Fallback to initialReportId from custody state if no LaudoForense found
+      if (!reportId) {
+        const cs = await prisma.fileCustodyState.findFirst({
+          where: { folder, OR: [{ filename }, { filename: baseFilename }] },
+          select: { initialReportId: true },
+        });
+        reportId = cs?.initialReportId || null;
+      }
+    } catch {}
 
     let periciaPdfBytes: Buffer | null = null;
     let periciaPrintBytes: Buffer | null = null;
     try {
-      const [digitalRes, printRes] = await Promise.all([
-        fetch(`${baseUrl}/api/vault/custody-report`, {
-          method: 'POST', headers: custodyHeaders,
-          body: JSON.stringify(custodyBody),
-        }),
-        fetch(`${baseUrl}/api/vault/custody-report`, {
-          method: 'POST', headers: custodyHeaders,
-          body: JSON.stringify({ ...custodyBody, print: true }),
-        }),
-      ]);
-      if (digitalRes.ok) periciaPdfBytes = Buffer.from(await digitalRes.arrayBuffer());
-      if (printRes.ok)   periciaPrintBytes = Buffer.from(await printRes.arrayBuffer());
+      if (reportId) {
+        // Use typed custody report (proper formatted PDF with report type label)
+        const [digitalRes, printRes] = await Promise.all([
+          fetch(`${internalBase}/api/vault/custody-report`, {
+            method: 'POST', headers: custodyHeaders,
+            body: JSON.stringify({ action: 'view_typed_report', id: reportId }),
+          }),
+          fetch(`${internalBase}/api/vault/custody-report`, {
+            method: 'POST', headers: custodyHeaders,
+            body: JSON.stringify({ action: 'view_typed_report', id: reportId, print: true }),
+          }),
+        ]);
+        if (digitalRes.ok) periciaPdfBytes = Buffer.from(await digitalRes.arrayBuffer());
+        if (printRes.ok)   periciaPrintBytes = Buffer.from(await printRes.arrayBuffer());
+      }
+      // Fallback to generic pericia report if no custody report found
+      if (!periciaPdfBytes) {
+        const custodyBody = { filePath: `${folder}/${filename}` };
+        const [digitalRes, printRes] = await Promise.all([
+          fetch(`${internalBase}/api/vault/custody-report`, {
+            method: 'POST', headers: custodyHeaders,
+            body: JSON.stringify(custodyBody),
+          }),
+          fetch(`${internalBase}/api/vault/custody-report`, {
+            method: 'POST', headers: custodyHeaders,
+            body: JSON.stringify({ ...custodyBody, print: true }),
+          }),
+        ]);
+        if (digitalRes.ok) periciaPdfBytes = Buffer.from(await digitalRes.arrayBuffer());
+        if (printRes.ok)   periciaPrintBytes = Buffer.from(await printRes.arrayBuffer());
+      }
     } catch { /* silencioso — ZIP continua sem PDFs se falhar */ }
+
+    // ── Recuperar arquivo original plaintext ──────────────────────────────
+    // Caso 1: arquivo ainda não encriptado → ele mesmo é o original
+    // Caso 2: arquivo é .enc → busca plaintext no BURN (manifesto ou scan)
+    let originalBuffer: Buffer | null = null;
+    let originalFilename: string | null = null;
+
+    if (!filename.endsWith('.enc')) {
+      originalBuffer   = fileBuffer;
+      originalFilename = filename;
+    } else {
+      try {
+        // Prioridade 1: .originals/ dentro da mesma pasta (padrão v11)
+        const originalsPath = path.join(VAULT_DIR, folder, '.originals', baseFilename);
+        if (existsSync(originalsPath)) {
+          originalBuffer   = readFileSync(originalsPath);
+          originalFilename = baseFilename;
+        } else {
+          // Prioridade 2: 100_BURN_IMMUTABILITY (legado / cópia burn)
+          const burnDir      = path.join(VAULT_DIR, '100_BURN_IMMUTABILITY');
+          const manifestPath = path.join(burnDir, '_burn_manifest.json');
+          let burnFile: string | null = null;
+
+          if (existsSync(manifestPath)) {
+            const manifest: Record<string, string> = JSON.parse(readFileSync(manifestPath, 'utf8'));
+            burnFile = manifest[`${folder}/${baseFilename}`]
+                    || manifest[`${folder}/${filename}`]
+                    || null;
+          }
+
+          if (!burnFile && existsSync(burnDir)) {
+            const entries = readdirSync(burnDir).filter(
+              f => f.endsWith(`_${baseFilename}`) && !f.endsWith('.enc.bin')
+            );
+            if (entries.length > 0) {
+              entries.sort((a, b) => {
+                const ta = parseInt(a.split('_')[0]) || 0;
+                const tb = parseInt(b.split('_')[0]) || 0;
+                return tb - ta;
+              });
+              burnFile = entries[0];
+            }
+          }
+
+          if (burnFile) {
+            const burnPath = path.join(burnDir, burnFile);
+            if (existsSync(burnPath)) {
+              originalBuffer   = readFileSync(burnPath);
+              originalFilename = baseFilename;
+            }
+          }
+        }
+      } catch {}
+    }
 
     // Compute PDF hashes for the verification manifest
     const pdfDigitalSha256 = periciaPdfBytes
@@ -102,21 +218,29 @@ export async function GET(req: NextRequest) {
     const hashManifest = [
       `NCFN — MANIFESTO DE VERIFICACAO CRIPTOGRAFICA`,
       `Gerado em: ${now.toISOString()}`,
-      `Operador: ncfn@ncfn.net`,
+      `Operador: ${userEmail}`,
       `IP: ${ip}`,
       ``,
-      `[1] ARQUIVO ORIGINAL (cofre)`,
+      `[1] ARQUIVO CUSTODIADO (.enc — versao encriptada no cofre)`,
       `    Nome:    ${filename}`,
       `    SHA-256: ${sha256}`,
       `    MD5:     ${md5}`,
       `    SHA-1:   ${sha1}`,
       ``,
-      `[2] RELATORIO FORENSE DIGITAL (versao escura — tela)`,
-      `    Nome:    pericia_forense_ncfn_digital.pdf`,
+      ...(originalBuffer && originalFilename && filename.endsWith('.enc') ? [
+        `[2] ARQUIVO ORIGINAL (plaintext — copia imutavel)`,
+        `    Nome:    ${originalFilename}`,
+        `    SHA-256: ${createHash('sha256').update(originalBuffer).digest('hex')}`,
+        `    MD5:     ${createHash('md5').update(originalBuffer).digest('hex')}`,
+        `    SHA-1:   ${createHash('sha1').update(originalBuffer).digest('hex')}`,
+        ``,
+      ] : []),
+      `[3] RELATORIO FORENSE DIGITAL (versao escura — tela)`,
+      `    Nome:    relatorio_custodia_ncfn_digital.pdf`,
       `    SHA-256: ${pdfDigitalSha256 || 'N/A — PDF nao gerado'}`,
       ``,
-      `[3] RELATORIO FORENSE IMPRESSAO (versao clara — papel)`,
-      `    Nome:    pericia_forense_ncfn_impressao.pdf`,
+      `[4] RELATORIO FORENSE IMPRESSAO (versao clara — papel)`,
+      `    Nome:    relatorio_custodia_ncfn_impressao.pdf`,
       `    SHA-256: ${pdfPrintSha256 || 'N/A — PDF nao gerado'}`,
       ``,
       `COMO VERIFICAR:`,
@@ -126,71 +250,16 @@ export async function GET(req: NextRequest) {
       `Qualquer divergencia de um unico caractere invalida a integridade do arquivo.`,
     ].join('\n');
 
-    // ── Recuperar arquivo original plaintext ──────────────────────────────
-    // Caso 1: arquivo ainda não encriptado → ele mesmo é o original
-    // Caso 2: arquivo é .enc → busca plaintext no BURN (manifesto ou scan)
-    let originalBuffer: Buffer | null = null;
-    let originalFilename: string | null = null;
-
-    if (!filename.endsWith('.enc')) {
-      // O próprio arquivo é o original
-      originalBuffer   = fileBuffer;
-      originalFilename = filename;
-    } else {
-      // Tenta manifesto primeiro, depois faz scan pelo padrão timestamp_basename
-      try {
-        const burnDir      = path.join(VAULT_DIR, '100_BURN_IMMUTABILITY');
-        const manifestPath = path.join(burnDir, '_burn_manifest.json');
-        let burnFile: string | null = null;
-
-        if (existsSync(manifestPath)) {
-          const manifest: Record<string, string> = JSON.parse(readFileSync(manifestPath, 'utf8'));
-          burnFile = manifest[`${folder}/${baseFilename}`]
-                  || manifest[`${folder}/${filename}`]
-                  || null;
-        }
-
-        // Fallback: scan por `*_${baseFilename}` no diretório BURN
-        if (!burnFile && existsSync(burnDir)) {
-          const entries = readdirSync(burnDir).filter(
-            f => f.endsWith(`_${baseFilename}`) && !f.endsWith('.enc.bin')
-          );
-          if (entries.length > 0) {
-            // Pega o mais recente (maior timestamp prefix)
-            entries.sort((a, b) => {
-              const ta = parseInt(a.split('_')[0]) || 0;
-              const tb = parseInt(b.split('_')[0]) || 0;
-              return tb - ta;
-            });
-            burnFile = entries[0];
-          }
-        }
-
-        if (burnFile) {
-          const burnPath = path.join(burnDir, burnFile);
-          if (existsSync(burnPath)) {
-            originalBuffer   = readFileSync(burnPath);
-            originalFilename = baseFilename;
-          }
-        }
-      } catch {}
-    }
-
-    // ZIP: arquivo(s) + PDFs + hash manifest
+    // ZIP: original + .enc + PDFs + hash manifest
     const zip = new AdmZip();
+    // Always include the .enc file (custody-encrypted version)
+    zip.addFile(filename, fileBuffer);
+    // Include original plaintext if found
     if (originalBuffer && originalFilename && filename.endsWith('.enc')) {
-      // Arquivo encriptado: inclui original plaintext + versão .enc
       zip.addFile(`ORIGINAL_${originalFilename}`, originalBuffer);
-      zip.addFile(filename, fileBuffer);
-    } else if (originalBuffer && originalFilename) {
-      // Arquivo não encriptado: inclui diretamente como original
-      zip.addFile(originalFilename, originalBuffer);
-    } else {
-      // Fallback: só o arquivo do cofre
-      zip.addFile(filename, fileBuffer);
     }
-    if (periciaPdfBytes)   zip.addFile('pericia_forense_ncfn_digital.pdf', periciaPdfBytes);
-    if (periciaPrintBytes) zip.addFile('pericia_forense_ncfn_impressao.pdf', periciaPrintBytes);
+    if (periciaPdfBytes)   zip.addFile('relatorio_custodia_ncfn_digital.pdf', periciaPdfBytes);
+    if (periciaPrintBytes) zip.addFile('relatorio_custodia_ncfn_impressao.pdf', periciaPrintBytes);
     zip.addFile('VERIFICACAO_HASHES.txt', Buffer.from(hashManifest, 'utf-8'));
     const zipBuf = zip.toBuffer();
 
@@ -204,6 +273,21 @@ export async function GET(req: NextRequest) {
     prisma.vaultAccessLog.create({
       data: { filePath: `${folder}/${filename}`, action: 'download', userEmail: userEmail || 'unknown', ip, isCanary: false },
     }).catch(() => {});
+
+    // Registra hashes no FileStatus para que /auditor possa verificá-los
+    prisma.fileStatus.upsert({
+      where: { folder_filename: { folder, filename } },
+      update: { sha256, size: statSync(filePath).size },
+      create: { folder, filename, sha256, size: statSync(filePath).size, isPublic: false },
+    }).catch(() => {});
+    if (originalBuffer && originalFilename && originalFilename !== filename) {
+      const origSha256 = createHash('sha256').update(originalBuffer).digest('hex');
+      prisma.fileStatus.upsert({
+        where: { folder_filename: { folder, filename: originalFilename } },
+        update: { sha256: origSha256, size: originalBuffer.length },
+        create: { folder, filename: originalFilename, sha256: origSha256, size: originalBuffer.length, isPublic: false },
+      }).catch(() => {});
+    }
 
     // Burn copy — salva cópia AES imutável em 100_BURN_IMMUTABILITY (acumulativa)
     try {

@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession, getDbUser } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rateLimit';
 import fs from 'fs';
 import path from 'path';
 
@@ -27,6 +28,10 @@ export async function POST(req: NextRequest) {
   try {
     const user = await adminGuard();
     if (!user) return new NextResponse('Não autorizado', { status: 401 });
+
+    if (!checkRateLimit(`vault-coleta:${user.email}`, 20, 60_000)) {
+      return NextResponse.json({ error: 'Limite de requisições atingido. Aguarde 1 minuto.' }, { status: 429 });
+    }
 
     const body = await req.json();
     const { folder, filename, attestsVeracity, collectedByUser, collectionDate, filled } = body;

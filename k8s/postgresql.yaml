@@ -1,0 +1,168 @@
+# ═══════════════════════════════════════════════════════════════
+# Portal NCFN — PostgreSQL StatefulSet
+# Single-node k3s com volume persistente Retain
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ncfn-postgres-pv
+  labels:
+    project: ncfn-portal
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /home/roaaxxz/docker/portal_ncfn/data/postgres
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ncfn-postgres-pvc
+  namespace: ncfn
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
+  volumeName: ncfn-postgres-pv
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ncfn
+  labels:
+    app: postgres
+    project: ncfn-portal
+spec:
+  serviceName: postgres-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+
+          env:
+            - name: POSTGRES_DB
+              value: ncfn_db
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ncfn-env
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ncfn-env
+                  key: POSTGRES_PASSWORD
+            # Otimizações de performance
+            - name: POSTGRES_INITDB_ARGS
+              value: "--encoding=UTF8 --locale=C"
+
+          args:
+            - "-c"
+            - "max_connections=200"
+            - "-c"
+            - "shared_buffers=256MB"
+            - "-c"
+            - "effective_cache_size=1GB"
+            - "-c"
+            - "wal_level=replica"
+            - "-c"
+            - "archive_mode=off"
+
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "ncfn_db"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 5
+
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "ncfn_db"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: ncfn-postgres-pvc
+
+      # Afinidade: manter postgres no mesmo nó que o portal
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: portal
+                topologyKey: kubernetes.io/hostname
+---
+# Service ClusterIP para acesso interno
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+  namespace: ncfn
+  labels:
+    app: postgres
+    project: ncfn-portal
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+---
+# Headless service para StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-headless
+  namespace: ncfn
+  labels:
+    app: postgres
+    project: ncfn-portal
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

@@ -1,0 +1,62 @@
+# ═══════════════════════════════════════════════════════════════
+# Portal NCFN — Prisma Migration Job
+# Executar UMA VEZ antes de fazer deploy do portal
+# kubectl apply -f k8s/migration-job.yaml
+# kubectl wait --for=condition=complete job/prisma-migrate -n ncfn --timeout=120s
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prisma-migrate
+  namespace: ncfn
+  labels:
+    project: ncfn-portal
+    type: migration
+spec:
+  ttlSecondsAfterFinished: 600  # auto-limpeza após 10 min
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: prisma-migrate
+    spec:
+      restartPolicy: OnFailure
+
+      initContainers:
+        # Aguarda PostgreSQL ficar pronto antes de migrar
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres-svc 5432; do
+                echo "Aguardando PostgreSQL..."
+                sleep 3
+              done
+              echo "PostgreSQL pronto."
+
+      containers:
+        - name: migrate
+          image: ncfn/portal:latest
+          imagePullPolicy: Never
+          command:
+            - sh
+            - -c
+            - |
+              echo "Executando prisma migrate deploy..."
+              npx prisma migrate deploy
+              echo "Migrações aplicadas com sucesso."
+
+          envFrom:
+            - secretRef:
+                name: ncfn-env
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

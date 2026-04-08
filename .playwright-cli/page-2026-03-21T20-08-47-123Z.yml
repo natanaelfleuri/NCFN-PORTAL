@@ -1,0 +1,787 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e20]:
+    - banner [ref=e21]:
+      - link "■ NCFN.NET Nexus Cyber Forensic Network" [ref=e22] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e23]: ■
+        - generic [ref=e24]:
+          - generic [ref=e25]: NCFN.NET
+          - generic [ref=e26]: Nexus Cyber Forensic Network
+      - navigation [ref=e28]:
+        - button "Ver Grafo" [ref=e29] [cursor=pointer]:
+          - img [ref=e30]
+          - generic [ref=e34]: Ver Grafo
+        - link "Vitrine" [ref=e35] [cursor=pointer]:
+          - /url: /vitrine
+          - img [ref=e36]
+          - text: Vitrine
+        - link "Auditor" [ref=e39] [cursor=pointer]:
+          - /url: /auditor
+          - img [ref=e40]
+          - text: Auditor
+        - link "Guia" [ref=e42] [cursor=pointer]:
+          - /url: /doc
+          - img [ref=e43]
+          - text: Guia
+        - link "Entrar" [ref=e46] [cursor=pointer]:
+          - /url: /login
+    - main [ref=e47]:
+      - generic [ref=e48]:
+        - generic [ref=e63]:
+          - img [ref=e65]
+          - heading "NÚCLEO DE INTELIGÊNCIA" [level=2] [ref=e67]
+          - paragraph [ref=e68]: Monitoramento Global de Ativos e Diretórios
+          - generic [ref=e69]:
+            - generic [ref=e70]: NEXUS CYBER FORENSIC NETWORK
+            - generic [ref=e71]: ⌘ K
+          - button "Como funciona" [ref=e72] [cursor=pointer]:
+            - img [ref=e73]
+            - text: Como funciona
+        - generic [ref=e77]:
+          - heading "Módulos do Sistema" [level=3] [ref=e78]
+          - paragraph [ref=e79]: Ferramentas operacionais
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - button "TODOS" [ref=e83] [cursor=pointer]:
+              - img [ref=e85]
+              - generic [ref=e87]: TODOS
+            - button "DOCUMENTOS" [ref=e88] [cursor=pointer]:
+              - generic [ref=e90]: DOCUMENTOS
+            - button "SISTEMA" [ref=e91] [cursor=pointer]:
+              - generic [ref=e93]: SISTEMA
+            - button "INVESTIGAÇÃO" [ref=e94] [cursor=pointer]:
+              - generic [ref=e96]: INVESTIGAÇÃO
+            - button "FERRAMENTAS" [ref=e97] [cursor=pointer]:
+              - generic [ref=e99]: FERRAMENTAS
+            - button "UTILIDADES" [ref=e100] [cursor=pointer]:
+              - generic [ref=e102]: UTILIDADES
+          - link "COFRE DE ARQUIVOS PROTEGIDOS" [ref=e103] [cursor=pointer]:
+            - /url: /vault
+            - generic [ref=e104]:
+              - img [ref=e106]
+              - img [ref=e109]
+              - heading "COFRE DE ARQUIVOS PROTEGIDOS" [level=3] [ref=e112]
+          - link "HUB PÚBLICO _" [ref=e113] [cursor=pointer]:
+            - /url: /home
+            - generic [ref=e114]:
+              - img [ref=e116]
+              - heading "HUB PÚBLICO _" [level=3] [ref=e119]
+          - link "LINKS ÚTEIS _" [ref=e120] [cursor=pointer]:
+            - /url: /admin/links-uteis
+            - generic [ref=e121]:
+              - img [ref=e123]
+              - heading "LINKS ÚTEIS _" [level=3] [ref=e126]
+          - link "GERAR NOVO RELATÓRIO / PERÍCIA DIGITAL _" [ref=e127] [cursor=pointer]:
+            - /url: /admin/pericia-arquivo
+            - generic [ref=e128]:
+              - img [ref=e130]
+              - heading "GERAR NOVO RELATÓRIO / PERÍCIA DIGITAL _" [level=3] [ref=e135]
+          - link "AUDITORIA FORENSE _" [ref=e136] [cursor=pointer]:
+            - /url: /admin/auditoria-sansao
+            - generic [ref=e137]:
+              - img [ref=e139]
+              - heading "AUDITORIA FORENSE _" [level=3] [ref=e144]
+          - link "LOG'S E INFORMAÇÕES IMUTÁVEIS DOS ATIVOS _" [ref=e145] [cursor=pointer]:
+            - /url: /admin/cofre
+            - generic [ref=e146]:
+              - img [ref=e148]
+              - heading "LOG'S E INFORMAÇÕES IMUTÁVEIS DOS ATIVOS _" [level=3] [ref=e150]
+          - link "CENTRAL DE RELATÓRIOS / PERÍCIAS DIGITAIS _" [ref=e151] [cursor=pointer]:
+            - /url: /admin/laudo-forense
+            - generic [ref=e152]:
+              - img [ref=e154]
+              - heading "CENTRAL DE RELATÓRIOS / PERÍCIAS DIGITAIS _" [level=3] [ref=e157]
+          - link "DESCRIPTAR ATIVO / REVERTER CRIPTOGRAFIA AES _" [ref=e158] [cursor=pointer]:
+            - /url: /admin/descriptar
+            - generic [ref=e159]:
+              - img [ref=e161]
+              - heading "DESCRIPTAR ATIVO / REVERTER CRIPTOGRAFIA AES _" [level=3] [ref=e164]
+          - link "VERIFICAR INTEGRIDADE / CALCULAR HASH DO ATIVO _" [ref=e165] [cursor=pointer]:
+            - /url: /auditor
+            - generic [ref=e166]:
+              - img [ref=e168]
+              - heading "VERIFICAR INTEGRIDADE / CALCULAR HASH DO ATIVO _" [level=3] [ref=e171]
+          - link "CENTRAL DE ATIVOS DISPONIBILIZADOS PARA TERCEIROS _" [ref=e172] [cursor=pointer]:
+            - /url: /vitrine
+            - generic [ref=e173]:
+              - img [ref=e175]
+              - heading "CENTRAL DE ATIVOS DISPONIBILIZADOS PARA TERCEIROS _" [level=3] [ref=e178]
+          - link "DETECÇÕES DE CONTRAINTELIGÊNCIA E MONITORAMENTO DE HACKERS E ROBÔS _" [ref=e179] [cursor=pointer]:
+            - /url: /admin/forensics
+            - generic [ref=e180]:
+              - img [ref=e182]
+              - heading "DETECÇÕES DE CONTRAINTELIGÊNCIA E MONITORAMENTO DE HACKERS E ROBÔS _" [level=3] [ref=e185]
+          - link "LIXEIRA VIRTUAL _" [ref=e186] [cursor=pointer]:
+            - /url: /admin/lixeira
+            - generic [ref=e187]:
+              - img [ref=e189]
+              - heading "LIXEIRA VIRTUAL _" [level=3] [ref=e192]
+          - link "DOC'S E MANUAIS DO SISTEMA NCFN _" [ref=e193] [cursor=pointer]:
+            - /url: /doc
+            - generic [ref=e194]:
+              - img [ref=e196]
+              - heading "DOC'S E MANUAIS DO SISTEMA NCFN _" [level=3] [ref=e201]
+          - link "GERENCIAMENTO DE CONVIDADOS _" [ref=e202] [cursor=pointer]:
+            - /url: /admin/convidados
+            - generic [ref=e203]:
+              - img [ref=e205]
+              - heading "GERENCIAMENTO DE CONVIDADOS _" [level=3] [ref=e210]
+          - link "CENTRAL DE MONITORAMENTO E DIAGNÓSTICO DO SISTEMA NCFN _" [ref=e211] [cursor=pointer]:
+            - /url: /admin/teste
+            - generic [ref=e212]:
+              - img [ref=e214]
+              - heading "CENTRAL DE MONITORAMENTO E DIAGNÓSTICO DO SISTEMA NCFN _" [level=3] [ref=e217]
+          - link "CENTRAL DE CONFIGURAÇÕES E MONITORAMENTO DA [I.A.] LOCAL - PERITO SANSÃO _" [ref=e218] [cursor=pointer]:
+            - /url: /admin/ia-config
+            - generic [ref=e219]:
+              - img [ref=e221]
+              - heading "CENTRAL DE CONFIGURAÇÕES E MONITORAMENTO DA [I.A.] LOCAL - PERITO SANSÃO _" [level=3] [ref=e224]
+          - link "CENTRAL DE REGISTRO E MONITORAMENTO DE LOGS DE SESSÕES _" [ref=e225] [cursor=pointer]:
+            - /url: /admin/logs
+            - generic [ref=e226]:
+              - img [ref=e228]
+              - heading "CENTRAL DE REGISTRO E MONITORAMENTO DE LOGS DE SESSÕES _" [level=3] [ref=e232]
+          - link "SISTEMA DE COLETA DE ATIVOS EM TEMPO REAL NA INTERNET _" [ref=e233] [cursor=pointer]:
+            - /url: /admin/captura-web
+            - generic [ref=e234]:
+              - img [ref=e236]
+              - heading "SISTEMA DE COLETA DE ATIVOS EM TEMPO REAL NA INTERNET _" [level=3] [ref=e239]
+          - link "SISTEMA DE CUSTÓDIA DE DADOS E INVESTIGAÇÕES EM FONTES ABERTAS COLETADOS FORA DO NCFN _" [ref=e240] [cursor=pointer]:
+            - /url: /admin/investigar
+            - generic [ref=e241]:
+              - img [ref=e243]
+              - heading "SISTEMA DE CUSTÓDIA DE DADOS E INVESTIGAÇÕES EM FONTES ABERTAS COLETADOS FORA DO NCFN _" [level=3] [ref=e246]
+          - link "SISTEMA ATIVO DE INVESTIGAÇÕES EM FONTES ABERTAS E NA DEEP/DARK WEB _" [ref=e247] [cursor=pointer]:
+            - /url: /admin/varreduras
+            - generic [ref=e248]:
+              - img [ref=e250]
+              - heading "SISTEMA ATIVO DE INVESTIGAÇÕES EM FONTES ABERTAS E NA DEEP/DARK WEB _" [level=3] [ref=e255]
+          - link "MAPA DE PLANEJAMENTO E LOCALIZAÇÃO DE ALVOS _" [ref=e256] [cursor=pointer]:
+            - /url: /admin/relatorios
+            - generic [ref=e257]:
+              - img [ref=e259]
+              - heading "MAPA DE PLANEJAMENTO E LOCALIZAÇÃO DE ALVOS _" [level=3] [ref=e262]
+          - link "DISPOSITIVO PARA CRIAÇÃO DE ARQUIVOS DE CONTRAINTELIGÊNCIA DO NCFN _" [ref=e263] [cursor=pointer]:
+            - /url: /admin/canary
+            - generic [ref=e264]:
+              - img [ref=e266]
+              - heading "DISPOSITIVO PARA CRIAÇÃO DE ARQUIVOS DE CONTRAINTELIGÊNCIA DO NCFN _" [level=3] [ref=e268]
+          - link "DISPOSITIVO EXTREMO DE SEGURANÇA DOS ATIVOS CUSTODIADOS _" [ref=e269] [cursor=pointer]:
+            - /url: /admin/security
+            - generic [ref=e270]:
+              - img [ref=e272]
+              - heading "DISPOSITIVO EXTREMO DE SEGURANÇA DOS ATIVOS CUSTODIADOS _" [level=3] [ref=e274]
+          - link "GERENCIAR PERFIL _" [ref=e275] [cursor=pointer]:
+            - /url: /admin/perfil
+            - generic [ref=e276]:
+              - img [ref=e278]
+              - heading "GERENCIAR PERFIL _" [level=3] [ref=e290]
+          - link "RELATÓRIOS E AUDITORIAS GLOBAIS DO SISTEMA _" [ref=e291] [cursor=pointer]:
+            - /url: /admin/relatorio-geral
+            - generic [ref=e292]:
+              - img [ref=e294]
+              - heading "RELATÓRIOS E AUDITORIAS GLOBAIS DO SISTEMA _" [level=3] [ref=e296]
+          - link "ATIVAR/DESATIVAR DISPOSITIVO MÓVEL _" [ref=e297] [cursor=pointer]:
+            - /url: /admin/perfil
+            - generic [ref=e298]:
+              - img [ref=e300]
+              - heading "ATIVAR/DESATIVAR DISPOSITIVO MÓVEL _" [level=3] [ref=e312]
+          - link "CENTRAL DE COMUNICAÇÃO INTERNA PROTEGIDA _" [ref=e313] [cursor=pointer]:
+            - /url: /admin/chat
+            - generic [ref=e314]:
+              - img [ref=e316]
+              - heading "CENTRAL DE COMUNICAÇÃO INTERNA PROTEGIDA _" [level=3] [ref=e318]
+          - link "TORNE-SE MEMBRO DO NCFN E/OU COLABORE COM O SISTEMA _" [ref=e319] [cursor=pointer]:
+            - /url: /colaborar
+            - generic [ref=e320]:
+              - img [ref=e322]
+              - heading "TORNE-SE MEMBRO DO NCFN E/OU COLABORE COM O SISTEMA _" [level=3] [ref=e327]
+          - link "CENTRAL DE GERENCIAMENTO DE API'S DE TERCEIROS _" [ref=e328] [cursor=pointer]:
+            - /url: /admin/api-central
+            - generic [ref=e329]:
+              - img [ref=e331]
+              - heading "CENTRAL DE GERENCIAMENTO DE API'S DE TERCEIROS _" [level=3] [ref=e333]
+        - generic [ref=e335]:
+          - heading "Diretórios de Ativos Custodiados" [level=3] [ref=e336]
+          - paragraph [ref=e337]: 12 diretórios de custódia digital
+        - generic [ref=e339]:
+          - generic [ref=e341]:
+            - img [ref=e343]
+            - generic [ref=e345]:
+              - heading "0 NCFN-ULTRASECRETOS" [level=3] [ref=e346]
+              - paragraph [ref=e347]: vazio
+            - generic [ref=e348]: 0 arqs.
+          - generic [ref=e350]:
+            - img [ref=e352]
+            - generic [ref=e354]:
+              - heading "1 NCFN-PROVAS-SENSÍVEIS" [level=3] [ref=e355]
+              - paragraph [ref=e356]: vazio
+            - generic [ref=e357]: 0 arqs.
+          - generic [ref=e359]:
+            - img [ref=e361]
+            - generic [ref=e363]:
+              - heading "2 NCFN-ELEMENTOS-DE-PROVA" [level=3] [ref=e364]
+              - paragraph [ref=e365]: vazio
+            - generic [ref=e366]: 0 arqs.
+          - generic [ref=e368]:
+            - img [ref=e370]
+            - generic [ref=e372]:
+              - heading "3 NCFN-DOCUMENTOS-GERENTE" [level=3] [ref=e373]
+              - paragraph [ref=e374]: vazio
+            - generic [ref=e375]: 0 arqs.
+          - generic [ref=e377]:
+            - img [ref=e379]
+            - generic [ref=e381]:
+              - heading "4 NCFN-PROCESSOS-PROCEDIMENTOS-CONTRATOS" [level=3] [ref=e382]
+              - paragraph [ref=e383]: vazio
+            - generic [ref=e384]: 0 arqs.
+          - generic [ref=e386]:
+            - img [ref=e388]
+            - generic [ref=e390]:
+              - heading "5 NCFN-GOVERNOS-EMPRESAS" [level=3] [ref=e391]
+              - paragraph [ref=e392]: vazio
+            - generic [ref=e393]: 0 arqs.
+          - generic [ref=e395]:
+            - img [ref=e397]
+            - generic [ref=e399]:
+              - heading "6 NCFN-FORNECIDOS sem registro de coleta" [level=3] [ref=e400]
+              - paragraph [ref=e401]: vazio
+            - generic [ref=e402]: 0 arqs.
+          - generic [ref=e404]:
+            - img [ref=e406]
+            - generic [ref=e408]:
+              - heading "7 NCFN-CAPTURAS-WEB OSINT" [level=3] [ref=e409]
+              - paragraph [ref=e410]: vazio
+            - generic [ref=e411]: 0 arqs.
+          - generic [ref=e413]:
+            - img [ref=e415]
+            - generic [ref=e417]:
+              - heading "8 NCFN-VIDEOS" [level=3] [ref=e418]
+              - paragraph [ref=e419]: vazio
+            - generic [ref=e420]: 0 arqs.
+          - generic [ref=e422]:
+            - img [ref=e424]
+            - generic [ref=e426]:
+              - heading "9 NCFN-PERFIS-CRIMINAIS SUSPEITOS CRIMINOSOS" [level=3] [ref=e427]
+              - paragraph [ref=e428]: vazio
+            - generic [ref=e429]: 0 arqs.
+          - generic [ref=e431]:
+            - img [ref=e433]
+            - generic [ref=e435]:
+              - heading "10 NCFN-ÁUDIO" [level=3] [ref=e436]
+              - paragraph [ref=e437]: vazio
+            - generic [ref=e438]: 0 arqs.
+          - generic [ref=e440]:
+            - img [ref=e442]
+            - generic [ref=e444]:
+              - heading "11 NCFN- COMPARTILHAMENTO-COM-TERCEIROS" [level=3] [ref=e445]
+              - paragraph [ref=e446]: vazio
+            - generic [ref=e447]: 0 arqs.
+        - generic [ref=e449]:
+          - heading "Dashboard de Monitoramento de Atívos" [level=3] [ref=e450]
+          - paragraph [ref=e451]: Métricas de custódia em tempo real
+        - generic [ref=e453]:
+          - generic [ref=e455]:
+            - img [ref=e457]
+            - generic [ref=e460]:
+              - heading "PAINEL ANALÍTICO" [level=3] [ref=e461]
+              - paragraph [ref=e462]: Métricas de custódia em tempo real
+          - generic [ref=e464]:
+            - generic [ref=e465]:
+              - generic [ref=e466]:
+                - img [ref=e467]
+                - generic [ref=e470]: Atividade — Últimos 7 Dias
+              - application [ref=e473]:
+                - generic [ref=e492]:
+                  - generic [ref=e493]:
+                    - generic [ref=e495]: dom., 15
+                    - generic [ref=e497]: seg., 16
+                    - generic [ref=e499]: ter., 17
+                    - generic [ref=e501]: qua., 18
+                    - generic [ref=e503]: qui., 19
+                    - generic [ref=e505]: sex., 20
+                    - generic [ref=e507]: sáb., 21
+                  - generic [ref=e508]:
+                    - generic [ref=e510]: "0"
+                    - generic [ref=e512]: "2"
+                    - generic [ref=e514]: "4"
+                    - generic [ref=e516]: "6"
+                    - generic [ref=e518]: "8"
+            - generic [ref=e519]:
+              - generic [ref=e520]:
+                - img [ref=e521]
+                - generic [ref=e524]: Tipos de Arquivo
+              - application [ref=e527]
+              - generic [ref=e543]:
+                - generic [ref=e544]:
+                  - generic [ref=e547]: BIN
+                  - generic [ref=e548]: 42%
+                - generic [ref=e549]:
+                  - generic [ref=e552]: MD
+                  - generic [ref=e553]: 31%
+                - generic [ref=e554]:
+                  - generic [ref=e557]: PNG
+                  - generic [ref=e558]: 23%
+                - generic [ref=e559]:
+                  - generic [ref=e562]: CMMVJ4DGF0000POTK7R7DH0B6
+                  - generic [ref=e563]: 4%
+          - generic [ref=e564]:
+            - generic [ref=e565]:
+              - img [ref=e566]
+              - generic [ref=e567]: Volume de Arquivos por Diretórios
+            - application [ref=e570]:
+              - generic [ref=e574]:
+                - generic [ref=e575]:
+                  - generic [ref=e577]: 0 · Ultrasecretos
+                  - generic [ref=e579]: 1 · Provas Sensíveis
+                  - generic [ref=e581]: 2 · Elementos de Prova
+                  - generic [ref=e583]: 3 · Docs Gerente
+                  - generic [ref=e585]: 4 · Processos/Contratos
+                  - generic [ref=e587]: 5 · Governos/Empresas
+                  - generic [ref=e589]: 6 · Fornecidos s/Reg.
+                  - generic [ref=e591]: 7 · Capturas Web/OSINT
+                  - generic [ref=e593]: 8 · Vídeos
+                  - generic [ref=e595]: 9 · Perfis Criminais
+                  - generic [ref=e597]: 10 · Áudio
+                  - generic [ref=e599]: 11 · Compartilhamento
+                - generic [ref=e600]:
+                  - generic [ref=e602]: "0"
+                  - generic [ref=e604]: 1KB
+                  - generic [ref=e606]: 2KB
+                  - generic [ref=e608]: 3KB
+                  - generic [ref=e610]: 4KB
+        - generic [ref=e611]:
+          - generic [ref=e612]:
+            - img [ref=e614]
+            - generic [ref=e618]: "26"
+            - generic [ref=e619]: Ativos sob Custódia
+          - generic [ref=e620]:
+            - img [ref=e622]
+            - generic [ref=e624]: 88.2 MB
+            - generic [ref=e625]: Volume Armazenado
+          - generic [ref=e626]:
+            - img [ref=e628]
+            - generic [ref=e631]: "2"
+            - generic [ref=e632]: Novos (24h)
+          - link "1 Acessos Monitorados Hoje" [ref=e633] [cursor=pointer]:
+            - /url: /admin/forensics
+            - generic [ref=e634]:
+              - img [ref=e636]
+              - generic [ref=e639]: "1"
+              - generic [ref=e640]: Acessos Monitorados Hoje
+          - link "15 Eventos de Segurança Totais" [ref=e641] [cursor=pointer]:
+            - /url: /admin/security
+            - generic [ref=e642]:
+              - img [ref=e644]
+              - generic [ref=e646]: "15"
+              - generic [ref=e647]: Eventos de Segurança Totais
+        - generic [ref=e648]:
+          - generic [ref=e649]:
+            - img [ref=e651]
+            - generic [ref=e654]: "0"
+            - generic [ref=e655]: Ativos com Perícia Salva
+          - generic [ref=e656]:
+            - img [ref=e658]
+            - generic [ref=e661]: "3"
+            - generic [ref=e662]: Ativos Encriptados
+          - generic [ref=e663]:
+            - img [ref=e665]
+            - generic [ref=e668]: 195.31 GB
+            - generic [ref=e669]: Espaço em Disco Disponível
+          - link "0 Sessões Ativas (15min)" [ref=e670] [cursor=pointer]:
+            - /url: /admin/auditoria-sansao
+            - generic [ref=e671]:
+              - img [ref=e673]
+              - generic [ref=e675]: "0"
+              - generic [ref=e676]: Sessões Ativas (15min)
+          - button "▶ Iniciar Varredura Geral" [ref=e677] [cursor=pointer]:
+            - img [ref=e679]
+            - generic [ref=e681]: ▶
+            - generic [ref=e682]: Iniciar Varredura Geral
+        - separator [ref=e683]
+        - generic [ref=e684]:
+          - generic [ref=e685]:
+            - generic [ref=e686]:
+              - img [ref=e688]
+              - generic [ref=e691]:
+                - heading "LOCALIZAÇÃO RASTREÁVEL DO GERENTE ATIVO E DE AMEAÇAS EM TEMPO REAL" [level=3] [ref=e692]
+                - paragraph [ref=e693]: Interceptações locais + operador ativo
+            - generic [ref=e696]: 0 interceptações
+          - generic [ref=e697]:
+            - generic [ref=e698]:
+              - generic:
+                - generic:
+                  - generic: Operador
+                - generic:
+                  - generic: Interceptação
+            - generic [ref=e702]:
+              - generic [ref=e703]:
+                - generic [ref=e704]:
+                  - img [ref=e706]
+                  - generic [ref=e709]:
+                    - paragraph [ref=e710]: Operador Ativo
+                    - paragraph [ref=e711]: fleuriengenharia@gmail.com
+                - generic [ref=e712]:
+                  - generic [ref=e713]:
+                    - img [ref=e714]
+                    - generic [ref=e716]: Função
+                    - generic [ref=e717]: ADMIN
+                  - generic [ref=e718]:
+                    - img [ref=e719]
+                    - generic [ref=e721]: Plano
+                    - generic [ref=e722]: Trial
+                  - generic [ref=e723]:
+                    - img [ref=e724]
+                    - generic [ref=e726]: Arquivos
+                    - generic [ref=e727]: 0 · 0 B
+              - generic [ref=e728]:
+                - paragraph [ref=e729]:
+                  - img [ref=e730]
+                  - text: Rede & Localização
+                - generic [ref=e734]:
+                  - generic [ref=e735]:
+                    - img [ref=e736]
+                    - generic [ref=e739]: IP
+                    - generic [ref=e740]: ::ffff:172.19.0.1
+                  - paragraph [ref=e741]: Localização indisponível
+              - generic [ref=e742]:
+                - paragraph [ref=e743]:
+                  - img [ref=e744]
+                  - text: Dispositivo
+                - generic [ref=e746]:
+                  - generic [ref=e747]:
+                    - img [ref=e748]
+                    - generic [ref=e750]: Browser
+                    - generic [ref=e751]: Chrome
+                  - generic [ref=e752]:
+                    - img [ref=e753]
+                    - generic [ref=e755]: OS
+                    - generic [ref=e756]: Linux
+                  - generic [ref=e757]:
+                    - img [ref=e758]
+                    - generic [ref=e761]: Sessão
+                    - generic [ref=e762]: 17:08:00
+                  - generic [ref=e763]:
+                    - img [ref=e764]
+                    - generic [ref=e767]: Membro desde
+                    - generic [ref=e768]: 20/03/2026
+                - paragraph [ref=e769]: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/146.0.0.0 Safari/537.36
+          - paragraph [ref=e771]: O endereço de Protocolo de Internet (IP) consubstancia identificador técnico atribuído a dispositivo conectado a rede de dados, cuja finalidade precípua é viabilizar a comunicação entre terminais, permitindo a indicação da origem lógica de determinada atividade digital, sem, contudo, possuir aptidão para individualizar, de forma direta e inequívoca, a identidade civil do agente. Nessa senda, os registros de IP ostentam natureza eminentemente indiciária e contextual, revelando-se insuficientes, quando considerados de forma isolada, para a comprovação da autoria delitiva. Sua valoração probatória demanda, imprescindivelmente, a conjugação com outros elementos informativos idôneos, regularmente obtidos mediante autorização judicial, quando exigível, e em estrita observância às garantias constitucionais do devido processo legal, da ampla defesa e do contraditório, de modo a viabilizar a segura imputação da conduta ao respectivo responsável.
+          - generic [ref=e772]:
+            - generic [ref=e773]:
+              - heading "Histórico de Interceptações de Ameaças e Tentativas de Acesso Não Autorizados" [level=4] [ref=e774]
+              - generic [ref=e775]: 0 registros
+            - table [ref=e777]:
+              - rowgroup [ref=e778]:
+                - row "Arquivo Data IP / Local Dispositivo" [ref=e779]:
+                  - columnheader "Arquivo" [ref=e780]
+                  - columnheader "Data" [ref=e781]
+                  - columnheader "IP / Local" [ref=e782]
+                  - columnheader "Dispositivo" [ref=e783]
+              - rowgroup [ref=e784]:
+                - row "Nenhuma interceptação registrada." [ref=e785]:
+                  - cell "Nenhuma interceptação registrada." [ref=e786]
+        - separator [ref=e787]
+        - generic [ref=e788]:
+          - generic [ref=e789]:
+            - heading "Diagnóstico do Sistema" [level=1] [ref=e790]:
+              - img [ref=e791]
+              - text: Diagnóstico do Sistema
+            - paragraph [ref=e794]: NOC — Verificação técnica do ecossistema Portal NCFN
+          - generic [ref=e795]:
+            - generic [ref=e796]: "Último: 17:08:00"
+            - button "Retestar Tudo" [ref=e797] [cursor=pointer]:
+              - img [ref=e798]
+              - text: Retestar Tudo
+            - button "⚠️ REVERSÃO CRÍTICA" [ref=e803] [cursor=pointer]:
+              - img [ref=e804]
+              - text: ⚠️ REVERSÃO CRÍTICA
+        - generic [ref=e806]:
+          - heading "Verificações de Saúde" [level=2] [ref=e807]:
+            - img [ref=e808]
+            - text: Verificações de Saúde
+          - generic [ref=e810]:
+            - generic [ref=e811]:
+              - img [ref=e812]
+              - generic [ref=e815]:
+                - paragraph [ref=e816]: VPS Stats API
+                - paragraph [ref=e817]: d8f8a877587d — linux/x64
+              - button "RETESTAR" [ref=e818] [cursor=pointer]:
+                - img [ref=e819]
+                - text: RETESTAR
+            - generic [ref=e824]:
+              - img [ref=e825]
+              - generic [ref=e828]:
+                - paragraph [ref=e829]: Banco de Dados (Prisma/SQLite)
+                - paragraph [ref=e830]: Conectado e operacional
+              - button "RETESTAR" [ref=e831] [cursor=pointer]:
+                - img [ref=e832]
+                - text: RETESTAR
+            - generic [ref=e837]:
+              - img [ref=e838]
+              - generic [ref=e841]:
+                - paragraph [ref=e842]: Vault COFRE_NCFN
+                - paragraph [ref=e843]: Acesso ao cofre verificado
+              - button "RETESTAR" [ref=e844] [cursor=pointer]:
+                - img [ref=e845]
+                - text: RETESTAR
+            - generic [ref=e850]:
+              - img [ref=e851]
+              - generic [ref=e854]:
+                - paragraph [ref=e855]: Ollama API (LLM Local)
+                - paragraph [ref=e856]: Endpoint configurado
+              - button "RETESTAR" [ref=e857] [cursor=pointer]:
+                - img [ref=e858]
+                - text: RETESTAR
+            - generic [ref=e863]:
+              - img [ref=e864]
+              - generic [ref=e868]:
+                - paragraph [ref=e869]: Cloudflare Tunnel
+                - paragraph [ref=e870]: Executando em rede local
+              - button "RETESTAR" [ref=e871] [cursor=pointer]:
+                - img [ref=e872]
+                - text: RETESTAR
+            - generic [ref=e877]:
+              - img [ref=e878]
+              - generic [ref=e882]:
+                - paragraph [ref=e883]: TLS / HTTPS
+                - paragraph [ref=e884]: Sem TLS (acesso local)
+              - button "RETESTAR" [ref=e885] [cursor=pointer]:
+                - img [ref=e886]
+                - text: RETESTAR
+        - generic [ref=e891]:
+          - heading "Métricas em Tempo Real" [level=2] [ref=e892]:
+            - img [ref=e893]
+            - text: Métricas em Tempo Real
+          - generic [ref=e896]:
+            - generic [ref=e897]:
+              - paragraph [ref=e898]: RAM Usada
+              - paragraph [ref=e899]: 55%
+              - paragraph [ref=e900]: 8.5 GB / 15.3 GB
+            - generic [ref=e901]:
+              - paragraph [ref=e902]: Disco Usado
+              - paragraph [ref=e903]: 67%
+              - paragraph [ref=e904]: 396.1 GB / 623.1 GB
+            - generic [ref=e905]:
+              - paragraph [ref=e906]: CPU Load 1m
+              - paragraph [ref=e907]: "6.27"
+              - paragraph [ref=e908]: 16 núcleos
+            - generic [ref=e909]:
+              - paragraph [ref=e910]: Uptime
+              - paragraph [ref=e911]: 0d 17h 30m
+              - paragraph [ref=e912]: linux / x64
+          - generic [ref=e913]: "CPU: 13th Gen Intel(R) Core(TM) i7-13620H ×16 | Host: d8f8a877587d | Node:"
+        - generic [ref=e914]:
+          - heading "Ecossistema Técnico" [level=2] [ref=e915]:
+            - img [ref=e916]
+            - text: Ecossistema Técnico
+          - generic [ref=e920]:
+            - generic [ref=e921]:
+              - paragraph [ref=e922]: Aplicação
+              - button "[ FLUSH CACHE ]" [ref=e924] [cursor=pointer]
+            - generic [ref=e925]:
+              - generic [ref=e926]:
+                - img [ref=e928]
+                - generic [ref=e932]:
+                  - paragraph [ref=e933]: Framework
+                  - paragraph [ref=e934]: Next.js 14 (App Router)
+              - generic [ref=e935]:
+                - img [ref=e937]
+                - generic [ref=e939]:
+                  - paragraph [ref=e940]: Runtime
+                  - paragraph [ref=e941]: Node.js / Bun
+              - generic [ref=e942]:
+                - img [ref=e944]
+                - generic [ref=e949]:
+                  - paragraph [ref=e950]: Linguagem
+                  - paragraph [ref=e951]: TypeScript 5 + React 18
+              - generic [ref=e952]:
+                - img [ref=e954]
+                - generic [ref=e958]:
+                  - paragraph [ref=e959]: ORM / Banco
+                  - paragraph [ref=e960]: Prisma + SQLite (WAL)
+              - generic [ref=e961]:
+                - img [ref=e963]
+                - generic [ref=e967]:
+                  - paragraph [ref=e968]: Auth
+                  - paragraph [ref=e969]: NextAuth v4 + Cloudflare Access OTP
+              - generic [ref=e970]:
+                - img [ref=e972]
+                - generic [ref=e974]:
+                  - paragraph [ref=e975]: Estilo
+                  - paragraph [ref=e976]: Tailwind CSS 3 + Lucide Icons
+          - generic [ref=e977]:
+            - paragraph [ref=e979]: Infraestrutura
+            - generic [ref=e980]:
+              - generic [ref=e981]:
+                - img [ref=e983]
+                - generic [ref=e986]:
+                  - paragraph [ref=e987]: Container
+                  - paragraph [ref=e988]: Docker + k3s (ncfn/portal:latest)
+              - generic [ref=e989]:
+                - img [ref=e991]
+                - generic [ref=e994]:
+                  - paragraph [ref=e995]: Proxy Reverso
+                  - paragraph [ref=e996]: Caddy 2 (HTTP via CF tunnel)
+              - generic [ref=e997]:
+                - img [ref=e999]
+                - generic [ref=e1003]:
+                  - paragraph [ref=e1004]: Túnel
+                  - paragraph [ref=e1005]: Cloudflare Tunnel (cloudflared)
+              - generic [ref=e1006]:
+                - img [ref=e1008]
+                - generic [ref=e1010]:
+                  - paragraph [ref=e1011]: Hospedagem
+                  - paragraph [ref=e1012]: Servidores Físicos Dedicados — EUA & Brasil
+              - generic [ref=e1013]:
+                - img [ref=e1015]
+                - generic [ref=e1017]:
+                  - paragraph [ref=e1018]: Domínio
+                  - paragraph [ref=e1019]: ncfn.net (Cloudflare DNS / Zero Trust)
+              - generic [ref=e1020]:
+                - img [ref=e1022]
+                - generic [ref=e1025]:
+                  - paragraph [ref=e1026]: CDN / DDoS
+                  - paragraph [ref=e1027]: Cloudflare Global Network
+          - generic [ref=e1028]:
+            - generic [ref=e1029]:
+              - paragraph [ref=e1030]: Segurança & Forense
+              - button "[ CHECK ENV INTEGRITY ]" [ref=e1032] [cursor=pointer]
+            - generic [ref=e1033]:
+              - generic [ref=e1034]:
+                - img [ref=e1036]
+                - generic [ref=e1039]:
+                  - paragraph [ref=e1040]: Criptografia
+                  - paragraph [ref=e1041]: AES-256-CBC + scrypt (CRYPTO_SALT)
+              - generic [ref=e1042]:
+                - img [ref=e1044]
+                - generic [ref=e1046]:
+                  - paragraph [ref=e1047]: Integridade
+                  - paragraph [ref=e1048]: SHA-256 / MD5 / SHA-1 por arquivo
+              - generic [ref=e1049]:
+                - img [ref=e1051]
+                - generic [ref=e1054]:
+                  - paragraph [ref=e1055]: Timestamping
+                  - paragraph [ref=e1056]: RFC 3161 TSA (prova forense)
+              - generic [ref=e1057]:
+                - img [ref=e1059]
+                - generic [ref=e1061]:
+                  - paragraph [ref=e1062]: Dead Man Switch
+                  - paragraph [ref=e1063]: Cron + Lockdown/Wipe automático
+              - generic [ref=e1064]:
+                - img [ref=e1066]
+                - generic [ref=e1068]:
+                  - paragraph [ref=e1069]: Rate Limit
+                  - paragraph [ref=e1070]: Sliding-window in-memory
+              - generic [ref=e1071]:
+                - img [ref=e1073]
+                - generic [ref=e1075]:
+                  - paragraph [ref=e1076]: Vault
+                  - paragraph [ref=e1077]: COFRE_NCFN + 100_BURN_IMMUTABILITY
+          - generic [ref=e1078]:
+            - generic [ref=e1079]:
+              - paragraph [ref=e1080]: IA & Análise
+              - button "[ STRESS TEST IA ]" [ref=e1082] [cursor=pointer]
+            - generic [ref=e1083]:
+              - generic [ref=e1084]:
+                - img [ref=e1086]
+                - generic [ref=e1089]:
+                  - paragraph [ref=e1090]: LLM Local
+                  - paragraph [ref=e1091]: Ollama (mistral / llava)
+              - generic [ref=e1092]:
+                - img [ref=e1094]
+                - generic [ref=e1099]:
+                  - paragraph [ref=e1100]: Análise Visual
+                  - paragraph [ref=e1101]: Ollama Vision (llava model)
+              - generic [ref=e1102]:
+                - img [ref=e1104]
+                - generic [ref=e1106]:
+                  - paragraph [ref=e1107]: ASR (Áudio)
+                  - paragraph [ref=e1108]: Whisper ASR (container separado)
+              - generic [ref=e1109]:
+                - img [ref=e1111]
+                - generic [ref=e1115]:
+                  - paragraph [ref=e1116]: RAG / Embeddings
+                  - paragraph [ref=e1117]: ChromaDB (container opcional)
+              - generic [ref=e1118]:
+                - img [ref=e1120]
+                - generic [ref=e1122]:
+                  - paragraph [ref=e1123]: Perito Sansão
+                  - paragraph [ref=e1124]: 6 protocolos forenses + SSE streaming
+              - generic [ref=e1125]:
+                - img [ref=e1127]
+                - generic [ref=e1132]:
+                  - paragraph [ref=e1133]: Laudo IA
+                  - paragraph [ref=e1134]: Geração de laudos com Ollama + pdf-lib
+        - generic [ref=e1135]:
+          - heading "Arquitetura de Conexão (Mapa de Latência)" [level=2] [ref=e1136]:
+            - img [ref=e1137]
+            - text: Arquitetura de Conexão (Mapa de Latência)
+          - generic [ref=e1141]:
+            - generic [ref=e1143]:
+              - generic [ref=e1144]: Usuário (Browser)
+              - generic [ref=e1145]:
+                - text: ──[
+                - generic [ref=e1146]: 20ms
+                - text: "]──>"
+              - generic [ref=e1147]: Cloudflare Edge
+              - generic [ref=e1148]: ·
+              - generic [ref=e1149]: HTTPS/TLS 1.3
+            - generic [ref=e1150]:
+              - generic [ref=e1151]:
+                - generic [ref=e1152]: Cloudflare Edge
+                - generic [ref=e1153]:
+                  - text: ──[
+                  - generic [ref=e1154]: 5ms
+                  - text: "]──>"
+                - generic [ref=e1155]: Cloudflared Tunnel
+                - generic [ref=e1156]: ·
+                - generic [ref=e1157]: WireGuard / QUIC
+              - generic [ref=e1158]: "└── [ UPTIME DO TÚNEL: 99.98% — Última queda: 43 dias atrás ]"
+            - generic [ref=e1160]:
+              - generic [ref=e1161]: cloudflared
+              - generic [ref=e1162]:
+                - text: ──[
+                - generic [ref=e1163]: 2ms
+                - text: "]──>"
+              - generic [ref=e1164]: Caddy Proxy
+              - generic [ref=e1165]: ·
+              - generic [ref=e1166]: HTTP/2 interno
+            - generic [ref=e1168]:
+              - generic [ref=e1169]: Caddy Proxy
+              - generic [ref=e1170]:
+                - text: ──[
+                - generic [ref=e1171]: 1ms
+                - text: "]──>"
+              - generic [ref=e1172]: Next.js App
+              - generic [ref=e1173]: ·
+              - generic [ref=e1174]: HTTP localhost
+            - generic [ref=e1176]:
+              - generic [ref=e1177]: Next.js App
+              - generic [ref=e1178]:
+                - text: ──[
+                - generic [ref=e1179]: 0ms
+                - text: "]──>"
+              - generic [ref=e1180]: SQLite DB (Prisma)
+              - generic [ref=e1181]: ·
+              - generic [ref=e1182]: File I/O (WAL)
+            - generic [ref=e1184]:
+              - generic [ref=e1185]: Next.js App
+              - generic [ref=e1186]:
+                - text: ──[
+                - generic [ref=e1187]: 3ms
+                - text: "]──>"
+              - generic [ref=e1188]: Ollama LLM (11434)
+              - generic [ref=e1189]: ·
+              - generic [ref=e1190]: HTTP REST
+    - contentinfo [ref=e54]:
+      - generic [ref=e55]:
+        - paragraph [ref=e56]: "Security Level: Grade A | Neural Multi-Layer Active"
+        - paragraph [ref=e57]: "NCFN: Nexus Cloud Forensic Network | CopyLeft 2026"
+        - generic [ref=e58]:
+          - generic [ref=e59]: ncfn@ncfn.net
+          - generic [ref=e60]: "|"
+          - link "Política de Uso" [ref=e61] [cursor=pointer]:
+            - /url: /politica
+  - alert [ref=e62]
+  - generic [ref=e1191]: 1KB

@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { setFileCtx } from '@/app/components/FileContextNav';
 import {
     ShieldAlert, Lock, File, Folder, FolderOpen, ChevronDown, ChevronRight,
-    ChevronsDown, ChevronsUp, Hash, HardDrive, Clock, Eye, FileText,
+    Hash, HardDrive, Clock, Eye, FileText,
     FileCheck2, Shield, AlertTriangle, Activity, Menu, X, BookOpen, HelpCircle,
-    ArrowLeft,
+    ArrowLeft, ChevronDown as ChDown,
 } from 'lucide-react';
 
 interface VaultFile {
@@ -44,9 +45,7 @@ const FOLDER_LABELS: Record<string, string> = {
     '8_NCFN-VIDEOS': '8 · Vídeos',
     '9_NCFN-PERFIS-CRIMINAIS_SUSPEITOS_CRIMINOSOS': '9 · Perfis Criminais',
     '10_NCFN-ÁUDIO': '10 · Áudio',
-    '11_NCFN- COMPARTILHAMENTO-COM-TERCEIROS': '11 · Compartilhamento c/ Terceiros',
     '12_NCFN-METADADOS-LIMPOS': '12 · Metadados Limpos',
-    '100_BURN_IMMUTABILITY': '100 · Burn / Imutabilidade',
 };
 
 function formatBytes(b: number) {
@@ -55,14 +54,19 @@ function formatBytes(b: number) {
     return `${(b / 1048576).toFixed(2)} MB`;
 }
 
-const ACTION_LABELS: Record<string, { label: string; color: string }> = {
-    read:     { label: 'Leitura',   color: 'text-cyan-400' },
-    download: { label: 'Download',  color: 'text-blue-400' },
-    custody:  { label: 'Custódia',  color: 'text-purple-400' },
-    pericia:  { label: 'Perícia',   color: 'text-violet-400' },
-    delete:   { label: 'Excluído',  color: 'text-red-400' },
-    trash:    { label: 'Lixeira',   color: 'text-yellow-400' },
-    canary:   { label: '⚠ CANARY',  color: 'text-red-500 font-black' },
+const ACTION_LABELS: Record<string, { label: string; color: string; actor: string }> = {
+    read:     { label: 'Leitura',           color: '#22d3ee', actor: 'Usuário' },
+    upload:   { label: 'Custódia',          color: '#8b5cf6', actor: 'Usuário' },
+    download: { label: 'Download',          color: '#3b82f6', actor: 'Usuário' },
+    custody:  { label: 'Custódia Inicial',  color: '#8b5cf6', actor: 'Usuário' },
+    pericia:  { label: 'Perícia Digital',   color: '#a78bfa', actor: 'Sistema NCFN' },
+    encrypt:  { label: 'Encriptação',       color: '#f59e0b', actor: 'Sistema NCFN' },
+    decrypt:  { label: 'Decriptação',       color: '#10b981', actor: 'Usuário' },
+    share:    { label: 'Compartilhamento',  color: '#6366f1', actor: 'Usuário' },
+    trash:    { label: 'Lixeira',           color: '#eab308', actor: 'Usuário' },
+    delete:   { label: 'Exclusão',          color: '#ef4444', actor: 'Usuário' },
+    burn:     { label: 'Burn Token',        color: '#f97316', actor: 'Usuário' },
+    canary:   { label: '⚠ CANARY',         color: '#ef4444', actor: 'Sistema NCFN' },
 };
 
 function FileTypeIcon({ type, size = 14 }: { type: string; size?: number }) {
@@ -73,24 +77,112 @@ function FileTypeIcon({ type, size = 14 }: { type: string; size?: number }) {
     return <File size={size} className="text-gray-400 flex-shrink-0" />;
 }
 
+// ─── Timeline Graph Components ─────────────────────────────────────────────
+interface TimelinePoint {
+    label: string;
+    actor: string;
+    color: string;
+    isCanary: boolean;
+    datetime: string;
+    user: string;
+}
+
+function CombinedTimeline({ points }: { points: TimelinePoint[] }) {
+    if (points.length === 0) return null;
+    const W = 900;
+    const pad = 60;
+    const usable = W - pad * 2;
+    const step = points.length > 1 ? usable / (points.length - 1) : 0;
+
+    // Top section: actors/actions (height 130 to leave room for 45° labels)
+    const actorRowY = 100;
+    // Bottom section: date/time (starts at 160)
+    const dateRowY = 165;
+    const H = dateRowY + 60; // total height
+
+    return (
+        <div className="w-full overflow-x-auto">
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[600px]" style={{ height: H }}>
+                {/* ── Actor/action baseline ── */}
+                {points.length > 1 && (
+                    <line x1={pad} y1={actorRowY} x2={pad + step * (points.length - 1)} y2={actorRowY}
+                        stroke="#1e293b" strokeWidth="2" />
+                )}
+                {/* ── Dotted vertical connectors between rows ── */}
+                {points.map((pt, i) => {
+                    const cx = pad + step * i;
+                    return (
+                        <line key={`conn-${i}`}
+                            x1={cx} y1={actorRowY + 8} x2={cx} y2={dateRowY - 8}
+                            stroke={pt.color} strokeWidth="1.5" strokeDasharray="3 3" opacity={0.5} />
+                    );
+                })}
+                {/* ── DateTime baseline ── */}
+                {points.length > 1 && (
+                    <line x1={pad} y1={dateRowY} x2={pad + step * (points.length - 1)} y2={dateRowY}
+                        stroke="#1e293b" strokeWidth="1.5" strokeDasharray="4 3" />
+                )}
+
+                {points.map((pt, i) => {
+                    const cx = pad + step * i;
+                    const dt = new Date(pt.datetime);
+                    const dateStr = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    const timeStr = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    return (
+                        <g key={i}>
+                            {/* ── Top row: action dot + 45° labels ── */}
+                            <circle cx={cx} cy={actorRowY} r={6} fill={pt.color} opacity={0.9}
+                                filter={pt.isCanary ? 'drop-shadow(0 0 6px #ef4444)' : `drop-shadow(0 0 4px ${pt.color}55)`} />
+                            {/* Label (action) — 45° above dot */}
+                            <text
+                                x={cx} y={actorRowY - 12}
+                                textAnchor="start" fontSize="9"
+                                fill={pt.color} fontWeight="bold" fontFamily="monospace"
+                                transform={`rotate(-45, ${cx}, ${actorRowY - 12})`}
+                            >
+                                {pt.label}
+                            </text>
+                            {/* Actor — 45° below dot */}
+                            <text
+                                x={cx} y={actorRowY + 14}
+                                textAnchor="start" fontSize="8"
+                                fill="#64748b" fontFamily="monospace"
+                                transform={`rotate(45, ${cx}, ${actorRowY + 14})`}
+                            >
+                                #{i + 1} {pt.actor.length > 12 ? pt.actor.slice(0, 10) + '…' : pt.actor}
+                            </text>
+
+                            {/* ── Bottom row: datetime dot + labels ── */}
+                            <circle cx={cx} cy={dateRowY} r={4} fill={pt.color} opacity={0.7} />
+                            <text x={cx} y={dateRowY + 14} textAnchor="middle" fontSize="8"
+                                fill="#94a3b8" fontFamily="monospace">{dateStr}</text>
+                            <text x={cx} y={dateRowY + 24} textAnchor="middle" fontSize="8"
+                                fill="#64748b" fontFamily="monospace">{timeStr}</text>
+                        </g>
+                    );
+                })}
+            </svg>
+        </div>
+    );
+}
+
 // ─── Main inner component ──────────────────────────────────────────────────
 function CofreAuditInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const initCustody = searchParams.get('custody');
     const fromPath = searchParams.get('from');
+    const initFolder = searchParams.get('folder');
+    const initFile = searchParams.get('file');
 
     const [folders, setFolders] = useState<Record<string, VaultFolder>>({});
     const [loadingFolders, setLoadingFolders] = useState(true);
-    const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
+    const [selectedFolder, setSelectedFolder] = useState<string>('');
     const [selected, setSelected] = useState<VaultFile | null>(null);
     const [logs, setLogs] = useState<AccessLog[]>([]);
     const [logsLoading, setLogsLoading] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [pdfUrl, setPdfUrl] = useState<string>('');
-    const [pdfType, setPdfType] = useState<'relatorio' | 'pericia' | ''>('');
-    const [pdfLoading, setPdfLoading] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
+    const [custodyState, setCustodyState] = useState<any>(null);
 
     const fetchFolders = useCallback(async () => {
         setLoadingFolders(true);
@@ -98,12 +190,13 @@ function CofreAuditInner() {
             const res = await fetch('/api/vault/browse');
             const data = await res.json();
             setFolders(data);
-            // If custody param, auto-select
-            if (initCustody) {
-                for (const f of Object.values(data) as VaultFolder[]) {
-                    const found = f.files?.find((x: VaultFile) => x.path === initCustody);
-                    if (found) { selectFile(found); break; }
-                }
+            // Auto-select folder from URL param
+            const paramFolder = initFolder || Object.keys(data)[0] || '';
+            setSelectedFolder(paramFolder);
+            // Auto-select file from URL param
+            if (initFolder && initFile && data[initFolder]) {
+                const fileObj = data[initFolder].files.find((f: VaultFile) => f.name === initFile || f.path === `${initFolder}/${initFile}`);
+                if (fileObj) selectFile(fileObj);
             }
         } catch { /* ignore */ } finally { setLoadingFolders(false); }
     }, []);
@@ -112,46 +205,86 @@ function CofreAuditInner() {
 
     const selectFile = async (file: VaultFile) => {
         setSelected(file);
-        setPdfUrl('');
-        setPdfType('');
         setLogsLoading(true);
         setLogs([]);
+        setCustodyState(null);
+        const [folder, ...rest] = file.path.split('/');
+        const filename = rest.join('/');
+        setFileCtx(folder, filename);
         try {
-            const res = await fetch(`/api/vault/logs?filePath=${encodeURIComponent(file.path)}&limit=200`);
-            const data = await res.json();
-            setLogs(data.logs || []);
+            const [logsRes, stateRes] = await Promise.all([
+                fetch(`/api/vault/logs?filePath=${encodeURIComponent(file.path)}&limit=200`),
+                fetch('/api/vault/custody-state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get', folder, filename }),
+                }),
+            ]);
+            const logsData = await logsRes.json();
+            setLogs(logsData.logs || []);
+            if (stateRes.ok) {
+                const stateData = await stateRes.json();
+                setCustodyState(stateData.state || null);
+            }
         } catch { /* ignore */ } finally { setLogsLoading(false); }
     };
 
-    const loadPdf = async (type: 'relatorio' | 'pericia') => {
-        if (!selected) return;
-        setPdfLoading(true);
-        setPdfType(type);
-        setPdfUrl('');
-        try {
-            const [folderName, ...rest] = selected.path.split('/');
-            const filename = rest.join('/');
-            let res: Response;
-            if (type === 'relatorio') {
-                res = await fetch(`/api/generate-report?folder=${encodeURIComponent(folderName)}`);
-            } else {
-                res = await fetch('/api/vault/custody-report', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filePath: selected.path }),
-                });
-            }
-            if (!res.ok) throw new Error(await res.text());
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            setPdfUrl(url);
-        } catch (e: any) {
-            alert('Erro: ' + e.message);
-        } finally { setPdfLoading(false); }
-    };
+    // Build timeline points: custody state events + access logs merged chronologically
+    const custodyEvents: TimelinePoint[] = [];
+    if (custodyState) {
+        if (custodyState.custodyStartedAt) custodyEvents.push({
+            label: 'T0 — Custódia Iniciada', actor: 'Sistema NCFN', color: '#bc13fe',
+            isCanary: false, datetime: custodyState.custodyStartedAt, user: 'Sistema NCFN',
+        });
+        if (custodyState.encryptedAt) custodyEvents.push({
+            label: 'Encriptação AES-256', actor: 'Sistema NCFN', color: '#f59e0b',
+            isCanary: false, datetime: custodyState.encryptedAt, user: 'Sistema NCFN',
+        });
+        if (custodyState.initialReportAt) custodyEvents.push({
+            label: 'Relatório Inicial', actor: 'Sistema NCFN', color: '#22c55e',
+            isCanary: false, datetime: custodyState.initialReportAt, user: 'Sistema NCFN',
+        });
+        if (custodyState.intermediaryReportAt) custodyEvents.push({
+            label: 'Relatório Intermediário', actor: 'Sistema NCFN', color: '#3b82f6',
+            isCanary: false, datetime: custodyState.intermediaryReportAt, user: 'Sistema NCFN',
+        });
+        if (custodyState.finalReportAt) custodyEvents.push({
+            label: 'Relatório Final', actor: 'Sistema NCFN', color: '#ef4444',
+            isCanary: false, datetime: custodyState.finalReportAt, user: 'Sistema NCFN',
+        });
+    }
+    const logPoints: TimelinePoint[] = [...logs].reverse().map(log => {
+        const act = ACTION_LABELS[log.action] || { label: log.action, color: '#6b7280', actor: log.userEmail };
+        return {
+            label: act.label,
+            actor: log.userEmail || act.actor,
+            color: act.color,
+            isCanary: log.isCanary,
+            datetime: log.createdAt,
+            user: log.userEmail,
+        };
+    });
+    const timelinePoints: TimelinePoint[] = [...custodyEvents, ...logPoints]
+        .sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime());
 
-    const totalFiles = Object.values(folders).reduce((s, f) => s + f.files.length, 0);
+    const folderFiles = selectedFolder && folders[selectedFolder]
+        ? folders[selectedFolder].files.filter(f => !f.name.startsWith('_'))
+        : [];
+
     const canaryAlerts = logs.filter(l => l.isCanary).length;
+
+    // Calculate custody duration
+    const custodyDuration = custodyState?.custodyStartedAt
+        ? (() => {
+            const start = new Date(custodyState.custodyStartedAt).getTime();
+            const end = custodyState.finalReportAt
+                ? new Date(custodyState.finalReportAt).getTime()
+                : Date.now();
+            const hrs = Math.round((end - start) / 3600000);
+            if (hrs < 24) return `${hrs}h`;
+            return `${Math.floor(hrs / 24)}d ${hrs % 24}h`;
+        })()
+        : null;
 
     return (
         <div className="flex h-[calc(100vh-80px)] overflow-hidden rounded-2xl border border-[#8b5cf6]/20 bg-black/40 backdrop-blur-xl">
@@ -165,91 +298,79 @@ function CofreAuditInner() {
             {/* ── Sidebar ── */}
             <aside className={`fixed lg:relative z-40 lg:z-auto h-full transition-transform duration-300 w-72 border-r border-white/5 flex flex-col bg-black/60 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
                 {/* Header */}
-                <div className="p-4 border-b border-white/5 flex-shrink-0">
-                    <div className="flex items-center gap-2 mb-1">
+                <div className="p-4 border-b border-white/5 flex-shrink-0 space-y-2">
+                    <div className="flex items-center gap-2">
                         <Shield size={18} className="text-[#8b5cf6]" />
-                        <h2 className="text-sm font-black text-white uppercase tracking-wider">Auditoria Vault</h2>
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 uppercase">IMUTÁVEL</span>
+                        <h2 className="text-sm font-black text-white uppercase tracking-wider">Log's Imutáveis</h2>
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 uppercase">LEITURA</span>
                     </div>
-                    <p className="text-[10px] text-gray-600 font-mono">{totalFiles} ativos · somente leitura</p>
+                    <p className="text-[10px] text-gray-600 font-mono">
+                        {Object.values(folders).reduce((s, f) => s + f.files.filter(ff => !ff.name.startsWith('_')).length, 0)} ativos · somente leitura
+                    </p>
                     <button
-                        onClick={() => {
-                            if (fromPath) {
-                                const parts = fromPath.split('/');
-                                const folder = parts[0];
-                                const file = parts.slice(1).join('/');
-                                router.push(`/vault?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(file)}`);
-                            } else {
-                                router.push('/vault');
-                            }
-                        }}
-                        className="flex items-center gap-2 text-xs text-cyan-400 hover:text-white border border-cyan-700/40 hover:border-cyan-500/60 bg-cyan-900/10 hover:bg-cyan-900/25 px-3 py-2 rounded-xl transition-all mt-2 w-full justify-center"
+                        onClick={() => router.push(fromPath ? `/vault?folder=${encodeURIComponent(fromPath.split('/')[0])}&file=${encodeURIComponent(fromPath.split('/').slice(1).join('/'))}` : '/vault')}
+                        className="flex items-center gap-2 text-xs text-cyan-400 hover:text-white border border-cyan-700/40 hover:border-cyan-500/60 bg-cyan-900/10 hover:bg-cyan-900/25 px-3 py-2 rounded-xl transition-all w-full justify-center"
                     >
                         <ArrowLeft size={13} />
-                        {fromPath ? 'Voltar ao Cofre de Arquivos' : 'Ir ao Cofre de Arquivos'}
+                        Cofre de Arquivos
                     </button>
                     <button onClick={() => setShowHelp(true)}
-                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all mt-2">
+                        className="flex items-center gap-2 text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 px-3 py-2 rounded-xl transition-all w-full justify-center">
                         <HelpCircle size={14} /> Como funciona
                     </button>
-                    <div className="flex gap-1 mt-2">
-                        <button onClick={() => setOpenFolders(new Set(Object.keys(folders)))}
-                            className="flex-1 flex items-center justify-center gap-1 py-1 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-[#8b5cf6] rounded text-[10px] transition-all">
-                            <ChevronsDown size={9} /> Abrir todas
-                        </button>
-                        <button onClick={() => setOpenFolders(new Set())}
-                            className="flex-1 flex items-center justify-center gap-1 py-1 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-gray-200 rounded text-[10px] transition-all">
-                            <ChevronsUp size={9} /> Fechar todas
-                        </button>
+
+                    {/* Folder Selector */}
+                    <div>
+                        <label className="block text-[10px] text-gray-600 font-mono mb-1 uppercase tracking-widest">Selecionar Pasta</label>
+                        <div className="relative">
+                            <select
+                                value={selectedFolder}
+                                onChange={e => { setSelectedFolder(e.target.value); setSelected(null); }}
+                                className="w-full bg-black/60 border border-[#8b5cf6]/30 focus:border-[#8b5cf6]/60 text-white text-xs px-3 py-2 pr-8 rounded-xl focus:outline-none appearance-none transition-all"
+                            >
+                                <option value="">— Selecione uma pasta —</option>
+                                {Object.keys(folders).map(key => (
+                                    <option key={key} value={key} className="bg-gray-900">
+                                        {FOLDER_LABELS[key] || key}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                        </div>
                     </div>
                 </div>
 
-                {/* Folder tree */}
+                {/* File list for selected folder */}
                 <div className="flex-1 overflow-y-auto p-2">
                     {loadingFolders ? (
                         <div className="flex items-center justify-center py-8">
                             <div className="w-4 h-4 border-2 border-[#8b5cf6]/40 border-t-[#8b5cf6] rounded-full animate-spin" />
                         </div>
+                    ) : !selectedFolder ? (
+                        <p className="text-[10px] text-gray-700 italic text-center py-6">Selecione uma pasta acima</p>
+                    ) : folderFiles.length === 0 ? (
+                        <p className="text-[10px] text-gray-700 italic text-center py-6">Pasta vazia</p>
                     ) : (
-                        Object.entries(folders).map(([folderName, folder]) => {
-                            const isOpen = openFolders.has(folderName);
-                            const label = FOLDER_LABELS[folderName] || folderName;
-                            return (
-                                <div key={folderName} className="mb-1">
-                                    <button
-                                        onClick={() => setOpenFolders(prev => { const n = new Set(prev); n.has(folderName) ? n.delete(folderName) : n.add(folderName); return n; })}
-                                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs font-semibold uppercase tracking-wide ${isOpen ? 'bg-white/5 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-white/3'}`}
-                                    >
-                                        {isOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                                        {isOpen ? <FolderOpen size={13} className="text-[#8b5cf6]" /> : <Folder size={13} className="text-[#8b5cf6]/50" />}
-                                        <span className="flex-1 truncate">{label}</span>
-                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono ${folder.files.length > 0 ? 'bg-[#8b5cf6]/10 text-[#8b5cf6]' : 'bg-white/5 text-gray-600'}`}>
-                                            {folder.files.length}
-                                        </span>
-                                    </button>
-                                    {isOpen && (
-                                        <div className="ml-4 mt-0.5 space-y-0.5 border-l border-white/5 pl-2">
-                                            {folder.files.length === 0 ? (
-                                                <p className="text-[10px] text-gray-700 italic px-2 py-1">Pasta vazia</p>
-                                            ) : folder.files.map(file => (
-                                                <button
-                                                    key={file.path}
-                                                    onClick={() => { selectFile(file); setSidebarOpen(false); }}
-                                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-all text-xs ${
-                                                        selected?.path === file.path
-                                                            ? 'bg-[#8b5cf6]/15 text-[#8b5cf6] border border-[#8b5cf6]/20'
-                                                            : 'text-gray-500 hover:text-white hover:bg-white/5'
-                                                    }`}
-                                                >
-                                                    <FileTypeIcon type={file.type} size={11} />
-                                                    <span className="flex-1 truncate font-mono text-[10px]">{file.name}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
+                        <div className="space-y-0.5">
+                            <p className="text-[9px] text-gray-700 font-mono uppercase tracking-widest px-2 pb-1">
+                                {FOLDER_LABELS[selectedFolder] || selectedFolder}
+                            </p>
+                            {folderFiles.map(file => (
+                                <button
+                                    key={file.path}
+                                    onClick={() => { selectFile(file); setSidebarOpen(false); }}
+                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-all text-xs ${
+                                        selected?.path === file.path
+                                            ? 'bg-[#8b5cf6]/15 text-[#8b5cf6] border border-[#8b5cf6]/20'
+                                            : 'text-gray-500 hover:text-white hover:bg-white/5'
+                                    }`}
+                                >
+                                    <FileTypeIcon type={file.type} size={11} />
+                                    <span className="flex-1 truncate font-mono text-[10px]">{file.name}</span>
+                                    {file.type === 'encrypted' && <Lock size={9} className="text-orange-500 flex-shrink-0" />}
+                                </button>
+                            ))}
+                        </div>
                     )}
                 </div>
             </aside>
@@ -257,168 +378,108 @@ function CofreAuditInner() {
             {/* ── Main panel ── */}
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
                 {selected ? (
-                    <div className="flex flex-col h-full">
+                    <div className="flex flex-col h-full overflow-auto">
                         {/* File header */}
                         <div className="flex-shrink-0 px-5 py-4 border-b border-white/5">
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-start gap-3 flex-wrap">
                                 <FileTypeIcon type={selected.type} size={18} />
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h1 className="text-base font-bold text-white truncate">{selected.name}</h1>
                                         <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 uppercase">SOMENTE LEITURA</span>
-                                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-[#8b5cf6]/10 text-[#8b5cf6] border border-[#8b5cf6]/20 uppercase">IMUTÁVEL</span>
+                                        {canaryAlerts > 0 && (
+                                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 uppercase animate-pulse">
+                                                ⚠ {canaryAlerts} CANARY
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] font-mono text-gray-600 mt-1">
-                                        <span className="flex items-center gap-1"><Hash size={9} />{selected.hash.slice(0, 16)}...</span>
-                                        <span className="flex items-center gap-1"><HardDrive size={9} />{formatBytes(selected.size)}</span>
-                                        <span className="flex items-center gap-1"><Clock size={9} />{new Date(selected.modifiedAt).toLocaleString('pt-BR')}</span>
+                                        <span className="flex items-center gap-1"><Hash size={9} />{selected.hash.slice(0, 24)}...</span>
+                                        <span className="flex items-center gap-1"><Shield size={9} />{FOLDER_LABELS[selected.path.split('/')[0]] || selected.path.split('/')[0]}</span>
+                                        {custodyDuration && (
+                                            <span className="flex items-center gap-1 text-[#8b5cf6]">
+                                                <Clock size={9} />Custódia: {custodyDuration} · {timelinePoints.length} registros
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-
-                            {/* View buttons - NO download */}
-                            <div className="mt-3 flex gap-2 flex-wrap">
-                                <button
-                                    onClick={() => loadPdf('relatorio')}
-                                    disabled={pdfLoading && pdfType === 'relatorio'}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-indigo-900/30 hover:bg-indigo-800/40 text-indigo-400 rounded-lg text-xs border border-indigo-700/30 disabled:opacity-50 transition-all"
-                                >
-                                    <BookOpen size={11} /> {pdfLoading && pdfType === 'relatorio' ? 'Gerando...' : 'Ver Relatório (inline)'}
-                                </button>
-                                <button
-                                    onClick={() => loadPdf('pericia')}
-                                    disabled={pdfLoading && pdfType === 'pericia'}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-violet-900/30 hover:bg-violet-800/40 text-violet-400 rounded-lg text-xs border border-violet-700/30 disabled:opacity-50 transition-all"
-                                >
-                                    <FileCheck2 size={11} /> {pdfLoading && pdfType === 'pericia' ? 'Gerando...' : 'Ver Perícia Sansão (inline)'}
-                                </button>
-                                {pdfUrl && (
-                                    <button onClick={() => { setPdfUrl(''); setPdfType(''); }}
-                                        className="flex items-center gap-1 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-xs border border-white/10 transition-all">
-                                        <X size={11} /> Fechar PDF
-                                    </button>
-                                )}
-                                {canaryAlerts > 0 && (
-                                    <span className="flex items-center gap-1 px-3 py-1.5 bg-red-900/40 text-red-400 border border-red-500/40 rounded-lg text-xs font-bold animate-pulse">
-                                        <AlertTriangle size={11} /> {canaryAlerts} ALERTA{canaryAlerts > 1 ? 'S' : ''} CANARY
-                                    </span>
-                                )}
-                            </div>
                         </div>
 
-                        {/* PDF inline viewer */}
-                        {pdfUrl && (
-                            <div className="flex-shrink-0 h-64 border-b border-white/5 bg-black/30">
-                                <iframe src={pdfUrl} className="w-full h-full" title="Visualização PDF" />
+                        {/* ── Timeline Unificada: Ações/Atores + Data/Hora ── */}
+                        {timelinePoints.length > 0 && (
+                            <div className="flex-shrink-0 border-b border-white/5 bg-black/30">
+                                <div className="px-4 py-2 flex items-center gap-2 border-b border-white/5">
+                                    <Activity size={12} className="text-[#8b5cf6]" />
+                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Linha do Tempo — Ações · Atores · Datas</span>
+                                    <span className="text-[9px] text-gray-600 font-mono ml-auto">{timelinePoints.length} pontos</span>
+                                </div>
+                                <div className="px-4 py-3">
+                                    <CombinedTimeline points={timelinePoints} />
+                                </div>
                             </div>
                         )}
 
-                        {/* File preview (read-only) */}
-                        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-                            {/* File content preview */}
-                            <div className="flex-shrink-0 h-48 overflow-auto bg-black/20 border-b border-white/5 relative">
-                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center rotate-[-20deg] select-none z-10">
-                                    <span className="text-3xl font-black text-white/[0.04] uppercase tracking-widest whitespace-nowrap">
-                                        AUDITORIA · SOMENTE LEITURA · IMUTÁVEL
-                                    </span>
-                                </div>
-                                {selected.type === 'image' && (
-                                    <div className="flex justify-center p-4">
-                                        <img src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
-                                            alt={selected.name}
-                                            className="max-h-36 rounded-lg border border-white/10 object-contain" />
-                                    </div>
-                                )}
-                                {selected.type === 'pdf' && (
-                                    <iframe src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`}
-                                        className="w-full h-48 border-0" title={selected.name} />
-                                )}
-                                {selected.type === 'text' && (
-                                    <FileTextPreview path={selected.path} />
-                                )}
-                                {selected.type === 'video' && (
-                                    <div className="flex justify-center p-2">
-                                        <video controls className="max-h-40 rounded-lg border border-white/10"
-                                            src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`} />
-                                    </div>
-                                )}
-                                {selected.type === 'audio' && (
-                                    <div className="flex justify-center items-center h-full">
-                                        <audio controls src={`/api/vault/file?path=${encodeURIComponent(selected.path)}`} className="w-full max-w-sm" />
-                                    </div>
-                                )}
-                                {(selected.type === 'encrypted' || selected.type === 'binary' || selected.type === 'capture') && (
-                                    <div className="flex flex-col items-center justify-center h-full gap-2 py-4">
-                                        <Lock size={32} className="text-gray-600/40" />
-                                        <p className="text-xs text-gray-600 font-mono">Prévia não disponível para este tipo</p>
-                                        <p className="text-[10px] text-gray-700 font-mono break-all max-w-sm text-center">SHA256: {selected.hash}</p>
-                                    </div>
+                        {/* ── Access logs (text) ── */}
+                        <div className="flex-1 min-h-0 overflow-auto">
+                            <div className="px-4 py-2 border-b border-white/5 flex items-center gap-2 bg-black/20 sticky top-0 z-10">
+                                <FileText size={12} className="text-[#8b5cf6]" />
+                                <span className="text-xs font-bold text-white uppercase tracking-wider">Registros de Log</span>
+                                {logs.length > 0 && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#8b5cf6]/10 text-[#8b5cf6] font-mono ml-1">{logs.length} registros</span>
                                 )}
                             </div>
 
-                            {/* ── Access logs ── */}
-                            <div className="flex-1 overflow-auto">
-                                <div className="px-4 py-2 border-b border-white/5 flex items-center gap-2 flex-shrink-0 bg-black/20">
-                                    <Activity size={13} className="text-[#8b5cf6]" />
-                                    <span className="text-xs font-bold text-white uppercase tracking-wider">Log de Acessos</span>
-                                    {logs.length > 0 && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#8b5cf6]/10 text-[#8b5cf6] font-mono">{logs.length} registros</span>
-                                    )}
-                                    {canaryAlerts > 0 && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 font-bold animate-pulse">{canaryAlerts} CANARY</span>
-                                    )}
+                            {logsLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <div className="w-4 h-4 border-2 border-[#8b5cf6]/40 border-t-[#8b5cf6] rounded-full animate-spin" />
                                 </div>
-
-                                {logsLoading ? (
-                                    <div className="flex items-center justify-center py-8">
-                                        <div className="w-4 h-4 border-2 border-[#8b5cf6]/40 border-t-[#8b5cf6] rounded-full animate-spin" />
-                                    </div>
-                                ) : logs.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-700 text-xs font-mono">
-                                        Nenhum acesso registrado para este arquivo.
-                                    </div>
-                                ) : (
-                                    <table className="w-full text-xs">
-                                        <thead>
-                                            <tr className="border-b border-white/5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">
-                                                <th className="text-left px-4 py-2">Data / Hora</th>
-                                                <th className="text-left px-4 py-2">Ação</th>
-                                                <th className="text-left px-4 py-2">Usuário</th>
-                                                <th className="text-left px-4 py-2">IP</th>
-                                                <th className="text-left px-4 py-2">Canary</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {logs.map(log => {
-                                                const act = ACTION_LABELS[log.action] || { label: log.action, color: 'text-gray-400' };
-                                                return (
-                                                    <tr key={log.id} className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${log.isCanary ? 'bg-red-950/20' : ''}`}>
-                                                        <td className="px-4 py-2 font-mono text-gray-500 whitespace-nowrap">
-                                                            {new Date(log.createdAt).toLocaleString('pt-BR')}
-                                                        </td>
-                                                        <td className={`px-4 py-2 font-bold ${act.color}`}>{act.label}</td>
-                                                        <td className="px-4 py-2 font-mono text-gray-400 truncate max-w-[160px]">{log.userEmail}</td>
-                                                        <td className="px-4 py-2 font-mono text-gray-600">{log.ip || '—'}</td>
-                                                        <td className="px-4 py-2">
-                                                            {log.isCanary && (
-                                                                <span className="text-[9px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded animate-pulse">
-                                                                    ⚠ ATIVADO
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
+                            ) : logs.length === 0 ? (
+                                <div className="text-center py-8 text-gray-700 text-xs font-mono">
+                                    Nenhum acesso registrado para este arquivo.
+                                </div>
+                            ) : (
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="border-b border-white/5 text-[10px] font-bold text-gray-600 uppercase tracking-wider">
+                                            <th className="text-left px-4 py-2">#</th>
+                                            <th className="text-left px-4 py-2">Data / Hora</th>
+                                            <th className="text-left px-4 py-2">Ação</th>
+                                            <th className="text-left px-4 py-2">Usuário</th>
+                                            <th className="text-left px-4 py-2">IP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {[...logs].reverse().map((log, idx) => {
+                                            const act = ACTION_LABELS[log.action] || { label: log.action, color: '#6b7280', actor: '' };
+                                            return (
+                                                <tr key={log.id} className={`border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors ${log.isCanary ? 'bg-red-950/20' : ''}`}>
+                                                    <td className="px-4 py-2 font-mono text-gray-700 text-[10px]">#{idx + 1}</td>
+                                                    <td className="px-4 py-2 font-mono text-gray-500 whitespace-nowrap text-[10px]">
+                                                        {new Date(log.createdAt).toLocaleString('pt-BR')}
+                                                    </td>
+                                                    <td className="px-4 py-2 font-bold text-[10px]" style={{ color: act.color }}>{act.label}</td>
+                                                    <td className="px-4 py-2 font-mono text-gray-400 truncate max-w-[160px] text-[10px]">{log.userEmail}</td>
+                                                    <td className="px-4 py-2 font-mono text-gray-600 text-[10px]">
+                                                        {log.ip || '—'}
+                                                        {log.isCanary && (
+                                                            <span className="ml-2 text-[8px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded animate-pulse">
+                                                                ⚠ CANARY
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
 
-                        {/* Immutable footer */}
+                        {/* Footer */}
                         <div className="flex-shrink-0 px-5 py-2 border-t border-white/5 flex items-center justify-center gap-2 text-[9px] text-gray-700 font-mono bg-black/20">
                             <Shield size={9} />
-                            AUDITORIA NCFN · SOMENTE LEITURA · IMUTÁVEL · SHA-256 + AES-256-CBC + CADEIA DE CUSTÓDIA
+                            AUDITORIA NCFN · SOMENTE LEITURA · IMUTÁVEL · SHA-256 + AES-256-CBC
                         </div>
                     </div>
                 ) : (
@@ -428,9 +489,9 @@ function CofreAuditInner() {
                             <Shield className="w-8 h-8 text-[#8b5cf6]/60" />
                         </div>
                         <div>
-                            <p className="text-white/60 font-bold text-base">Auditoria do Vault Forense</p>
+                            <p className="text-white/60 font-bold text-base">Log's Imutáveis do Vault</p>
                             <p className="text-gray-600 text-xs mt-1 max-w-sm">
-                                Selecione um arquivo na barra lateral para visualizar sua prévia, relatório pericial e log completo de acessos.
+                                Selecione uma pasta e depois um arquivo para visualizar a linha do tempo e o log completo de acessos.
                             </p>
                             <div className="flex items-center justify-center gap-2 mt-3">
                                 <span className="text-[9px] font-black px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 uppercase">SOMENTE LEITURA</span>
@@ -438,70 +499,60 @@ function CofreAuditInner() {
                                 <span className="text-[9px] font-black px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">AUDITORIA</span>
                             </div>
                         </div>
-                        {/* Stats grid */}
-                        <div className="grid grid-cols-3 gap-3 w-full max-w-sm mt-2">
-                            {Object.entries(folders).slice(0, 6).map(([key, f]) => (
-                                <button key={key} onClick={() => { setOpenFolders(new Set([key])); }}
-                                    className="bg-white/[0.03] border border-white/5 hover:border-[#8b5cf6]/20 rounded-xl p-3 text-center transition-all">
-                                    <p className="text-lg font-black text-white/50">{f.files.length}</p>
-                                    <p className="text-[9px] text-gray-600 truncate">{FOLDER_LABELS[key]?.split('·')[1]?.trim() || key}</p>
-                                </button>
-                            ))}
-                        </div>
+                        {/* Stats per selected folder */}
+                        {selectedFolder && folderFiles.length > 0 && (
+                            <div className="w-full max-w-sm space-y-1">
+                                <p className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">
+                                    {FOLDER_LABELS[selectedFolder] || selectedFolder} — {folderFiles.length} ativos
+                                </p>
+                                <div className="space-y-1">
+                                    {folderFiles.slice(0, 5).map(f => (
+                                        <button key={f.path} onClick={() => selectFile(f)}
+                                            className="w-full flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5 hover:border-[#8b5cf6]/20 rounded-xl text-left transition-all">
+                                            <FileTypeIcon type={f.type} size={12} />
+                                            <span className="text-[10px] text-gray-400 truncate font-mono">{f.name}</span>
+                                        </button>
+                                    ))}
+                                    {folderFiles.length > 5 && (
+                                        <p className="text-[9px] text-gray-700 font-mono text-center">+ {folderFiles.length - 5} mais na barra lateral</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
-        {showHelp && (
-            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
-                    <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
-                        <X size={18} />
-                    </button>
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
-                            <HelpCircle className="w-5 h-5 text-blue-400" />
+
+            {/* Help modal */}
+            {showHelp && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-gray-950 border border-white/10 rounded-3xl p-8 max-w-lg w-full space-y-5 relative">
+                        <button onClick={() => setShowHelp(false)} className="absolute top-4 right-4 text-gray-600 hover:text-white">
+                            <X size={18} />
+                        </button>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
+                                <HelpCircle className="w-5 h-5 text-blue-400" />
+                            </div>
+                            <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
                         </div>
-                        <h2 className="font-black text-white text-lg uppercase tracking-widest">COMO FUNCIONA</h2>
-                    </div>
-                    <div className="space-y-4 text-sm text-gray-300 leading-relaxed">
-                        <p>Este módulo é uma <strong className="text-white">auditoria somente leitura</strong> do Vault Forense NCFN — nenhuma alteração pode ser feita aqui.</p>
-                        <p>Navegue pelas <strong className="text-white">12 zonas de custódia</strong> na barra lateral e selecione um arquivo para visualizar sua prévia, metadados e log completo de acessos.</p>
-                        <p>Para cada arquivo, você pode gerar inline um <strong className="text-white">Relatório de Custódia PDF</strong> ou uma <strong className="text-white">Perícia Forense Sansão</strong> com hash SHA-256 verificável.</p>
-                        <p>Todos os acessos a arquivos são <strong className="text-white">registrados de forma imutável</strong> no log — alertas de Canary Token são destacados em vermelho.</p>
+                        <div className="space-y-3 text-sm text-gray-300 leading-relaxed">
+                            <p>Este módulo é uma <strong className="text-white">auditoria somente leitura</strong> do Vault Forense NCFN — nenhuma alteração pode ser feita aqui.</p>
+                            <p>Selecione uma <strong className="text-white">pasta</strong> no dropdown e depois um <strong className="text-white">arquivo</strong> para visualizar dois gráficos de linha:</p>
+                            <p><strong className="text-purple-400">Gráfico 1</strong> — mostra cada ação realizada no arquivo (Custódia, Perícia, Encriptação...) e quem a executou.</p>
+                            <p><strong className="text-purple-400">Gráfico 2</strong> — exibe a data e hora de cada ponto do gráfico acima, conectados por linhas pontilhadas.</p>
+                            <p>Abaixo dos gráficos, o <strong className="text-white">log textual completo</strong> de todos os registros de acesso ao arquivo.</p>
+                        </div>
                     </div>
                 </div>
-            </div>
-        )}
+            )}
         </div>
     );
 }
 
-// ─── Text file preview sub-component ──────────────────────────────────────
-function FileTextPreview({ path }: { path: string }) {
-    const [content, setContent] = useState('');
-    const [loading, setLoading] = useState(true);
-    useEffect(() => {
-        fetch(`/api/vault/file?path=${encodeURIComponent(path)}`)
-            .then(r => r.text())
-            .then(t => setContent(t.slice(0, 2000)))
-            .catch(() => setContent('[Erro ao carregar]'))
-            .finally(() => setLoading(false));
-    }, [path]);
-    if (loading) return <p className="text-gray-600 text-xs font-mono p-4 animate-pulse">Carregando...</p>;
-    return (
-        <pre className="text-[10px] text-gray-400 font-mono p-4 whitespace-pre-wrap break-all leading-relaxed">{content}</pre>
-    );
-}
-
 // ─── Default export with Suspense ─────────────────────────────────────────
+// /admin/cofre existe apenas como registro interno — visualmente redireciona para /vault
+import { redirect } from 'next/navigation';
 export default function CofrePage() {
-    return (
-        <Suspense fallback={
-            <div className="flex h-[calc(100vh-80px)] items-center justify-center rounded-2xl border border-[#8b5cf6]/20 bg-black/40">
-                <div className="w-6 h-6 border-2 border-[#8b5cf6]/40 border-t-[#8b5cf6] rounded-full animate-spin" />
-            </div>
-        }>
-            <CofreAuditInner />
-        </Suspense>
-    );
+    redirect('/vault');
 }

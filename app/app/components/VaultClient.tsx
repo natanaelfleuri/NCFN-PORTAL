@@ -11,9 +11,14 @@ import {
   FileSearch, Shield, AlertTriangle, Menu, ChevronsDown, ChevronsUp,
   Trash2, Upload, Globe, FileCheck2, CheckCircle, XCircle, CheckCircle2,
   ArrowRight, PackageCheck, Printer, HelpCircle, Share2, RefreshCw,
-  History, BarChart2, ExternalLink, BookOpen, Layers, Loader2,
+  History, BarChart2, ExternalLink, BookOpen, Layers, Loader2, Cloud, CloudUpload,
 } from "lucide-react";
 import ShareModal from "./ShareModal";
+import CofrePanel from "./CofrePanel";
+import dynamic from "next/dynamic";
+const VaultGraphDiagram = dynamic(() => import("./VaultGraphDiagram"), { ssr: false });
+const AdminCharts = dynamic(() => import("./AdminCharts"), { ssr: false });
+import { folderColor } from "@/lib/folderColors";
 
 /* ── Vitrine Publish Modal ── */
 function gerarSenhas(): string[] {
@@ -349,6 +354,8 @@ export default function VaultPage() {
   const [generatingFinalReport, setGeneratingFinalReport] = useState(false);
   const [generatingManualReport, setGeneratingManualReport] = useState(false);
   const autoIntermediaryFired = useRef(false);
+  const cofrePanelRef = useRef<HTMLDivElement>(null);
+  const [graphFolder, setGraphFolder] = useState<string>("");
 
   // Suspicious file modal
   const [suspiciousFile, setSuspiciousFile] = useState<{ open: boolean; name: string }>({ open: false, name: '' });
@@ -372,6 +379,11 @@ export default function VaultPage() {
   // Report PDF viewer modal (for Inicial/Intermediário/Final)
   const [reportViewModal, setReportViewModal] = useState<{ open: boolean; url: string | null; title: string }>({ open: false, url: null, title: '' });
   const [loadingViewReport, setLoadingViewReport] = useState<string | null>(null);
+
+  // Custódia na Nuvem (Google Drive)
+  const [cloudCustody, setCloudCustody] = useState<any>(null);
+  const [cloudCustodyChecked, setCloudCustodyChecked] = useState(false);
+  const [cloudCustodyLoading, setCloudCustodyLoading] = useState(false);
 
   // Live clock for countdown timers (updates every second)
   const [nowMs, setNowMs] = useState(Date.now());
@@ -515,15 +527,15 @@ export default function VaultPage() {
       const res = await fetch('/api/vault/custody-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'view_typed_report', id: reportId }),
+        body: JSON.stringify({ action: 'view_typed_report', id: reportId, print: true }),
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Erro ao carregar relatório');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      setReportViewModal({ open: true, url, title: label });
+      window.open(url, '_blank');
     } catch (e: any) {
-      notify('error', e.message || 'Erro ao visualizar relatório');
+      notify('error', e.message || 'Erro ao abrir relatório');
     } finally {
       setLoadingViewReport(null);
     }
@@ -548,6 +560,64 @@ export default function VaultPage() {
     } finally {
       setLoadingViewReport(null);
     }
+  };
+
+  const fetchCloudCustody = async (folder: string, filename: string) => {
+    setCloudCustodyChecked(false);
+    setCloudCustody(null);
+    try {
+      const res = await fetch('/api/vault/cloud-custody', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status', folder, filename }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      // byProvider: { google_drive: record, internxt: record }
+      setCloudCustody(data.exists ? data.byProvider : null);
+    } catch { setCloudCustody(null); }
+    finally { setCloudCustodyChecked(true); }
+  };
+
+  const handleCloudCustody = async (provider: 'google_drive' | 'internxt') => {
+    if (!selected) return;
+    const [folder] = selected.path.split('/');
+    const filename = selected.path.split('/').slice(1).join('/');
+    setCloudCustodyLoading(true);
+    const label = provider === 'internxt' ? 'Internxt' : 'Google Drive';
+    try {
+      const res = await fetch('/api/vault/cloud-custody', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upload', folder, filename, provider }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok && res.status !== 200) throw new Error(data.error || `Erro ao enviar para ${label}`);
+      setCloudCustody((prev: any) => ({ ...(prev || {}), [provider]: data }));
+      notify('success', `Custódia na nuvem concluída! Arquivo enviado ao ${label}.`);
+    } catch (e: any) {
+      notify('error', e.message || `Erro ao enviar para ${label}.`);
+    } finally { setCloudCustodyLoading(false); }
+  };
+
+  const handleDownloadCloudKey = async (custodyId: string, fname: string) => {
+    try {
+      const res = await fetch('/api/vault/cloud-custody', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'download_key', id: custodyId }),
+        credentials: 'include',
+      });
+      if (!res.ok) { notify('error', 'Erro ao baixar chave.'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `NCFN_KEY_${fname}_${Date.now()}.txt`;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 3000);
+      notify('success', 'Chave baixada. Guarde em local seguro e separado do arquivo.');
+    } catch { notify('error', 'Erro ao baixar chave AES.'); }
   };
 
   const fetchCustodyState = async (folder: string, filename: string) => {
@@ -613,6 +683,7 @@ export default function VaultPage() {
     const plainFilename = fileFilename.endsWith('.enc') ? fileFilename.slice(0, -4) : fileFilename;
     if (parts.length >= 2) {
       fetchCustodyState(fileFolder, plainFilename);
+      fetchCloudCustody(fileFolder, fileFilename);
       setFileCtx(fileFolder, fileFilename);
     }
     if (file.type === 'text') {
@@ -1614,11 +1685,11 @@ export default function VaultPage() {
           </button>
           {/* Navigation row 1 */}
           <div className="flex gap-1 mt-2">
-            <button onClick={() => router.push('/admin/pericia-arquivo')}
+            <button onClick={() => { setSelected(null); }}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-cyan-500 hover:text-cyan-300 bg-cyan-950/20 hover:bg-cyan-950/40 border border-cyan-800/30 transition-all uppercase tracking-wide">
-              <FileSearch size={9} /> Perícia
+              <BarChart2 size={9} /> Grafo
             </button>
-            <button onClick={() => router.push('/admin/cofre')}
+            <button onClick={() => cofrePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold text-purple-500 hover:text-purple-300 bg-purple-950/20 hover:bg-purple-950/40 border border-purple-800/30 transition-all uppercase tracking-wide">
               <Shield size={9} /> Log's
             </button>
@@ -1656,14 +1727,21 @@ export default function VaultPage() {
             const isOpen = openFolders.has(folderName);
             const label = FOLDER_LABELS[folderName] || folderName;
             const isBurn = folderName === '100_BURN_IMMUTABILITY';
+            const fColor = isBurn ? '#f97316' : folderColor(folderName);
             return (
               <div key={folderName} className="mb-1">
                 <button onClick={() => toggleFolder(folderName)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs font-semibold uppercase tracking-wide ${isOpen ? 'bg-white/5 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-white/3'}`}>
-                  {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  {isOpen ? <FolderOpen size={14} className={isBurn ? 'text-orange-400' : 'text-[#00f3ff]'} /> : <Folder size={14} className={isBurn ? 'text-orange-400/60' : 'text-[#00f3ff]/60'} />}
-                  <span className="flex-1 truncate">{label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${folder.files.filter(f => !f.name.startsWith('_')).length > 0 ? 'bg-[#00f3ff]/10 text-[#00f3ff]' : 'bg-white/5 text-gray-600'}`}>
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs font-semibold uppercase tracking-wide ${isOpen ? 'bg-white/5' : 'hover:bg-white/3'}`}
+                  style={{ color: isOpen ? fColor : undefined }}>
+                  {isOpen ? <ChevronDown size={12} style={{ color: fColor }} /> : <ChevronRight size={12} className="text-gray-500" />}
+                  {isOpen
+                    ? <FolderOpen size={14} style={{ color: fColor }} />
+                    : <Folder size={14} style={{ color: `${fColor}80` }} />}
+                  <span className="flex-1 truncate" style={{ color: isOpen ? fColor : '#9ca3af' }}>{label}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono"
+                    style={folder.files.filter(f => !f.name.startsWith('_')).length > 0
+                      ? { background: `${fColor}18`, color: fColor }
+                      : { background: 'rgba(255,255,255,0.04)', color: '#4b5563' }}>
                     {folder.files.filter(f => !f.name.startsWith('_')).length}
                   </span>
                 </button>
@@ -1741,11 +1819,7 @@ export default function VaultPage() {
                   <Eye size={12} /> Visualizar Original
                 </button>
                 <button
-                  onClick={() => {
-                    const parts = selected.path.split('/');
-                    const folder = parts[0]; const file = parts.slice(1).join('/');
-                    router.push(`/admin/cofre?folder=${encodeURIComponent(folder)}&file=${encodeURIComponent(file)}`);
-                  }}
+                  onClick={() => cofrePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                   className="flex items-center gap-1 px-3 py-1.5 bg-purple-900/30 hover:bg-purple-800/40 text-purple-400 rounded-lg text-xs transition-all border border-purple-700/30">
                   <History size={12} /> Linha do Tempo
                 </button>
@@ -1815,6 +1889,47 @@ export default function VaultPage() {
                         <PackageCheck size={13} />
                         {actionLoading === 'custod' ? 'Gerando ZIP...' : 'CUSTÓDIA LOCAL · BACKUP'}
                       </button>
+                      {cloudCustodyChecked && !cloudCustody?.google_drive && (
+                        <button onClick={() => handleCloudCustody('google_drive')} disabled={cloudCustodyLoading}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-black text-xs transition-all border bg-sky-900/20 hover:bg-sky-800/35 border-sky-600/40 text-sky-400 disabled:opacity-50">
+                          {cloudCustodyLoading ? <><Loader2 size={11} className="animate-spin" /> Enviando...</> : <><CloudUpload size={12} /> DRIVE · GOOGLE</>}
+                        </button>
+                      )}
+                      {cloudCustodyChecked && cloudCustody?.google_drive && (
+                        <div className="flex flex-col gap-1 p-2 rounded-lg border border-sky-700/30 bg-sky-950/20">
+                          <div className="flex items-center gap-1.5">
+                            <Cloud size={9} className="text-sky-400 shrink-0" />
+                            <span className="text-[9px] text-sky-300 font-bold uppercase tracking-wider">Google Drive · Ativa</span>
+                          </div>
+                          <a href={cloudCustody.google_drive.driveLink} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-[9px] text-sky-400 hover:text-sky-200 font-mono truncate">
+                            <ExternalLink size={8} /> Ver no Drive
+                          </a>
+                          <button onClick={() => handleDownloadCloudKey(cloudCustody.google_drive.id, selected?.name || 'arquivo')}
+                            className="flex items-center justify-center gap-1 py-1 rounded text-[9px] font-bold border border-amber-700/40 bg-amber-950/20 text-amber-400 hover:bg-amber-900/30 transition-all">
+                            <Key size={9} /> Chave AES
+                          </button>
+                        </div>
+                      )}
+                      {cloudCustodyChecked && !cloudCustody?.internxt && (
+                        <button onClick={() => handleCloudCustody('internxt')} disabled={cloudCustodyLoading}
+                          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-black text-xs transition-all border bg-violet-900/20 hover:bg-violet-800/35 border-violet-600/40 text-violet-400 disabled:opacity-50">
+                          {cloudCustodyLoading ? <><Loader2 size={11} className="animate-spin" /> Enviando...</> : <><CloudUpload size={12} /> INTERNXT · CRIPTOGRAFADO</>}
+                        </button>
+                      )}
+                      {cloudCustodyChecked && cloudCustody?.internxt && (
+                        <div className="flex flex-col gap-1 p-2 rounded-lg border border-violet-700/30 bg-violet-950/20">
+                          <div className="flex items-center gap-1.5">
+                            <Cloud size={9} className="text-violet-400 shrink-0" />
+                            <span className="text-[9px] text-violet-300 font-bold uppercase tracking-wider">Internxt · Ativa</span>
+                          </div>
+                          <span className="text-[9px] text-violet-400/70 font-mono truncate">{cloudCustody.internxt.driveFileName}</span>
+                          <button onClick={() => handleDownloadCloudKey(cloudCustody.internxt.id, selected?.name || 'arquivo')}
+                            className="flex items-center justify-center gap-1 py-1 rounded text-[9px] font-bold border border-amber-700/40 bg-amber-950/20 text-amber-400 hover:bg-amber-900/30 transition-all">
+                            <Key size={9} /> Chave AES
+                          </button>
+                        </div>
+                      )}
                       <button onClick={handleOpenShare}
                         className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-green-900/20 hover:bg-green-800/30 border-green-700/40 text-green-400">
                         <Globe size={12} />
@@ -1906,6 +2021,51 @@ export default function VaultPage() {
                           <PackageCheck size={13} />
                           {actionLoading === 'custod' ? 'Gerando ZIP...' : 'CUSTÓDIA LOCAL · BACKUP'}
                         </button>
+                        {/* CUSTÓDIA NA NUVEM — Google Drive */}
+                        {cloudCustodyChecked && !cloudCustody?.google_drive && (
+                          <button onClick={() => handleCloudCustody('google_drive')} disabled={cloudCustodyLoading}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-black text-xs transition-all border bg-sky-900/20 hover:bg-sky-800/35 border-sky-600/40 text-sky-400 disabled:opacity-50">
+                            {cloudCustodyLoading ? <><Loader2 size={11} className="animate-spin" /> Enviando...</> : <><CloudUpload size={12} /> DRIVE · GOOGLE</>}
+                          </button>
+                        )}
+                        {cloudCustodyChecked && cloudCustody?.google_drive && (
+                          <div className="flex flex-col gap-1 p-2 rounded-lg border border-sky-700/30 bg-sky-950/20">
+                            <div className="flex items-center gap-1.5">
+                              <Cloud size={9} className="text-sky-400 shrink-0" />
+                              <span className="text-[9px] text-sky-300 font-bold uppercase tracking-wider">Google Drive · Ativa</span>
+                              <span className="ml-auto text-[9px] text-gray-600 font-mono">{new Date(cloudCustody.google_drive.createdAt).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                            <a href={cloudCustody.google_drive.driveLink} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-[9px] text-sky-400 hover:text-sky-200 font-mono truncate">
+                              <ExternalLink size={8} /> Ver no Drive
+                            </a>
+                            <button onClick={() => handleDownloadCloudKey(cloudCustody.google_drive.id, selected?.name || 'arquivo')}
+                              className="flex items-center justify-center gap-1 py-1 rounded text-[9px] font-bold border border-amber-700/40 bg-amber-950/20 text-amber-400 hover:bg-amber-900/30 transition-all">
+                              <Key size={9} /> Chave AES
+                            </button>
+                          </div>
+                        )}
+                        {/* CUSTÓDIA NA NUVEM — Internxt (criptografada) */}
+                        {cloudCustodyChecked && !cloudCustody?.internxt && (
+                          <button onClick={() => handleCloudCustody('internxt')} disabled={cloudCustodyLoading}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-black text-xs transition-all border bg-violet-900/20 hover:bg-violet-800/35 border-violet-600/40 text-violet-400 disabled:opacity-50">
+                            {cloudCustodyLoading ? <><Loader2 size={11} className="animate-spin" /> Enviando...</> : <><CloudUpload size={12} /> INTERNXT · CRIPTOGRAFADO</>}
+                          </button>
+                        )}
+                        {cloudCustodyChecked && cloudCustody?.internxt && (
+                          <div className="flex flex-col gap-1 p-2 rounded-lg border border-violet-700/30 bg-violet-950/20">
+                            <div className="flex items-center gap-1.5">
+                              <Cloud size={9} className="text-violet-400 shrink-0" />
+                              <span className="text-[9px] text-violet-300 font-bold uppercase tracking-wider">Internxt · Ativa</span>
+                              <span className="ml-auto text-[9px] text-gray-600 font-mono">{new Date(cloudCustody.internxt.createdAt).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                            <span className="text-[9px] text-violet-400/70 font-mono truncate">{cloudCustody.internxt.driveFileName}</span>
+                            <button onClick={() => handleDownloadCloudKey(cloudCustody.internxt.id, selected?.name || 'arquivo')}
+                              className="flex items-center justify-center gap-1 py-1 rounded text-[9px] font-bold border border-amber-700/40 bg-amber-950/20 text-amber-400 hover:bg-amber-900/30 transition-all">
+                              <Key size={9} /> Chave AES
+                            </button>
+                          </div>
+                        )}
                         <button onClick={handleOpenShare}
                           className="w-full flex items-center justify-center gap-2 py-2 rounded-lg font-bold text-xs transition-all border bg-green-900/20 hover:bg-green-800/30 border-green-700/40 text-green-400">
                           <Globe size={12} />
@@ -2216,6 +2376,16 @@ export default function VaultPage() {
               )}
             </div>
 
+            {/* ── Cofre Audit Panel ── */}
+            <div ref={cofrePanelRef}>
+              {(() => {
+                const parts = selected.path.split('/');
+                const f = parts[0];
+                const fn = parts.slice(1).join('/');
+                return <CofrePanel folder={f} filename={fn} custodyState={custodyState} />;
+              })()}
+            </div>
+
             {/* Footer */}
             <div className="flex-shrink-0 px-6 py-2 border-t border-white/10 flex items-center justify-center gap-2 text-[10px] text-gray-600 font-mono">
               <Key size={10} />
@@ -2223,38 +2393,98 @@ export default function VaultPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 gap-4">
-            <ShieldAlert size={72} className="text-[#00f3ff]/20" />
-            <h2 className="text-xl font-bold text-white/30">Vault Forense NCFN</h2>
-            <p className="text-gray-600 text-sm max-w-sm">
-              Selecione, ao lado, uma categoria e um ativo forense para visualização segura em ambiente isolado com controle SHA-256.
-            </p>
-            <div className="grid grid-cols-3 gap-3 mt-4 max-w-lg w-full">
-              {Object.entries(folders).map(([key, f]) => (
-                <div key={key} className="flex flex-col gap-1">
-                  <button onClick={() => setOpenFolders(new Set([key]))}
-                    className="w-full glass-panel p-3 rounded-xl border border-white/5 hover:border-[#00f3ff]/20 transition-all text-center">
-                    <Folder size={20} className="mx-auto mb-1 text-[#00f3ff]/50" />
-                    <p className="text-[10px] text-gray-500 truncate">{FOLDER_LABELS[key]?.split('·')[1]?.trim() || key}</p>
-                    <p className="text-lg font-bold text-white/60">{f.files.filter(ff => !ff.name.startsWith('_')).length}</p>
-                  </button>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => openInternalFile(key, '_registros_acesso.txt', 'log')}
-                      title="Ver Logs da Pasta"
-                      className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[9px] text-amber-500/70 hover:text-amber-400 bg-amber-950/10 hover:bg-amber-950/30 border border-amber-800/20 hover:border-amber-600/30 transition-all">
-                      <Eye size={9} />
-                    </button>
-                    <button
-                      onClick={() => openInternalFile(key, '_hashes_vps.txt', 'hash')}
-                      title="Hashes desta Pasta"
-                      className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[9px] text-violet-500/70 hover:text-violet-400 bg-violet-950/10 hover:bg-violet-950/30 border border-violet-800/20 hover:border-violet-600/30 transition-all">
-                      <Hash size={9} />
-                    </button>
-                  </div>
+          <div className="flex-1 flex flex-col overflow-y-auto">
+
+            {/* ── Linha superior: Folder cards + Painel Analítico ── */}
+            <div className="flex overflow-visible border-b border-white/5">
+
+              {/* Coluna esquerda: Vault info + folder cards */}
+              <div className="flex flex-col items-center justify-center text-center p-6 gap-4 w-80 flex-shrink-0 border-r border-white/5">
+                <ShieldAlert size={56} className="text-[#00f3ff]/20" />
+                <h2 className="text-lg font-bold text-white/30">Vault Forense NCFN</h2>
+                <p className="text-gray-600 text-xs max-w-xs">
+                  Selecione uma categoria e um ativo forense para visualização segura com controle SHA-256.
+                </p>
+                <div className="grid grid-cols-2 gap-2 w-full">
+                  {Object.entries(folders).map(([key, f]) => {
+                    const fc = folderColor(key);
+                    return (
+                    <div key={key} className="flex flex-col gap-1">
+                      <button onClick={() => setOpenFolders(new Set([key]))}
+                        className="w-full glass-panel p-2.5 rounded-xl border transition-all text-center"
+                        style={{ borderColor: 'rgba(255,255,255,0.05)' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = `${fc}40`}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.05)'}>
+                        <Folder size={16} className="mx-auto mb-1" style={{ color: `${fc}90` }} />
+                        <p className="text-[9px] truncate leading-tight" style={{ color: `${fc}bb` }}>{FOLDER_LABELS[key]?.split('·')[1]?.trim() || key}</p>
+                        <p className="text-base font-bold" style={{ color: fc }}>{f.files.filter(ff => !ff.name.startsWith('_')).length}</p>
+                      </button>
+                      <div className="flex gap-1">
+                        <button onClick={() => openInternalFile(key, '_registros_acesso.txt', 'log')} title="Ver Logs da Pasta"
+                          className="flex-1 flex items-center justify-center py-1 rounded-lg text-[9px] text-amber-500/70 hover:text-amber-400 bg-amber-950/10 hover:bg-amber-950/30 border border-amber-800/20 transition-all">
+                          <Eye size={9} />
+                        </button>
+                        <button onClick={() => openInternalFile(key, '_hashes_vps.txt', 'hash')} title="Hashes desta Pasta"
+                          className="flex-1 flex items-center justify-center py-1 rounded-lg text-[9px] text-violet-500/70 hover:text-violet-400 bg-violet-950/10 hover:bg-violet-950/30 border border-violet-800/20 transition-all">
+                          <Hash size={9} />
+                        </button>
+                      </div>
+                    </div>
+                  );})}
                 </div>
-              ))}
+              </div>
+
+              {/* Coluna direita: Painel Analítico */}
+              <div className="flex-1 min-w-0 p-4">
+                <AdminCharts
+                  files={Object.values(folders).flatMap(f => f.files).filter(file => !file.name.startsWith('_')).map(file => ({
+                    folder: file.path.split('/')[0],
+                    filename: file.name,
+                    size: file.size,
+                    mtime: file.modifiedAt || new Date().toISOString(),
+                    isPublic: false,
+                  }))}
+                />
+              </div>
             </div>
+
+            {/* ── Linha inferior: Grafo de Custódia Digital (largura total) ── */}
+            <div className="flex flex-col" style={{ minHeight: '520px' }}>
+              {/* Header */}
+              <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-white/5 bg-black/20">
+                <BarChart2 size={13} className="text-[#00f3ff]" />
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex-1">
+                  Grafo de Custódia Digital · Mapa dos Ativos
+                </span>
+                <select
+                  value={graphFolder}
+                  onChange={e => setGraphFolder(e.target.value)}
+                  className="text-[10px] bg-black/40 border border-white/10 text-gray-300 rounded-lg px-2 py-1 outline-none hover:border-[#00f3ff]/40 focus:border-[#00f3ff]/60 transition-colors"
+                >
+                  <option value="">Todas as pastas</option>
+                  {Object.keys(folders).sort().map(fname => (
+                    <option key={fname} value={fname}>{FOLDER_LABELS[fname] || fname}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Grafo — altura fixa generosa para visualização completa */}
+              <div className="flex-1" style={{ minHeight: '480px' }}>
+                <VaultGraphDiagram
+                  files={(graphFolder
+                    ? (folders[graphFolder]?.files ?? [])
+                    : Object.values(folders).flatMap(f => f.files)
+                  ).filter(file => !file.name.startsWith('_')).map(file => ({
+                    folder: file.path.split('/')[0],
+                    filename: file.name,
+                    size: file.size,
+                    mtime: new Date().toISOString(),
+                    isPublic: false,
+                  }))}
+                />
+              </div>
+            </div>
+
           </div>
         )}
       </div>
@@ -2609,37 +2839,20 @@ export default function VaultPage() {
                 <Download size={11} /> Baixar PDF
               </a>
               <button
-                onClick={() => { URL.revokeObjectURL(reportViewModal.url!); setReportViewModal({ open: false, url: null, title: '' }); }}
+                onClick={() => { if (reportViewModal.url) URL.revokeObjectURL(reportViewModal.url); setReportViewModal({ open: false, url: null, title: '' }); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-400 hover:text-white rounded-lg text-xs transition-all"
               >
                 <X size={13} /> Fechar
               </button>
             </div>
           </div>
-          <div className="flex-1 rounded-xl overflow-hidden border border-white/10 relative">
-            <object
-              data={reportViewModal.url}
-              type="application/pdf"
-              className="w-full h-full"
-            >
-              {/* Fallback para navegadores que bloqueiam PDF inline */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gray-950">
-                <FileText className="w-12 h-12 text-[#bc13fe]/40" />
-                <p className="text-gray-400 text-sm text-center max-w-xs">
-                  Seu navegador não suporta visualização inline de PDF.
-                </p>
-                <div className="flex gap-3">
-                  <a href={reportViewModal.url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-[#bc13fe]/20 border border-[#bc13fe]/40 text-[#bc13fe] rounded-xl text-sm font-bold hover:bg-[#bc13fe]/35 transition-all">
-                    <ExternalLink size={14} /> Abrir em nova aba
-                  </a>
-                  <a href={reportViewModal.url} download={`NCFN_${reportViewModal.title.replace(/\s+/g,'_')}.pdf`}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/8 border border-white/15 text-gray-300 rounded-xl text-sm font-bold hover:bg-white/15 transition-all">
-                    <Download size={14} /> Baixar PDF
-                  </a>
-                </div>
-              </div>
-            </object>
+          <div className="flex-1 rounded-xl overflow-hidden border border-white/10 relative bg-gray-900">
+            <iframe
+              src={reportViewModal.url}
+              className="w-full h-full border-0"
+              title={reportViewModal.title}
+              style={{ minHeight: '600px' }}
+            />
           </div>
         </div>
       )}

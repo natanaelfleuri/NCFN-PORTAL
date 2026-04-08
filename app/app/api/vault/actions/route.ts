@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession, getDbUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { checkRateLimit } from '@/lib/rateLimit';
 import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
@@ -30,6 +31,10 @@ export async function POST(req: NextRequest) {
         const user = await adminGuard();
         if (!user) return new NextResponse('Não autorizado', { status: 401 });
 
+        if (!checkRateLimit(`vault-actions:${user.email}`, 30, 60_000)) {
+            return NextResponse.json({ error: 'Limite de requisições atingido. Aguarde 1 minuto.' }, { status: 429 });
+        }
+
         const contentType = req.headers.get('content-type') || '';
 
         // ── File upload (multipart) ────────────────────────────────────────
@@ -50,6 +55,31 @@ export async function POST(req: NextRequest) {
             const destPath = path.join(folderPath, file.name);
             const arrayBuffer = await file.arrayBuffer();
             await fs.writeFile(destPath, Buffer.from(arrayBuffer));
+
+            // ── METADADOS LIMPOS: strip EXIF and serve directly ──────────────
+            if (folder === '12_NCFN-METADADOS-LIMPOS') {
+                // Strip metadata with exiftool (overwrite in-place)
+                try {
+                    execSync(`exiftool -all= -overwrite_original "${destPath}" 2>/dev/null`, { timeout: 10000 });
+                } catch {}
+                // Read cleaned file and return as download (1-shot)
+                const cleanBuf = await fs.readFile(destPath);
+                // Delete from disk immediately after returning
+                setImmediate(async () => {
+                    try { await fs.remove(destPath); } catch {}
+                    // Log to audit txt
+                    const logPath = path.join(folderPath, '_metadados_limpos_log.txt');
+                    const entry = `[${new Date().toISOString()}] upload="${file.name}" | download_e_exclusao_imediatos | operador=${user.email}\n`;
+                    try { await fs.appendFile(logPath, entry); } catch {}
+                });
+                return new NextResponse(cleanBuf, {
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'Content-Disposition': `attachment; filename="${file.name}"`,
+                        'Content-Length': cleanBuf.length.toString(),
+                    },
+                });
+            }
 
             // Capture EXIF baseline at upload time (immutable reference)
             try {

@@ -5,12 +5,15 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   Home, Shield, Users, LogOut, Activity, Trash2, BookOpen,
-  Menu, X, Globe, Search, FileText, Bot, User, Camera,
+  Menu, X, Globe, FileText, User, Camera,
   ScanSearch, AlertTriangle, Sparkles, ChevronDown,
   Archive, Database, Eye, ShieldAlert
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import QuotaBar from "./QuotaBar";
+import dynamic from "next/dynamic";
+
+const NotificationBell = dynamic(() => import("./NotificationBell"), { ssr: false });
 
 const ADMIN_LINKS = [
   { href: '/admin', icon: Home, label: 'Hub Central', color: '#00f3ff' },
@@ -18,13 +21,11 @@ const ADMIN_LINKS = [
   { href: '/admin/convidados', icon: Users, label: 'Convidados', color: '#bc13fe' },
   { href: '/admin/lixeira', icon: Trash2, label: 'Lixeira', color: '#ef4444' },
   { href: '/admin/logs', icon: Database, label: 'Logs', color: '#bc13fe' },
-  { href: '/admin/investigar', icon: Search, label: 'Investigar', color: '#bc13fe' },
   { href: '/admin/relatorios', icon: FileText, label: 'Laudos', color: '#bc13fe' },
   { href: '/admin/captura-web', icon: Camera, label: 'Captura Web', color: '#00f3ff' },
   { href: '/admin/pericia-arquivo', icon: ScanSearch, label: 'Perícia', color: '#34d399' },
   { href: '/admin/laudo-forense', icon: Sparkles, label: 'Laudo IA', color: '#bc13fe' },
   { href: '/admin/canary', icon: AlertTriangle, label: 'Canary', color: '#ef4444' },
-  { href: '/admin/ia-config', icon: Bot, label: 'Config IA', color: '#00f3ff' },
   { href: '/admin/forensics', icon: Eye, label: 'Forense', color: '#34d399' },
   { href: '/admin/security', icon: ShieldAlert, label: 'Segurança', color: '#ef4444' },
 ];
@@ -192,6 +193,9 @@ export default function Navigation() {
           </Link>
         )}
 
+        {/* Notification Bell — admin only */}
+        {isAdmin_role && session && <NotificationBell />}
+
         {session ? (
           <button
             onClick={() => signOut({ callbackUrl: '/login?logout=1' })}
@@ -245,9 +249,26 @@ export default function Navigation() {
               {isAdmin_role && (
                 <>
                   <p className="text-[9px] font-black uppercase tracking-[0.25em] text-[#bc13fe]/60 px-3 pb-1 pt-4">Administração</p>
-                  {ADMIN_LINKS.map(link => (
-                    <MobileLink key={link.href} href={link.href} icon={link.icon} label={link.label} active={isActive(link.href, link.href === '/admin')} color={link.color} />
-                  ))}
+                  {/* Hub Central e Vault — destaque full-width */}
+                  <MobileLink href="/admin" icon={Home} label="Hub Central" active={isActive('/admin', true)} color="#00f3ff" />
+                  <MobileLink href="/vault" icon={Archive} label="Vault Forense" active={isActive('/vault')} color="#bc13fe" />
+                  {/* Restante em grid 2 colunas — toque mais fácil */}
+                  <div className="grid grid-cols-2 gap-1 mt-1 px-0">
+                    {ADMIN_LINKS.slice(2).map(link => (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        className={`flex items-center gap-2 px-3 py-3 rounded-xl text-xs font-semibold transition-all min-h-[48px] ${
+                          isActive(link.href, false)
+                            ? 'text-white bg-white/10 border border-white/15'
+                            : 'text-gray-400 bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:text-white'
+                        }`}
+                      >
+                        <link.icon className="w-4 h-4 flex-shrink-0" style={{ color: link.color }} />
+                        <span className="text-[11px] leading-tight">{link.label}</span>
+                      </Link>
+                    ))}
+                  </div>
                 </>
               )}
 

@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       const searchBytes = Buffer.from(hexInput, 'hex');
       const matchLen = searchBytes.length;
 
-      // Walk vault folders looking for a file whose first bytes match
+      // Walk vault folders (+ .originals/ subdir) looking for a file whose first bytes match
       const matches: Array<{ filename: string; folder: string; filePath: string }> = [];
 
       try {
@@ -107,25 +107,34 @@ export async function POST(req: NextRequest) {
 
         for (const folder of folders) {
           if (folder.startsWith('100_')) continue; // skip burn dir
-          const folderPath = path.join(VAULT_BASE, folder);
-          let files: string[] = [];
-          try { files = fs.readdirSync(folderPath); } catch { continue; }
+          // Scan both the main folder and .originals/ subdir
+          const scanDirs: Array<{ dir: string; prefix: string }> = [
+            { dir: path.join(VAULT_BASE, folder), prefix: folder },
+            { dir: path.join(VAULT_BASE, folder, '.originals'), prefix: folder },
+          ];
 
-          for (const filename of files) {
-            if (filename.startsWith('_') || filename.startsWith('.')) continue;
-            const filePath = path.join(folderPath, filename);
-            try {
-              const stat = fs.statSync(filePath);
-              if (!stat.isFile() || stat.size < matchLen) continue;
-              const fd = fs.openSync(filePath, 'r');
-              const buf = Buffer.alloc(matchLen);
-              fs.readSync(fd, buf, 0, matchLen, 0);
-              fs.closeSync(fd);
-              if (buf.equals(searchBytes)) {
-                matches.push({ filename, folder, filePath: `${folder}/${filename}` });
-                if (matches.length >= 5) break; // limit results
-              }
-            } catch { continue; }
+          for (const { dir, prefix } of scanDirs) {
+            if (!fs.existsSync(dir)) continue;
+            let files: string[] = [];
+            try { files = fs.readdirSync(dir); } catch { continue; }
+
+            for (const filename of files) {
+              if (filename.startsWith('_') || filename.startsWith('.')) continue;
+              const filePath = path.join(dir, filename);
+              try {
+                const stat = fs.statSync(filePath);
+                if (!stat.isFile() || stat.size < matchLen) continue;
+                const fd = fs.openSync(filePath, 'r');
+                const buf = Buffer.alloc(matchLen);
+                fs.readSync(fd, buf, 0, matchLen, 0);
+                fs.closeSync(fd);
+                if (buf.equals(searchBytes)) {
+                  matches.push({ filename, folder: prefix, filePath: `${prefix}/${filename}` });
+                  if (matches.length >= 5) break;
+                }
+              } catch { continue; }
+            }
+            if (matches.length >= 5) break;
           }
           if (matches.length >= 5) break;
         }
@@ -152,18 +161,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ found: false, message: 'Hash SHA-256 inválido. Deve ter exatamente 64 caracteres hexadecimais.' });
       }
 
-      // Check TimestampRecord
-      const tsRecord = await prisma.timestampRecord.findUnique({
-        where: { sha256 },
-      });
+      // 1. Check TimestampRecord (RFC 3161)
+      const tsRecord = await prisma.timestampRecord.findUnique({ where: { sha256 } });
 
-      // Also check the vault _hashes_vps.txt files for the hash
-      let vaultMatch: { filename: string; folder: string } | null = null;
+      // 2. Check FileStatus (hashes registrados no download-bundle e R2)
+      let fileStatusMatch: { filename: string; folder: string } | null = null;
       if (!tsRecord) {
+        const fs2 = await prisma.fileStatus.findFirst({ where: { sha256 }, select: { filename: true, folder: true } });
+        if (fs2) fileStatusMatch = { filename: fs2.filename, folder: fs2.folder };
+      }
+
+      // 3. Check _hashes_vps.txt files (legado)
+      let vaultTxtMatch: { filename: string; folder: string } | null = null;
+      if (!tsRecord && !fileStatusMatch) {
         try {
           const folders = fs.readdirSync(VAULT_BASE, { withFileTypes: true })
-            .filter(d => d.isDirectory())
-            .map(d => d.name);
+            .filter(d => d.isDirectory()).map(d => d.name);
           for (const folder of folders) {
             const hashFile = path.join(VAULT_BASE, folder, '_hashes_vps.txt');
             if (!fs.existsSync(hashFile)) continue;
@@ -171,17 +184,58 @@ export async function POST(req: NextRequest) {
             const line = content.split('\n').find(l => l.toLowerCase().includes(sha256));
             if (line) {
               const parts = line.split(' | ');
-              const filename = parts[1]?.trim() || 'arquivo';
-              vaultMatch = { filename, folder };
+              vaultTxtMatch = { filename: parts[1]?.trim() || 'arquivo', folder };
               break;
             }
           }
         } catch {}
       }
 
-      const found = !!(tsRecord || vaultMatch);
-      const filename = tsRecord?.filename || vaultMatch?.filename || null;
-      const folder = tsRecord?.folder || vaultMatch?.folder || null;
+      // 4. Live scan de arquivos no cofre (inclui .enc e .originals/)
+      let liveMatch: { filename: string; folder: string } | null = null;
+      if (!tsRecord && !fileStatusMatch && !vaultTxtMatch) {
+        try {
+          const crypto = await import('crypto');
+          const folders = fs.readdirSync(VAULT_BASE, { withFileTypes: true })
+            .filter(d => d.isDirectory()).map(d => d.name);
+          outer: for (const folder of folders) {
+            const scanDirs = [
+              path.join(VAULT_BASE, folder),
+              path.join(VAULT_BASE, folder, '.originals'),
+            ];
+            for (const scanDir of scanDirs) {
+              if (!fs.existsSync(scanDir)) continue;
+              let files: string[] = [];
+              try { files = fs.readdirSync(scanDir); } catch { continue; }
+              for (const filename of files) {
+                if (filename.startsWith('_') || filename.startsWith('.')) continue;
+                const filePath = path.join(scanDir, filename);
+                try {
+                  const stat = fs.statSync(filePath);
+                  if (!stat.isFile() || stat.size > 200 * 1024 * 1024) continue; // skip >200MB
+                  const buf = fs.readFileSync(filePath);
+                  const h = crypto.createHash('sha256').update(buf).digest('hex');
+                  if (h === sha256) {
+                    const isOriginals = scanDir.endsWith('.originals');
+                    liveMatch = { filename, folder };
+                    // Cache no FileStatus para buscas futuras
+                    prisma.fileStatus.upsert({
+                      where: { folder_filename: { folder, filename } },
+                      update: { sha256, size: stat.size },
+                      create: { folder, filename, sha256, size: stat.size, isPublic: false },
+                    }).catch(() => {});
+                    break outer;
+                  }
+                } catch { continue; }
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const found = !!(tsRecord || fileStatusMatch || vaultTxtMatch || liveMatch);
+      const filename = tsRecord?.filename || fileStatusMatch?.filename || vaultTxtMatch?.filename || liveMatch?.filename || null;
+      const folder = tsRecord?.folder || fileStatusMatch?.folder || vaultTxtMatch?.folder || liveMatch?.folder || null;
 
       if (!found) {
         // Log the failed lookup attempt

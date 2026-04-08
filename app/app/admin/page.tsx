@@ -1,12 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, Bot, Search, FileSearch, Trash2, Users, FileText, Globe, Cpu, TrendingUp, Clock, BookOpen, Archive, KeyRound, Home, FileCode2, NotebookPen, Binoculars, AlertTriangle, HelpCircle, X, ShieldCheck, UserCog, BarChart3, MessageSquare, Handshake, Play, CheckCircle, Loader2, Lock, FileBarChart, HardDriveDownload, Shield, Plug, XCircle, RefreshCw, Wifi, Key, Layers, Zap, Server } from 'lucide-react';
+import { Folder, ShieldAlert, HardDrive, Database, Eye, Activity, FileSearch, Trash2, Users, FileText, Globe, TrendingUp, Clock, BookOpen, Archive, KeyRound, Home, FileCode2, NotebookPen, AlertTriangle, HelpCircle, X, ShieldCheck, UserCog, CheckCircle, Lock, FileBarChart, HardDriveDownload, Shield, XCircle, RefreshCw, Wifi, Key, Layers, Zap, Server } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { formatBytes } from '../utils';
 
 const MapDashboard       = dynamic(() => import('../components/MapDashboard'), { ssr: false });
-const AdminCharts        = dynamic(() => import('../components/AdminCharts'), { ssr: false });
 const VaultGraphDiagram  = dynamic(() => import('../components/VaultGraphDiagram'), { ssr: false });
 
 type FileItem = {
@@ -25,8 +24,6 @@ type SysStats = {
     todayLogs: number;
     activeSessions: number;
 };
-
-type ScanProgress = { i: number; total: number; file: string; protocol: string };
 
 type DiagStats = {
     version: string;
@@ -63,67 +60,58 @@ const VAULT_MODULE = { href: '/vault', icon: Archive, label: 'COFRE DE ARQUIVOS 
 
 const FILTER_COLORS: Record<string, string> = {
     'TODOS':        '#bc13fe',
-    'DOCUMENTOS':   '#3b82f6',
+    'DOCUMENTOS':   '#bc13fe',  // igual ao COFRE DE ARQUIVOS PROTEGIDOS
     'SISTEMA':      '#00f3ff',
-    'INVESTIGAÇÃO': '#f59e0b',
+    'INVESTIGAÇÃO': '#3b82f6',  // azul que era do DOCUMENTOS
     'FERRAMENTAS':  '#22c55e',
     'UTILIDADES':   '#f97316',
 };
 
-const FILTER_SETS: Record<string, number[] | null> = {
-    'TODOS':        null,
-    'DOCUMENTOS':   [2, 4, 5, 8, 10, 15],
-    'SISTEMA':      [3, 12, 13, 14, 20, 21, 22, 23],
-    'INVESTIGAÇÃO': [9, 16, 17, 18, 19],
-    'FERRAMENTAS':  [6, 7, 24, 25, 27],
-    'UTILIDADES':   [0, 1, 11, 26],
+// Filtros — apenas para ordenar os botões de filtro; visibilidade usa mod.category
+const FILTER_SETS: Record<string, null> = {
+    'TODOS': null, 'DOCUMENTOS': null, 'SISTEMA': null,
+    'INVESTIGAÇÃO': null, 'FERRAMENTAS': null, 'UTILIDADES': null,
 };
 
-const D = { color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.25)'  };
-const S = { color: '#00f3ff', bg: 'rgba(0,243,255,0.08)',   border: 'rgba(0,243,255,0.25)'   };
-const I = { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)'  };
-const F = { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',   border: 'rgba(34,197,94,0.25)'   };
-const U = { color: '#f97316', bg: 'rgba(249,115,22,0.08)',  border: 'rgba(249,115,22,0.25)'  };
+const CATEGORY_ORDER = ['DOCUMENTOS', 'SISTEMA', 'INVESTIGAÇÃO', 'FERRAMENTAS', 'UTILIDADES'];
+
+// D = DOCUMENTOS — roxo igual ao COFRE
+const D = { color: '#bc13fe', bg: 'rgba(188,19,254,0.08)', border: 'rgba(188,19,254,0.25)', category: 'DOCUMENTOS' };
+const S = { color: '#00f3ff', bg: 'rgba(0,243,255,0.08)',  border: 'rgba(0,243,255,0.25)',  category: 'SISTEMA'     };
+const I = { color: '#3b82f6', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.25)', category: 'INVESTIGAÇÃO' };
+const F = { color: '#22c55e', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.25)',  category: 'FERRAMENTAS' };
+const U = { color: '#f97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.25)', category: 'UTILIDADES'  };
 
 const MODULES = [
-    { href: '/home',                  icon: Home,        label: 'HUB PÚBLICO',                                                                         ...U },
-    { href: '/admin/links-uteis',     icon: NotebookPen, label: 'LINKS ÚTEIS',                                                                         ...U },
-    { href: '/admin/pericia-arquivo', icon: FileSearch,  label: 'GERAR NOVO RELATÓRIO',                                                                 ...D },
-    { href: '/admin/auditoria-sansao',icon: FileSearch,  label: 'AUDITORIA FORENSE',                                                                   ...S },
-    { href: '/admin/cofre',           icon: BookOpen,    label: "LOG'S IMUTÁVEIS",                                                                     ...D },
-    { href: '/admin/laudo-forense',   icon: TrendingUp,  label: 'CENTRAL DE RELATÓRIOS',                                                               ...D },
-    { href: '/admin/descriptar',      icon: KeyRound,    label: 'REVERTER CRIPTOGRAFIA',                                                               ...F },
-    { href: '/auditor',               icon: ShieldCheck, label: 'CALCULAR HASH DO ATIVO',                                                              ...F },
-    { href: '/vitrine',               icon: Archive,     label: 'ATIVOS COMPARTILHADOS',                                                               ...D },
-    { href: '/admin/forensics',       icon: Eye,         label: 'DETECÇÕES / CONTRAINTELIGÊNCIA',                                                      ...I },
-    { href: '/admin/lixeira',         icon: Trash2,      label: 'LIXEIRA VIRTUAL',                                                                     ...D },
-    { href: '/doc',                   icon: FileCode2,   label: 'MANUAIS DO SISTEMA',                                                                  ...U },
-    { href: '/admin/convidados',      icon: Users,       label: 'CENTRAL DE CONVIDADOS',                                                               ...S },
-    { href: '/admin/teste',           icon: Cpu,         label: 'MONITORAMENTO E DIAGNÓSTICO',                                                         ...S },
-    { href: '/admin/ia-config',       icon: Bot,         label: 'PERITO SANSÃO',                                                                       ...S },
-    { href: '/admin/logs',            icon: Database,    label: "LOG'S DE SESSÃO",                                                                     ...D },
-    { href: '/admin/captura-web',     icon: Globe,       label: 'COLETA ATIVA NA WEB',                                                                 ...I },
-    { href: '/admin/investigar',      icon: Search,      label: 'COFRE OSINT',                                                                         ...I },
-    { href: '/admin/varreduras',      icon: Binoculars,  label: 'VARREDURA OSINT',                                                                     ...I },
-    { href: '/admin/relatorios',      icon: FileText,    label: 'MAPA TÁTICO',                                                                         ...I },
-    { href: '/admin/canary',          icon: AlertTriangle,label: 'ARMADILHA DIGITAL',                                                                  ...S },
-    { href: '/admin/security',        icon: ShieldAlert, label: 'ARQUIVOS ARMADILHA',                                                                  ...S },
-    { href: '/admin/perfil',          icon: UserCog,     label: 'GERENCIAR PERFIL',                                                                    ...S },
-    { href: '/admin/relatorio-geral', icon: BarChart3,   label: 'PARECERES DO SISTEMA',                                                                ...S },
-    { href: '/admin/perfil',          icon: UserCog,     label: 'DISPOSITIVOS MÓVEIS',                                                                 ...F },
-    { href: '/admin/chat',            icon: MessageSquare,label: 'COMUNICAÇÃO SEGURA',                                                                 ...F },
-    { href: '/colaborar',             icon: Handshake,   label: 'COLABORE COM O SISTEMA',                                                              ...U },
-    { href: '/admin/api-central',     icon: Plug,        label: "CENTRAL DE GERENCIAMENTO DE API'S DE TERCEIROS",                                     ...F },
+    { href: '/admin/laudo-forense',   icon: TrendingUp,   label: 'CENTRAL DE RELATÓRIOS',          ...D },
+    { href: '/admin/timeline',        icon: Clock,        label: 'LINHA DO TEMPO DE CUSTÓDIA',     ...D },
+    { href: '/admin/lixeira',         icon: Trash2,       label: 'LIXEIRA VIRTUAL',                ...D },
+    { href: '/vitrine',               icon: Archive,      label: 'ATIVOS COMPARTILHADOS',          ...D },
+    { href: '/admin/logs',            icon: Database,     label: "LOG'S DE SESSÃO",                ...S },
+    { href: '/admin/usuarios',        icon: Users,        label: 'GERENCIAR USUÁRIOS',             ...S },
+    { href: '/admin/convidados',      icon: Users,        label: 'CENTRAL DE CONVIDADOS',          ...S },
+    { href: '/admin/security',        icon: ShieldAlert,  label: 'SEGURANÇA EXTREMA',              ...S },
+    { href: '/profile',               icon: UserCog,      label: 'PERFIL / BIOMETRIA / TOTP',      ...S },
+    { href: '/admin/forensics',       icon: Eye,          label: 'DETECÇÕES / CONTRAINTELIGÊNCIA', ...I },
+    { href: '/admin/captura-web',     icon: Globe,        label: 'COLETA ATIVA NA WEB',            ...I },
+    { href: '/admin/relatorios',      icon: FileText,     label: 'MAPA TÁTICO',                    ...I },
+    { href: '/analise',               icon: FileBarChart, label: 'ANÁLISE FORENSE DE ARQUIVOS',    ...I },
+    { href: '/admin/descriptar',      icon: KeyRound,     label: 'REVERTER CRIPTOGRAFIA',          ...F },
+    { href: '/auditor',               icon: ShieldCheck,  label: 'CALCULAR HASH DO ATIVO',         ...F },
+    { href: '/admin/canary',          icon: AlertTriangle,label: 'ARMADILHA DIGITAL',              ...F },
+    { href: '/home',                  icon: Home,         label: 'HUB PÚBLICO',                    ...U },
+    { href: '/doc',                   icon: FileCode2,    label: 'MANUAIS DO SISTEMA',             ...U },
+    { href: '/admin/links-uteis',     icon: NotebookPen,  label: 'LINKS ÚTEIS',                    ...U },
 ];
 
 // ── Diagnóstico: constantes ───────────────────────────────────────────────────
 const LATENCY_HOPS = [
     { from: "Usuário (Browser)", to: "Cloudflare Edge", ms: 20, proto: "HTTPS/TLS 1.3", color: "#00f3ff" },
     { from: "Cloudflare Edge", to: "Cloudflared Tunnel", ms: 5, proto: "WireGuard / QUIC", color: "#f59e0b", extra: true },
-    { from: "cloudflared", to: "Caddy Proxy", ms: 2, proto: "HTTP/2 interno", color: "#bc13fe" },
-    { from: "Caddy Proxy", to: "Next.js App", ms: 1, proto: "HTTP localhost", color: "#34d399" },
-    { from: "Next.js App", to: "SQLite DB (Prisma)", ms: 0, proto: "File I/O (WAL)", color: "#a855f7" },
-    { from: "Next.js App", to: "Ollama LLM (11434)", ms: 3, proto: "HTTP REST", color: "#f97316" },
+    { from: "cloudflared", to: "Caddy (k3s)", ms: 2, proto: "HTTP/2 interno", color: "#bc13fe" },
+    { from: "Caddy (k3s)", to: "Next.js App", ms: 1, proto: "HTTP portal-svc:3000", color: "#34d399" },
+    { from: "Next.js App", to: "PostgreSQL (Prisma)", ms: 2, proto: "TCP ncfn_postgres:5432", color: "#a855f7" },
+    { from: "Browser (>50MB)", to: "Cloudflare R2", ms: 0, proto: "HTTPS PUT presigned", color: "#f97316" },
 ];
 
 const ECOSYSTEM = [
@@ -132,10 +120,10 @@ const ECOSYSTEM = [
         action: { label: "FLUSH CACHE", color: "text-[#00f3ff]", border: "border-[#00f3ff]/30", key: "flush" },
         items: [
             { label: "Framework", value: "Next.js 14 (App Router)", icon: Layers },
-            { label: "Runtime", value: "Node.js / Bun", icon: Zap },
+            { label: "Runtime", value: "Node.js 18", icon: Zap },
             { label: "Linguagem", value: "TypeScript 5 + React 18", icon: FileSearch },
-            { label: "ORM / Banco", value: "Prisma + SQLite (WAL)", icon: Database },
-            { label: "Auth", value: "NextAuth v4 + Cloudflare Access OTP", icon: Key },
+            { label: "ORM / Banco", value: "Prisma + PostgreSQL 16", icon: Database },
+            { label: "Auth", value: "NextAuth v4 + TOTP + WebAuthn", icon: Key },
             { label: "Estilo", value: "Tailwind CSS 3 + Lucide Icons", icon: Activity },
         ],
     },
@@ -143,12 +131,12 @@ const ECOSYSTEM = [
         category: "Infraestrutura",
         action: null,
         items: [
-            { label: "Container", value: "Docker + k3s (ncfn/portal:latest)", icon: Server },
-            { label: "Proxy Reverso", value: "Caddy 2 (HTTP via CF tunnel)", icon: Globe },
+            { label: "Orquestração", value: "k3s (Kubernetes leve) — 2 réplicas", icon: Server },
+            { label: "Proxy Reverso", value: "Caddy 2 (hostNetwork — porta 80)", icon: Globe },
             { label: "Túnel", value: "Cloudflare Tunnel (cloudflared)", icon: Wifi },
-            { label: "Hospedagem", value: "Servidores Físicos Dedicados — EUA & Brasil", icon: HardDrive },
-            { label: "Domínio", value: "ncfn.net (Cloudflare DNS / Zero Trust)", icon: Shield },
-            { label: "CDN / DDoS", value: "Cloudflare Global Network", icon: Lock },
+            { label: "Storage Local", value: "COFRE_NCFN (volume k3s PVC)", icon: HardDrive },
+            { label: "Storage Nuvem", value: "Cloudflare R2 (arquivos >50MB)", icon: HardDriveDownload },
+            { label: "Domínio / CDN", value: "ncfn.net — Cloudflare Zero Trust", icon: Shield },
         ],
     },
     {
@@ -156,23 +144,11 @@ const ECOSYSTEM = [
         action: { label: "CHECK ENV INTEGRITY", color: "text-green-400", border: "border-green-500/30", key: "env" },
         items: [
             { label: "Criptografia", value: "AES-256-CBC + scrypt (CRYPTO_SALT)", icon: Lock },
-            { label: "Integridade", value: "SHA-256 / MD5 / SHA-1 por arquivo", icon: Shield },
+            { label: "Integridade", value: "SHA-256 por arquivo (cache no banco)", icon: Shield },
             { label: "Timestamping", value: "RFC 3161 TSA (prova forense)", icon: Clock },
             { label: "Dead Man Switch", value: "Cron + Lockdown/Wipe automático", icon: AlertTriangle },
             { label: "Rate Limit", value: "Sliding-window in-memory", icon: Zap },
-            { label: "Vault", value: "COFRE_NCFN + 100_BURN_IMMUTABILITY", icon: HardDrive },
-        ],
-    },
-    {
-        category: "IA & Análise",
-        action: { label: "STRESS TEST IA", color: "text-purple-400", border: "border-purple-500/30", key: "stress" },
-        items: [
-            { label: "LLM Local", value: "Ollama (mistral / llava)", icon: Cpu },
-            { label: "Análise Visual", value: "Ollama Vision (llava model)", icon: FileSearch },
-            { label: "ASR (Áudio)", value: "Whisper ASR (container separado)", icon: Activity },
-            { label: "RAG / Embeddings", value: "ChromaDB (container opcional)", icon: Database },
-            { label: "Perito Sansão", value: "6 protocolos forenses + SSE streaming", icon: Shield },
-            { label: "Laudo IA", value: "Geração de laudos com Ollama + pdf-lib", icon: FileSearch },
+            { label: "Captura Web", value: "Playwright/Chromium + certidão forense", icon: Globe },
         ],
     },
 ];
@@ -194,13 +170,6 @@ export default function AdminDashboard() {
     const [sysStats, setSysStats]         = useState<SysStats | null>(null);
     const [activeFilter, setActiveFilter] = useState<string>('TODOS');
     const [emptyFolderToast, setEmptyFolderToast] = useState(false);
-
-    // ── Scan state ───────────────────────────────────────────────────────────
-    const [scanRunning, setScanRunning]     = useState(false);
-    const [scanProgress, setScanProgress]   = useState<ScanProgress | null>(null);
-    const [scanDone, setScanDone]           = useState(false);
-    const [scanReportName, setScanReportName] = useState('');
-    const scanAbortRef = useRef<AbortController | null>(null);
 
     // ── Diagnóstico state ─────────────────────────────────────────────────────
     const [diagStats, setDiagStats]     = useState<DiagStats | null>(null);
@@ -242,7 +211,7 @@ export default function AdminDashboard() {
         }, 200);
     }, []);
 
-    // ── Initial data fetch ────────────────────────────────────────────────────
+    // ── Initial data fetch + SSE real-time updates ───────────────────────────
     useEffect(() => {
         fetch('/api/files')
             .then(res => res.json())
@@ -256,6 +225,23 @@ export default function AdminDashboard() {
             .then(res => res.json())
             .then(data => setSysStats(data))
             .catch(() => {});
+        // SSE: atualiza sysStats a cada 10s sem polling manual
+        const es = new EventSource('/api/admin/sse');
+        es.onmessage = (e) => {
+            try {
+                const d = JSON.parse(e.data);
+                if (d.type === 'stats') {
+                    setSysStats(prev => prev ? {
+                        ...prev,
+                        activeSessions: d.activeSessions ?? prev.activeSessions,
+                        todayLogs:      d.todayLogs      ?? prev.todayLogs,
+                        monitoredEvents: d.monitoredEvents ?? prev.monitoredEvents,
+                    } : prev);
+                }
+            } catch {}
+        };
+        es.onerror = () => es.close();
+        return () => es.close();
     }, []);
 
     // ── Files derived ─────────────────────────────────────────────────────────
@@ -273,63 +259,11 @@ export default function AdminDashboard() {
         return fileDate > dayAgo;
     }).length;
 
-    // ── Scan logic ────────────────────────────────────────────────────────────
-    const startGlobalScan = useCallback(async () => {
-        if (scanRunning) return;
-        setScanRunning(true);
-        setScanDone(false);
-        setScanProgress(null);
-        setScanReportName('');
-
-        const abort = new AbortController();
-        scanAbortRef.current = abort;
-
-        try {
-            const res = await fetch('/api/admin/auditoria-sansao', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folder: null }),
-                signal: abort.signal,
-            });
-            if (!res.ok || !res.body) { setScanRunning(false); return; }
-
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() ?? '';
-                for (const line of lines) {
-                    if (!line.startsWith('data: ')) continue;
-                    try {
-                        const p = JSON.parse(line.slice(6));
-                        if (p.type === 'progress') {
-                            setScanProgress({ i: p.index, total: p.total, file: p.file, protocol: p.protocol });
-                        } else if (p.type === 'complete') {
-                            if (p.reportName) setScanReportName(p.reportName);
-                            setScanDone(true);
-                            fetch('/api/admin/system-stats').then(r => r.json()).then(setSysStats).catch(() => {});
-                        }
-                    } catch (_) {}
-                }
-            }
-        } catch (e: any) {
-            if (e?.name !== 'AbortError') console.error(e);
-        } finally {
-            setScanRunning(false);
-        }
-    }, [scanRunning]);
-
     // ── Diagnóstico logic ─────────────────────────────────────────────────────
     const buildChecks = (): Omit<CheckResult, 'checkFn'>[] => [
-        { label: "VPS Stats API", ok: false, detail: "Não testado" },
-        { label: "Banco de Dados (Prisma/SQLite)", ok: false, detail: "Não testado" },
+        { label: "Banco de Dados (PostgreSQL)", ok: false, detail: "Não testado" },
         { label: "Vault COFRE_NCFN", ok: false, detail: "Não testado" },
-        { label: "Ollama API (LLM Local)", ok: false, detail: "Não testado" },
+        { label: "R2 (Cloudflare Storage)", ok: false, detail: "Não testado" },
         { label: "Cloudflare Tunnel", ok: false, detail: "Não testado" },
         { label: "TLS / HTTPS", ok: false, detail: "Não testado" },
     ];
@@ -338,29 +272,21 @@ export default function AdminDashboard() {
         setCheckLoading(prev => ({ ...prev, [label]: true }));
         let result: { ok: boolean; detail: string } = { ok: false, detail: "" };
 
-        if (label === "VPS Stats API") {
-            try {
-                const r = await fetch("/api/admin/vps-stats");
-                if (r.ok) {
-                    const d = await r.json();
-                    setDiagStats(d);
-                    result = { ok: true, detail: `${d.hostname} — ${d.platform}/${d.arch}` };
-                } else result = { ok: false, detail: `HTTP ${r.status}` };
-            } catch (e: unknown) { result = { ok: false, detail: (e as Error).message }; }
-        } else if (label === "Banco de Dados (Prisma/SQLite)") {
+        if (label === "Banco de Dados (PostgreSQL)") {
             try {
                 const r = await fetch("/api/admin/security");
-                result = { ok: r.ok, detail: r.ok ? "Conectado e operacional" : `HTTP ${r.status}` };
+                result = { ok: r.ok, detail: r.ok ? "PostgreSQL conectado e operacional" : `HTTP ${r.status}` };
             } catch (e: unknown) { result = { ok: false, detail: (e as Error).message }; }
         } else if (label === "Vault COFRE_NCFN") {
             try {
-                const r = await fetch("/api/vault?action=tree");
-                result = { ok: r.ok, detail: r.ok ? "Acesso ao cofre verificado" : `HTTP ${r.status}` };
+                const r = await fetch("/api/vault/browse");
+                result = { ok: r.ok, detail: r.ok ? "Volume COFRE_NCFN acessível" : `HTTP ${r.status}` };
             } catch (e: unknown) { result = { ok: false, detail: (e as Error).message }; }
-        } else if (label === "Ollama API (LLM Local)") {
+        } else if (label === "R2 (Cloudflare Storage)") {
             try {
-                const r = await fetch("/api/admin/vps-stats");
-                result = { ok: r.ok, detail: r.ok ? "Endpoint configurado" : "Indisponível" };
+                const r = await fetch("/api/health");
+                const ok = r.ok;
+                result = { ok, detail: ok ? "Credenciais R2 carregadas no servidor" : "Verificar R2_* vars no .env" };
             } catch { result = { ok: false, detail: "Não alcançável" }; }
         } else if (label === "Cloudflare Tunnel") {
             const ok = window.location.hostname.includes("ncfn.net");
@@ -432,13 +358,12 @@ export default function AdminDashboard() {
         </div>
     );
 
-    const scanPct = scanProgress ? Math.round((scanProgress.i / scanProgress.total) * 100) : 0;
     const memPct = diagStats?.memory?.percentUsed ?? 0;
     const diskPct = diagStats?.disk ? Math.round((diagStats.disk.used / (diagStats.disk.total || 1)) * 100) : 0;
     const reversalCanSubmit = reversalPassword.length > 0 && reversalJustification.length > 10 && !!reversalPdf;
 
     return (
-        <div className="mt-0 space-y-10 pb-20 max-w-7xl mx-auto" style={{ zoom: 1.2 }}>
+        <div className="mt-0 space-y-6 sm:space-y-10 pb-24 max-w-7xl mx-auto md:[zoom:1.2]">
 
             {/* ─── GRAFO DE CUSTÓDIA DIGITAL — floating modal ─── */}
             {showGraph && (
@@ -515,8 +440,8 @@ export default function AdminDashboard() {
             <SectionTitle title="Módulos do Sistema" subtitle="Ferramentas operacionais" color="#bc13fe" />
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4 px-1">
 
-                {/* Barra de filtros */}
-                <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-1.5 flex-wrap">
+                {/* Barra de filtros — scroll horizontal no mobile */}
+                <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-1.5 overflow-x-auto no-scrollbar sm:flex-wrap flex-nowrap pb-0.5 -mx-1 px-1">
                     {Object.keys(FILTER_SETS).map(filter => {
                         const checked = activeFilter === filter;
                         const fc = FILTER_COLORS[filter] ?? '#bc13fe';
@@ -567,29 +492,50 @@ export default function AdminDashboard() {
                     </div>
                 </Link>
 
+                {/* Connector line — visible when a category filter is active */}
+                {activeFilter !== 'TODOS' && (() => {
+                    const fc = FILTER_COLORS[activeFilter] ?? '#bc13fe';
+                    return (
+                        <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-0">
+                            <div className="flex-1 rounded-full" style={{ height: 3, background: `${fc}99` }} />
+                        </div>
+                    );
+                })()}
+
                 {/* Demais módulos */}
-                {MODULES.map((mod, idx) => {
-                    const visible = activeFilter === 'TODOS' || (FILTER_SETS[activeFilter]?.includes(idx) ?? false);
+                {[...MODULES].sort((a, b) => {
+                    const ao = CATEGORY_ORDER.indexOf(a.category);
+                    const bo = CATEGORY_ORDER.indexOf(b.category);
+                    return (ao === -1 ? 99 : ao) - (bo === -1 ? 99 : bo);
+                }).map((mod, idx) => {
+                    const visible = activeFilter === 'TODOS' || mod.category === activeFilter;
+                    const fc = activeFilter !== 'TODOS' ? (FILTER_COLORS[activeFilter] ?? '#bc13fe') : null;
                     return (
                         <Link key={`${mod.href}-${idx}`} href={visible ? mod.href : '#'}
                             className={`group transition-all duration-300 ${!visible ? 'pointer-events-none' : ''}`}
                             style={{ opacity: visible ? 1 : 0.2 }}
                             tabIndex={visible ? undefined : -1}>
-                            <div className={`rounded-xl px-3 py-2 flex flex-row items-center gap-2.5 transition-all duration-300 border backdrop-blur-xl ${visible ? 'cursor-pointer hover:scale-[1.02] hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]' : 'cursor-default grayscale'}`}
-                                style={{ background: mod.bg, borderColor: visible ? mod.border : 'rgba(255,255,255,0.05)' }}
+                            <div
+                                className={`rounded-xl px-3 py-2 flex flex-row items-center gap-2.5 transition-all duration-300 border backdrop-blur-xl ${visible ? 'cursor-pointer hover:scale-[1.02] hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]' : 'cursor-default grayscale'}`}
+                                style={{
+                                    background: mod.bg,
+                                    borderColor: visible && fc ? `${fc}99` : (visible ? mod.border : 'rgba(255,255,255,0.05)'),
+                                    borderWidth: visible && fc ? '2px' : '1px',
+                                }}
                                 onMouseEnter={e => { if (visible) (e.currentTarget as HTMLElement).style.boxShadow = `0 0 14px ${mod.color}20`; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = ''; }}>
                                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
                                     style={{ background: `${mod.color}15`, border: `1px solid ${mod.color}30` }}>
                                     <mod.icon className="w-3.5 h-3.5" style={{ color: mod.color }} />
                                 </div>
-                                <h3 className={`module-cursor text-[9px] font-bold text-left leading-tight line-clamp-2 transition-colors duration-200 ${visible ? 'text-gray-400 group-hover:text-white' : 'text-gray-600'}`}>
+                                <h3 className={`module-cursor text-[10px] sm:text-[9px] font-bold text-left leading-tight line-clamp-2 transition-colors duration-200 ${visible ? 'text-gray-400 group-hover:text-white' : 'text-gray-600'}`}>
                                     {mod.label}
                                 </h3>
                             </div>
                         </Link>
                     );
                 })}
+
             </div>
 
             {/* ─── DIRETÓRIOS DE ATIVOS CUSTODIADOS — sempre 12 ─── */}
@@ -614,7 +560,7 @@ export default function AdminDashboard() {
                                     : <Folder className="text-[#bc13fe] w-3.5 h-3.5" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h3 className={`text-[9px] font-bold leading-tight line-clamp-1 transition-colors duration-200
+                                <h3 className={`text-[10px] sm:text-[9px] font-bold leading-tight line-clamp-1 transition-colors duration-200
                                     ${isUltra ? 'text-red-400' : hasFiles ? 'text-gray-400 group-hover:text-white' : 'text-gray-600'}`}>
                                     {folder.replace(/_/g, ' ')}
                                 </h3>
@@ -637,14 +583,6 @@ export default function AdminDashboard() {
                 })}
             </div>
 
-            {/* ─── DASHBOARD DE MONITORAMENTO DE ATÍVOS ─── */}
-            {validFiles.length > 0 && (
-                <>
-                    <SectionTitle title="Dashboard de Monitoramento de Atívos" subtitle="Métricas de custódia em tempo real" color="#00f3ff" />
-                    <AdminCharts files={files} />
-                </>
-            )}
-
             {/* ─── 10 Botões de Stats (abaixo dos charts) ─── */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-1">
                 <StatCard icon={Database} value={String(totalFiles)} label="Ativos sob Custódia" color="#bc13fe" />
@@ -657,42 +595,17 @@ export default function AdminDashboard() {
                     <StatCard icon={ShieldAlert} value={sysStats ? String(sysStats.monitoredEvents) : '—'} label="Eventos de Segurança Totais" color="#ef4444" hover pulse />
                 </Link>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 px-1">
                 <StatCard icon={FileBarChart} value={sysStats ? String(sysStats.filesWithPericias) : '—'} label="Ativos com Perícia Salva" color="#8b5cf6" />
                 <StatCard icon={Lock} value={sysStats ? String(sysStats.encryptedCount) : '—'} label="Ativos Encriptados" color="#f97316" />
                 <StatCard icon={HardDriveDownload} value={sysStats ? formatBytes(sysStats.diskFree) : '—'} label="Espaço em Disco Disponível" color="#06b6d4" />
-                <Link href="/admin/auditoria-sansao" className="group">
-                    <StatCard icon={Shield} value={sysStats ? String(sysStats.activeSessions) : '—'} label="Sessões Ativas (15min)" color="#bc13fe" hover />
-                </Link>
-                {/* Botão Varredura Geral */}
-                <button onClick={startGlobalScan} disabled={scanRunning}
-                    className="glass-panel px-3 rounded-xl flex flex-col items-center justify-center text-center gap-1.5 transition-all duration-300 border cursor-pointer hover:scale-[1.03] disabled:cursor-not-allowed"
-                    style={{ borderColor: scanDone ? '#22c55e30' : '#bc13fe30', height: 90 }}>
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: scanDone ? '#22c55e12' : '#bc13fe12', border: `1px solid ${scanDone ? '#22c55e25' : '#bc13fe25'}` }}>
-                        {scanRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#bc13fe' }} />
-                            : scanDone ? <CheckCircle className="w-3.5 h-3.5" style={{ color: '#22c55e' }} />
-                            : <Play className="w-3.5 h-3.5" style={{ color: '#bc13fe' }} />}
-                    </div>
-                    {scanRunning && scanProgress ? (
-                        <div className="w-full space-y-0.5">
-                            <div className="h-1 bg-gray-900 rounded-full overflow-hidden">
-                                <div className="h-full bg-gradient-to-r from-[#bc13fe] to-[#8b5cf6] rounded-full transition-all duration-500" style={{ width: `${scanPct}%` }} />
-                            </div>
-                            <span className="text-[7px] font-mono text-[#bc13fe]">{scanPct}%</span>
-                        </div>
-                    ) : (
-                        <span className="text-lg lg:text-xl font-black text-white leading-none flex-shrink-0">{scanDone ? '✓' : '▶'}</span>
-                    )}
-                    <span className="text-[7px] lg:text-[8px] font-bold uppercase tracking-wider leading-tight line-clamp-2 w-full"
-                        style={{ color: scanDone ? '#22c55e' : '#bc13fe' }}>
-                        {scanDone ? 'Relatório Gerado!' : scanRunning ? 'Analisando...' : 'Iniciar Varredura Geral'}
-                    </span>
-                </button>
+                <StatCard icon={Shield} value={sysStats ? String(sysStats.activeSessions) : '—'} label="Sessões Ativas (15min)" color="#bc13fe" />
             </div>
 
-            {/* ─── Mapa / Interceptações ─── */}
-            <MapDashboard />
+            {/* ─── Mapa / Interceptações ─── counter-zoom apenas em desktop */}
+            <div className="md:[zoom:0.8333]">
+              <MapDashboard />
+            </div>
 
             {/* ─── DIAGNÓSTICO DO SISTEMA ─── */}
             <SectionTitle title="Diagnóstico do Sistema" subtitle="NOC — Verificação técnica do ecossistema Portal NCFN" color="#9ca3af" />
@@ -748,7 +661,7 @@ export default function AdminDashboard() {
                             <p className="text-[9px] font-bold uppercase tracking-widest text-gray-600">RAM Usada</p>
                             <p className="text-xl font-black mt-1" style={{ color: memPct > 90 ? "#ef4444" : memPct > 70 ? "#f97316" : "#00f3ff" }}>{memPct}%</p>
                             <p className="text-[9px] font-mono text-gray-600 mt-0.5">{fmtBytes(diagStats.memory.used)} / {fmtBytes(diagStats.memory.total)}</p>
-                            {memPct > 90 && <p className="text-[8px] font-bold text-red-400 mt-1 bg-red-950/40 px-1 py-0.5 rounded">ALERTA: GARGALO NO PERITO SANSÃO IMINENTE</p>}
+                            {memPct > 90 && <p className="text-[8px] font-bold text-red-400 mt-1 bg-red-950/40 px-1 py-0.5 rounded">ALERTA: RAM CRÍTICA — REINICIAR POD</p>}
                         </div>
                         {[
                             { label: "Disco Usado", value: diagStats.disk.percent, sub: `${fmtBytes(diagStats.disk.used)} / ${fmtBytes(diagStats.disk.total)}`, color: diskPct > 85 ? "#ef4444" : "#34d399" },
@@ -942,7 +855,7 @@ function StatCard({ icon: Icon, value, label, color, hover, pulse }: {
                 <Icon className={`w-3.5 h-3.5 ${pulse ? 'animate-pulse' : ''}`} style={{ color }} />
             </div>
             <span className="text-lg lg:text-xl font-black text-white leading-none flex-shrink-0">{value}</span>
-            <span className="text-[7px] lg:text-[8px] text-gray-500 font-bold uppercase tracking-wider leading-tight line-clamp-2 w-full">{label}</span>
+            <span className="text-[9px] md:text-[7px] lg:text-[8px] text-gray-500 font-bold uppercase tracking-wider leading-tight line-clamp-2 w-full">{label}</span>
         </div>
     );
 }

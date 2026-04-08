@@ -1,0 +1,36 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - link "■ NCFN.NET Nexus Cyber Forensic Network" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: ■
+        - generic [ref=e6]:
+          - generic [ref=e7]: NCFN.NET
+          - generic [ref=e8]: Nexus Cyber Forensic Network
+      - navigation [ref=e10]:
+        - link "Vitrine" [ref=e11] [cursor=pointer]:
+          - /url: /vitrine
+          - img [ref=e12]
+          - text: Vitrine
+        - link "Auditor" [ref=e15] [cursor=pointer]:
+          - /url: /auditor
+          - img [ref=e16]
+          - text: Auditor
+        - link "Guia" [ref=e18] [cursor=pointer]:
+          - /url: /doc
+          - img [ref=e19]
+          - text: Guia
+        - link "Entrar" [ref=e22] [cursor=pointer]:
+          - /url: /login
+    - main [ref=e23]:
+      - generic [ref=e29]: Acessando Centro de Comando...
+    - contentinfo [ref=e30]:
+      - generic [ref=e31]:
+        - paragraph [ref=e32]: "Security Level: Grade A | Neural Multi-Layer Active"
+        - paragraph [ref=e33]: "NCFN: Nexus Cloud Forensic Network | CopyLeft 2026"
+        - generic [ref=e34]:
+          - generic [ref=e35]: ncfn@ncfn.net
+          - generic [ref=e36]: "|"
+          - link "Política de Uso" [ref=e37] [cursor=pointer]:
+            - /url: /politica
+  - alert [ref=e38]

@@ -4,6 +4,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession, getDbUser } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 const BL_BASE = 'https://production-sfo.browserless.io';
 
@@ -20,6 +21,10 @@ async function requireAdmin() {
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin) return NextResponse.json({ error: 'Acesso restrito' }, { status: 403 });
+
+  if (!checkRateLimit(`browserless:${admin.email}`, 10, 3_600_000)) {
+    return NextResponse.json({ error: 'Limite de capturas browserless atingido (10/hora). Aguarde.' }, { status: 429 });
+  }
 
   const { url, action, selector = 'body', selectors } = await req.json();
 

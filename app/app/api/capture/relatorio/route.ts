@@ -405,7 +405,7 @@ export async function POST(req: NextRequest) {
   const cap = await prisma.webCapture.findUnique({ where: { id: captureId } });
   if (!cap) return new NextResponse('Captura não encontrada', { status: 404 });
 
-  const captureDir = path.join(process.cwd(), '../COFRE_NCFN/capturas_web', captureId);
+  const captureDir = path.join(process.cwd(), '../COFRE_NCFN/7_NCFN-CAPTURAS-WEB_OSINT', captureId);
 
   // Exiftool na screenshot
   const screenshotPath = path.join(captureDir, 'screenshot.png');

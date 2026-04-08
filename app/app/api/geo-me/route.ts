@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   // GeoIP lookup
   const geo = geoip.lookup(ip);
-  const isLocal = ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.');
+  const isLocal = ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.') || ip.startsWith('::ffff:172.') || ip.startsWith('::ffff:192.') || ip.startsWith('::ffff:10.');
 
   const location = isLocal
     ? { city: 'Localhost', region: 'Desenvolvimento', country: 'BR', ll: [-15.7801, -47.9292] as [number, number], timezone: 'America/Sao_Paulo' }

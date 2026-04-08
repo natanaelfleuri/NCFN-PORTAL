@@ -1,10 +1,11 @@
 "use client";
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     ShieldCheck, UploadCloud, Copy, Fingerprint, Info, X,
     Database, EyeOff, AlertTriangle, FileSearch, CheckCircle,
     AlertCircle, Download, Hash, Search, Binary, FileCheck2,
-    Loader2, BookOpen, CheckCircle2,
+    Loader2, BookOpen, CheckCircle2, Shield, Lock,
 } from 'lucide-react';
 
 type AuditMode = 'CUSTODY' | 'THIRD_PARTY';
@@ -19,6 +20,7 @@ async function computeSha256(file: File): Promise<string> {
 }
 
 export default function OnlineAuditor() {
+    const searchParams = useSearchParams();
     const [mode, setMode] = useState<AuditMode>('CUSTODY');
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -31,9 +33,14 @@ export default function OnlineAuditor() {
     const [copied, setCopied] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Hash-based search
+    // Hash-based search (arquivo custodiado no NCFN)
     const [hashSearchLoading, setHashSearchLoading] = useState(false);
     const [hashSearchResult, setHashSearchResult] = useState<any>(null);
+
+    // Busca direta por hash (sem upload) — pré-preenchido via URL ?q=
+    const [directHash, setDirectHash] = useState('');
+    const [directHashLoading, setDirectHashLoading] = useState(false);
+    const [directHashResult, setDirectHashResult] = useState<any>(null);
 
     // Doc ID lookup
     const [docIdValue, setDocIdValue] = useState('');
@@ -44,6 +51,22 @@ export default function OnlineAuditor() {
     const [hexValue, setHexValue] = useState('');
     const [hexLoading, setHexLoading] = useState(false);
     const [hexResult, setHexResult] = useState<any>(null);
+
+    // Lê parâmetros de URL e pré-preenche campos — links vindos do PDF
+    useEffect(() => {
+        const q = searchParams.get('q');
+        const hex = searchParams.get('hex');
+        if (q) {
+            setDirectHash(q);
+            // Auto-buscar
+            setTimeout(() => searchDirectHash(q), 300);
+        }
+        if (hex) {
+            setHexValue(hex);
+            // Auto-buscar hex
+            setTimeout(() => lookupHexDirect(hex), 300);
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const processFile = useCallback(async (selectedFile: File) => {
         setFile(selectedFile);
@@ -92,6 +115,47 @@ export default function OnlineAuditor() {
             } catch (e) {
                 console.error('Audit log error:', e);
             }
+        }
+    };
+
+    // Busca direta por hash no sistema NCFN (sem upload de arquivo)
+    const searchDirectHash = async (hashOverride?: string) => {
+        const h = (hashOverride ?? directHash).trim();
+        if (!h) return;
+        setDirectHashLoading(true);
+        setDirectHashResult(null);
+        try {
+            const res = await fetch('/api/audit/lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'hash', value: h }),
+            });
+            const data = await res.json();
+            setDirectHashResult(data);
+        } catch {
+            setDirectHashResult({ found: false, message: 'Erro na consulta ao sistema.' });
+        } finally {
+            setDirectHashLoading(false);
+        }
+    };
+
+    const lookupHexDirect = async (hexOverride?: string) => {
+        const v = (hexOverride ?? hexValue).trim();
+        if (!v) return;
+        setHexLoading(true);
+        setHexResult(null);
+        try {
+            const res = await fetch('/api/audit/lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'hex', value: v }),
+            });
+            const data = await res.json();
+            setHexResult(data);
+        } catch {
+            setHexResult({ found: false, message: 'Erro na consulta.' });
+        } finally {
+            setHexLoading(false);
         }
     };
 
@@ -148,24 +212,7 @@ export default function OnlineAuditor() {
         }
     };
 
-    const lookupHex = async () => {
-        if (!hexValue.trim()) return;
-        setHexLoading(true);
-        setHexResult(null);
-        try {
-            const res = await fetch('/api/audit/lookup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'hex', value: hexValue.trim() }),
-            });
-            const data = await res.json();
-            setHexResult(data);
-        } catch {
-            setHexResult({ found: false, message: 'Erro na consulta.' });
-        } finally {
-            setHexLoading(false);
-        }
-    };
+    const lookupHex = () => lookupHexDirect();
 
     const copyHash = () => {
         if (!generatedHash) return;
@@ -198,8 +245,80 @@ export default function OnlineAuditor() {
                     AUDITORIA DE INTEGRIDADE FORENSE
                 </h2>
                 <p className="text-gray-400 max-w-2xl mx-auto text-sm">
-                    Motor criptográfico SHA-256 com dois modos — arquivos custodiados (com registro de auditoria) ou arquivos de terceiros (modo anônimo, sem rastro).
+                    Verifique a autenticidade de arquivos custodiados no NCFN — ou carregue uma evidência digital para análise forense.
                 </p>
+            </div>
+
+            {/* ── SEÇÃO PRIMÁRIA: Verificar por Hash no NCFN ── */}
+            <div className="rounded-2xl border border-cyan-500/30 bg-black/60 p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-cyan-500/10 rounded-xl border border-cyan-500/20 flex-shrink-0">
+                        <Shield className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-black text-cyan-300 uppercase tracking-widest">Arquivos Custodiados no NCFN</h3>
+                        <p className="text-[11px] text-gray-500 font-mono">Insira o código hash SHA-256 para verificar a custódia no sistema</p>
+                    </div>
+                </div>
+
+                <div className="flex gap-2">
+                    <input
+                        type="text"
+                        value={directHash}
+                        onChange={e => setDirectHash(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && searchDirectHash()}
+                        placeholder="Cole aqui o código SHA-256 do arquivo..."
+                        className="flex-1 bg-black/60 border border-cyan-700/40 rounded-xl px-4 py-3 text-cyan-100 font-mono text-xs placeholder-gray-700 focus:outline-none focus:border-cyan-500/60 transition"
+                    />
+                    <button
+                        onClick={() => searchDirectHash()}
+                        disabled={directHashLoading || !directHash.trim()}
+                        className="px-5 py-3 bg-cyan-900/40 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 rounded-xl font-bold text-xs transition disabled:opacity-40 flex items-center gap-2"
+                    >
+                        {directHashLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                        {directHashLoading ? 'Buscando...' : 'Verificar'}
+                    </button>
+                </div>
+
+                {/* Resultado da busca direta */}
+                {directHashResult && (
+                    <div className={`rounded-xl p-4 border ${directHashResult.found ? 'bg-green-950/30 border-green-500/30' : 'bg-red-950/20 border-red-500/20'}`}>
+                        {directHashResult.found ? (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                                    <span className="text-green-300 font-black text-sm uppercase tracking-widest">ARQUIVO LOCALIZADO NO SISTEMA</span>
+                                </div>
+                                {directHashResult.file && (
+                                    <div className="pl-6 space-y-1 font-mono text-xs text-gray-400">
+                                        {directHashResult.file.filename && <p>Arquivo: <span className="text-white">{directHashResult.file.filename}</span></p>}
+                                        {directHashResult.file.folder && <p>Pasta: <span className="text-cyan-400">{directHashResult.file.folder}</span></p>}
+                                        {directHashResult.file.date && <p>Custodiado em: <span className="text-gray-300">{new Date(directHashResult.file.date).toLocaleString('pt-BR')}</span></p>}
+                                        {directHashResult.file.operator && <p>Operador: <span className="text-gray-300">{directHashResult.file.operator}</span></p>}
+                                    </div>
+                                )}
+                                {directHashResult.message && <p className="text-green-400/70 text-xs font-mono pl-6">{directHashResult.message}</p>}
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                    <span className="text-red-300 font-black text-sm uppercase tracking-widest">Arquivo não encontrado no sistema</span>
+                                </div>
+                                <p className="text-gray-500 text-xs font-mono pl-6">{directHashResult.message || 'O hash não corresponde a nenhum arquivo custodiado no NCFN.'}</p>
+                                <div className="pl-6">
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex items-center gap-2 px-4 py-2 bg-amber-900/30 hover:bg-amber-900/50 border border-amber-600/40 text-amber-300 rounded-xl text-xs font-bold transition"
+                                    >
+                                        <UploadCloud className="w-4 h-4" />
+                                        Carregar Evidência Digital para Análise
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Mode Selector */}
@@ -511,15 +630,50 @@ export default function OnlineAuditor() {
                         </div>
                     </div>
                     <p className="text-xs text-gray-500 leading-relaxed">
-                        Cole o código hexadecimal do cabeçalho do arquivo (bytes mágicos, exibido no laudo) para identificar qual arquivo está custodiado com essa assinatura binária.
+                        Solte o arquivo abaixo para extrair o cabeçalho automaticamente, ou cole os bytes hex manualmente.
                     </p>
+
+                    {/* Drop zone — auto-extrai hex do arquivo */}
+                    <label
+                        className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-amber-500/30 hover:border-amber-500/60 rounded-xl py-5 px-4 cursor-pointer transition-colors bg-amber-500/5 hover:bg-amber-500/10"
+                        onDragOver={e => e.preventDefault()}
+                        onDrop={e => {
+                            e.preventDefault();
+                            const file = e.dataTransfer.files[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = ev => {
+                                const buf = new Uint8Array(ev.target?.result as ArrayBuffer);
+                                const hex = Array.from(buf.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join('');
+                                setHexValue(hex);
+                                setHexResult(null);
+                            };
+                            reader.readAsArrayBuffer(file.slice(0, 32));
+                        }}
+                    >
+                        <input type="file" className="hidden" onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = ev => {
+                                const buf = new Uint8Array(ev.target?.result as ArrayBuffer);
+                                const hex = Array.from(buf.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join('');
+                                setHexValue(hex);
+                                setHexResult(null);
+                            };
+                            reader.readAsArrayBuffer(file.slice(0, 32));
+                        }} />
+                        <UploadCloud className="w-5 h-5 text-amber-400/60" />
+                        <span className="text-[11px] text-amber-400/70 font-mono text-center">Solte o arquivo aqui ou clique para selecionar<br/><span className="text-gray-600">Os primeiros 32 bytes serão extraídos localmente</span></span>
+                    </label>
+
                     <div className="flex gap-2">
                         <input
                             type="text"
-                            placeholder="ex: 89504e47 ou FF D8 FF E0..."
+                            placeholder="ex: 89504e47... (preenchido automaticamente ao soltar arquivo)"
                             value={hexValue}
                             onChange={e => { setHexValue(e.target.value); setHexResult(null); }}
-                            className="flex-1 bg-black border border-gray-700 rounded-xl px-4 py-2.5 font-mono text-sm focus:border-amber-500 focus:outline-none text-white"
+                            className="flex-1 bg-black border border-gray-700 rounded-xl px-4 py-2.5 font-mono text-xs focus:border-amber-500 focus:outline-none text-white"
                             spellCheck={false}
                         />
                         <button

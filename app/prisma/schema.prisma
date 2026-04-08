@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model FileStatus {
@@ -15,6 +15,8 @@ model FileStatus {
   ownerId   String?
   user      User?      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   size      Int        @default(0)
+  r2Key     String?    // Chave no Cloudflare R2 (nulo = arquivo local em COFRE_NCFN)
+  sha256    String?    // Hash SHA-256 (cache — evita reler arquivo no browse)
   burnToken BurnToken?
 
   @@unique([folder, filename])
@@ -69,6 +71,9 @@ model User {
   proAccessUntil       DateTime?
   uploadedFilesCount   Int       @default(0)
   totalBytesUsed       Int       @default(0) // Safe up to 9PB in JS
+
+  // Password auth
+  passwordHash         String?
 
   // TOTP 2FA
   totpSecret           String?
@@ -225,8 +230,47 @@ model LaudoForense {
   quesitos        String?  // Custom questions
   pdfFile         String?
   status          String   @default("rascunho") // rascunho | final
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  reportType           String    @default("manual")   // manual | inicial | intermediario | final
+  folder               String?
+  filename             String?
+  finalReportExpiresAt DateTime?                      // for reportType='final': auto-delete after 5h
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+model FileCustodyState {
+  id                      String    @id @default(cuid())
+  folder                  String
+  filename                String
+
+  // T0 — custódia inicial (quando a caixa flutuante é fechada)
+  custodyStartedAt        DateTime
+
+  // Relatório Inicial
+  initialReportId         String?
+  initialReportAt         DateTime?
+
+  // Relatório Intermediário (disponível após 2h de custodyStartedAt)
+  intermediaryReportId    String?
+  intermediaryReportAt    DateTime?
+  intermediaryReportDone  Boolean   @default(false)
+
+  // Encriptação (step 2 do vault)
+  encryptedAt             DateTime?
+
+  // Relatório Final (disponível após 2h de encryptedAt)
+  finalReportId           String?
+  finalReportAt           DateTime?
+  finalReportExpiresAt    DateTime?
+
+  // Laudo Manual (única nova leitura após o Final)
+  manualReportId          String?
+  manualReportDone        Boolean   @default(false)
+
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@unique([folder, filename])
 }
 
 model CanaryFile {
@@ -403,4 +447,91 @@ model ApiConfig {
   lastVerifiedAt DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// ─── CHAT NCFN ──────────────────────────────────────────────────────────────
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  date      String        // "2026-03-24" — agrupamento diário
+  title     String?       // gerado automaticamente da 1ª mensagem
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+
+  @@index([date])
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String      // "user" | "claude" | "gemini" | "ollama" | "system"
+  content   String
+  model     String?     // modelo usado ex: "claude-sonnet-4-6", "gemini-2.0-flash"
+  tokens    Int?        // contagem aproximada de tokens
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+  @@index([createdAt])
+}
+
+model PendingFeature {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  priority    String   @default("normal")  // low | normal | high | critical
+  status      String   @default("pending") // pending | in_progress | done | cancelled
+  addedBy     String   @default("user")    // "user" | "claude" | "gemini" | "ollama"
+  category    String?  // "UI" | "API" | "AI" | "Security" | "Integration" | "Infra"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── CONVIDADOS / LEADS ──────────────────────────────────────────────────────
+
+model Convidado {
+  id                      String    @id @default(cuid())
+  name                    String
+  email                   String    @unique
+  phone                   String?
+  solicitarCredenciamento Boolean   @default(false)
+  receberNoticias         Boolean   @default(false)
+  verified                Boolean   @default(false)
+  verificationCode        String?
+  codeExpiresAt           DateTime?
+  credenciamentoStatus    String    @default("pendente")
+  freeAnalysisUsed        Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([email])
+}
+
+// ─── CUSTÓDIA NA NUVEM ────────────────────────────────────────────────────────
+
+model CloudCustody {
+  id             String    @id @default(cuid())
+  folder         String
+  filename       String
+  driveFileId    String
+  driveLink      String
+  driveFileName  String
+  aesKeyHex      String
+  aesIvHex       String
+  aesAuthTagHex  String
+  zipSha256      String
+  zipSizeBytes   Int
+  encSha256      String
+  operatorEmail  String
+  status         String    @default("active")
+  provider       String    @default("google_drive")
+  revokedAt      DateTime?
+  revokedBy      String?
+  revokeReason   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([driveFileId, provider])
+  @@index([folder, filename])
+  @@index([status])
 }

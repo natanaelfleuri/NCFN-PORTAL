@@ -21,7 +21,7 @@ data:
         }
     }
 
-    ncfn.net {
+    http://ncfn.net {
         import security_headers
 
         @block_db path *.db *.db-shm *.db-wal
@@ -38,6 +38,22 @@ data:
 
         @block_ua header User-Agent *sqlmap* *nikto* *nmap* *masscan* *zgrab* *curl/7.* *python-requests*
         respond @block_ua 403
+
+        # ── OSINT Desktop (webtop via Docker) ────────────────────
+        @osint path_regexp ^/osint(/.*)?$
+        handle @osint {
+            header -X-Frame-Options
+            header Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' ws: wss: data: blob:;"
+            reverse_proxy 163.245.218.241:3003 {
+                header_down -X-Frame-Options
+                header_down -Content-Security-Policy
+                transport http {
+                    read_timeout 0
+                    write_timeout 0
+                    dial_timeout 5s
+                }
+            }
+        }
 
         reverse_proxy portal-svc.ncfn.svc.cluster.local:3000 {
             health_uri /api/health
@@ -60,12 +76,8 @@ data:
             format json
             level INFO
         }
-
-        tls {
-            protocols tls1.2 tls1.3
-        }
     }
 
-    www.ncfn.net {
-        redir https://ncfn.net{uri} permanent
+    http://www.ncfn.net {
+        redir http://ncfn.net{uri} permanent
     }

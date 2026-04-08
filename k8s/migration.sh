@@ -5,7 +5,7 @@
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
-PROJ_DIR="/root/docker/portal_ncfn"
+PROJ_DIR="/home/roaaxxz/docker/portal_ncfn"
 K8S_DIR="$PROJ_DIR/k8s"
 ENV_FILE="$PROJ_DIR/.env"
 

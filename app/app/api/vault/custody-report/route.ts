@@ -2670,7 +2670,8 @@ export async function POST(req: NextRequest) {
       const PW = 612; const PH = 792;
 
       // ── Gera a pericia base completa via chamada interna ─────────────────
-      const baseUrl3 = new URL(req.url).origin;
+      // Usa localhost:3000 diretamente para evitar falha de DNS do container
+      const baseUrl3 = 'http://localhost:3000';
       const cookieHdr3 = req.headers.get('cookie') || '';
 
       let pdfDoc3: any;
@@ -2682,11 +2683,16 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json', 'cookie': cookieHdr3 },
           body: JSON.stringify({ filePath: `${laudoFolder2}/${laudoFile2}`, print: pm }),
         });
-        if (!periciaRes3.ok) throw new Error('base pericia failed');
+        if (!periciaRes3.ok) {
+          const errText = await periciaRes3.text().catch(() => '');
+          console.error('[view_typed_report] base pericia failed:', periciaRes3.status, errText);
+          throw new Error(`base pericia failed: ${periciaRes3.status}`);
+        }
         const baseBytes3 = Buffer.from(await periciaRes3.arrayBuffer());
         pdfDoc3 = await PDFDocument.load(baseBytes3);
         basePageCount3 = pdfDoc3.getPageCount();
-      } catch {
+      } catch (e3: any) {
+        console.error('[view_typed_report] catch:', e3?.message);
         pdfDoc3 = await PDFDocument.create();
         basePageCount3 = 0;
       }
@@ -3013,5 +3019,42 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[custody-report]', err);
     return new NextResponse('Erro ao gerar relatorio de custodia', { status: 500 });
+  }
+}
+
+// ── GET /api/vault/custody-report?id=xxx&print=0 ─────────────────────────────
+// Endpoint direto para iframe (evita blob URL)
+export async function GET(req: NextRequest) {
+  try {
+    const user = await adminGuard();
+    if (!user) return new NextResponse('Nao autorizado', { status: 401 });
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    const pm = searchParams.get('print') === '1';
+    if (!id) return new NextResponse('id obrigatorio', { status: 400 });
+
+    const laudo = await prisma.laudoForense.findUnique({ where: { id } });
+    if (!laudo) return new NextResponse('Relatorio nao encontrado', { status: 404 });
+
+    // Reutiliza a mesma lógica do POST view_typed_report via chamada interna
+    const internalRes = await fetch('http://localhost:3000/api/vault/custody-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'cookie': req.headers.get('cookie') || '' },
+      body: JSON.stringify({ action: 'view_typed_report', id, print: pm }),
+    });
+    if (!internalRes.ok) return new NextResponse('Erro ao gerar PDF', { status: 500 });
+
+    const pdfBytes = await internalRes.arrayBuffer();
+    const fname = (laudo.filename || 'relatorio').replace(/[^\w.-]/g, '_').slice(0, 30);
+    return new NextResponse(Buffer.from(pdfBytes), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="NCFN_${(laudo.reportType || 'relatorio').toUpperCase()}_${fname}.pdf"`,
+      },
+    });
+  } catch (err) {
+    console.error('[custody-report GET]', err);
+    return new NextResponse('Erro interno', { status: 500 });
   }
 }

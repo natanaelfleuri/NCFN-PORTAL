@@ -5,6 +5,7 @@ import {
   UserPlus, Trash2, Users, CheckCircle, XCircle, Shield,
   Copy, Link2, Clock, Star, AlertTriangle, RefreshCw,
   ArrowLeft, Lock, Share2, Key, HelpCircle, X,
+  Mail, Phone, CheckCircle2, ShieldCheck, ShieldX, Filter,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -14,6 +15,26 @@ type Guest = {
   name: string | null;
   active: boolean;
   createdAt: string;
+};
+
+type Convidado = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  solicitarCredenciamento: boolean;
+  receberNoticias: boolean;
+  verified: boolean;
+  credenciamentoStatus: string;
+  freeAnalysisUsed: boolean;
+  createdAt: string;
+};
+
+const CRED_STATUS: Record<string, { label: string; color: string }> = {
+  pendente:    { label: 'Pendente',     color: 'border-gray-500/30 text-gray-400 bg-gray-500/10' },
+  teste_7dias: { label: 'Teste 7 dias', color: 'border-cyan-500/30 text-cyan-300 bg-cyan-500/10' },
+  uso_pago:    { label: 'Uso Pago',     color: 'border-green-500/30 text-green-300 bg-green-500/10' },
+  recusado:    { label: 'Recusado',     color: 'border-red-500/30 text-red-400 bg-red-500/10' },
 };
 
 type InviteType = 'VAULT_ACCESS' | 'SYSTEM_REFERRAL';
@@ -39,13 +60,35 @@ export default function ConvidadosPage() {
   const [pendingInvites, setPendingInvites] = useState<{ email: string; token: string; type: InviteType; level: AccessLevel; createdAt: string }[]>([]);
   const [showHelp, setShowHelp] = useState(false);
 
+  const [convidados, setConvidados] = useState<Convidado[]>([]);
+  const [updatingCred, setUpdatingCred] = useState<string | null>(null);
+
   const fetchGuests = async () => {
     const res = await fetch('/api/admin/guests');
     if (res.ok) setGuests(await res.json());
     setLoading(false);
   };
 
-  useEffect(() => { fetchGuests(); }, []);
+  const fetchConvidados = async () => {
+    const res = await fetch('/api/admin/convidados');
+    if (res.ok) { const d = await res.json(); setConvidados(d.convidados || []); }
+  };
+
+  useEffect(() => { fetchGuests(); fetchConvidados(); }, []);
+
+  const updateCredStatus = async (id: string, credenciamentoStatus: string) => {
+    setUpdatingCred(id);
+    try {
+      await fetch('/api/admin/convidados', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, credenciamentoStatus }),
+      });
+      await fetchConvidados();
+    } finally {
+      setUpdatingCred(null);
+    }
+  };
 
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
@@ -121,6 +164,78 @@ export default function ConvidadosPage() {
 
   return (
     <div className="max-w-4xl mx-auto mt-6 pb-20 px-4 space-y-6">
+
+      {/* ── LEADS DA PÁGINA /analise ── */}
+      <div className="bg-black/40 border border-[#00f3ff]/20 rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#00f3ff]/10 bg-[#00f3ff]/5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Users className="w-4 h-4 text-[#00f3ff]" />
+            <div>
+              <h2 className="text-sm font-black text-white uppercase tracking-widest">Leads — Página /analise</h2>
+              <p className="text-[10px] text-gray-500 font-mono">{convidados.length} cadastro{convidados.length !== 1 ? 's' : ''} · verificados: {convidados.filter(c => c.verified).length}</p>
+            </div>
+          </div>
+          <button onClick={fetchConvidados} className="text-xs text-gray-500 hover:text-[#00f3ff] flex items-center gap-1.5 transition-colors">
+            <RefreshCw size={11} /> Atualizar
+          </button>
+        </div>
+        {convidados.length === 0 ? (
+          <div className="py-8 text-center text-gray-600 text-sm">Nenhum lead cadastrado ainda.</div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {convidados.map(c => {
+              const cfg = CRED_STATUS[c.credenciamentoStatus] || CRED_STATUS.pendente;
+              return (
+                <div key={c.id} className="grid grid-cols-[1fr_auto_auto] gap-4 px-5 py-3.5 hover:bg-white/[0.02] transition-all">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm text-white font-semibold">{c.name}</span>
+                      {c.verified
+                        ? <CheckCircle2 size={11} className="text-green-400" />
+                        : <Clock size={11} className="text-gray-600" />
+                      }
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-[10px] text-gray-500 font-mono flex items-center gap-1"><Mail size={8} />{c.email}</span>
+                      {c.phone && <span className="text-[10px] text-gray-600 font-mono flex items-center gap-1"><Phone size={8} />{c.phone}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {c.solicitarCredenciamento && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-cyan-500/30 text-cyan-400 bg-cyan-500/10">Solicita Cred.</span>
+                      )}
+                      {c.receberNoticias && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-[#bc13fe]/30 text-[#bc13fe] bg-[#bc13fe]/10">Notícias</span>
+                      )}
+                      {c.freeAnalysisUsed && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-gray-600/30 text-gray-500 bg-gray-500/10">Gratuita Usada</span>
+                      )}
+                      <span className="text-[9px] text-gray-700 font-mono">{new Date(c.createdAt).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <span className={`text-[9px] font-black px-2 py-1 rounded border uppercase tracking-widest ${cfg.color}`}>{cfg.label}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <select
+                      value={c.credenciamentoStatus}
+                      onChange={e => updateCredStatus(c.id, e.target.value)}
+                      disabled={updatingCred === c.id}
+                      className="text-[10px] bg-black/50 border border-white/10 text-gray-300 rounded-lg px-2 py-1 outline-none hover:border-[#00f3ff]/40 transition-colors disabled:opacity-40"
+                    >
+                      <option value="pendente">Pendente</option>
+                      <option value="teste_7dias">Teste 7 dias</option>
+                      <option value="uso_pago">Uso Pago</option>
+                      <option value="recusado">Recusado</option>
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <hr className="border-white/5" />
 
       {/* Header */}
       <div className="flex items-center gap-4">

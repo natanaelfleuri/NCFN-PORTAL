@@ -1,0 +1,103 @@
+# ═══════════════════════════════════════════════════════════════
+# Portal NCFN — Backup automático do PostgreSQL
+# Gera dump comprimido diariamente às 03:00 UTC
+# ═══════════════════════════════════════════════════════════════
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ncfn-backups-pv
+  labels:
+    project: ncfn-portal
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-path
+  hostPath:
+    path: /home/roaaxxz/docker/portal_ncfn/data/backups
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ncfn-backups-pvc
+  namespace: ncfn
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: ncfn-backups-pv
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: ncfn
+  labels:
+    project: ncfn-portal
+spec:
+  schedule: "0 3 * * *"          # 03:00 UTC diariamente
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              image: postgres:16-alpine
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -c
+                - |
+                  DATE=$(date +%Y-%m-%d_%H%M)
+                  BACKUP_FILE="/backups/ncfn_db_${DATE}.sql.gz"
+                  echo "Iniciando backup: ${BACKUP_FILE}"
+                  PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump \
+                    -h postgres-svc \
+                    -U "${POSTGRES_USER}" \
+                    -d ncfn_db \
+                    --no-password \
+                    --format=plain \
+                    --no-owner \
+                    --no-acl | gzip > "${BACKUP_FILE}"
+                  echo "Backup concluído: $(ls -lh ${BACKUP_FILE})"
+                  # Mantém apenas os últimos 30 backups
+                  ls -t /backups/*.sql.gz | tail -n +31 | xargs rm -f 2>/dev/null || true
+                  echo "Limpeza concluída."
+
+              env:
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ncfn-env
+                      key: POSTGRES_USER
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ncfn-env
+                      key: POSTGRES_PASSWORD
+
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: ncfn-backups-pvc

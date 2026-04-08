@@ -1,6 +1,8 @@
 "use client";
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { setFileCtx } from '@/app/components/FileContextNav';
 import {
     Activity, Mail, Clock, Wifi, Timer, Shield, ChevronDown, ChevronRight,
     Search, Download, X, CheckCircle2, AlertTriangle, Globe, Zap,
@@ -54,6 +56,9 @@ function parseUA(ua: string = '') {
 
 export default function GuestLogsPage() {
     const { data: session } = useSession();
+    const searchParams = useSearchParams();
+    const ctxFolder = searchParams.get('folder');
+    const ctxFile   = searchParams.get('file');
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -71,6 +76,10 @@ export default function GuestLogsPage() {
             .then(data => { setLogs(Array.isArray(data) ? data : []); setLoading(false); })
             .catch(() => setLoading(false));
     }, []);
+
+    useEffect(() => {
+        if (ctxFolder && ctxFile) setFileCtx(ctxFolder, ctxFile);
+    }, [ctxFolder, ctxFile]);
 
     const toggleExpanded = (id: string) => {
         setExpanded(prev => {

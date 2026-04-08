@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { getSession, getDbUser } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rateLimit';
 
 
 import { prisma } from '@/lib/prisma';
@@ -23,6 +24,10 @@ export async function POST(req: Request) {
     const dbUser = await getDbUser(session.user.email);
     if (!dbUser || dbUser.role !== 'admin') {
       return NextResponse.json({ error: 'Restrito a Admin' }, { status: 403 });
+    }
+
+    if (!checkRateLimit(`vault-burn:${session.user.email}`, 10, 60_000)) {
+      return NextResponse.json({ error: 'Limite de requisições atingido. Aguarde 1 minuto.' }, { status: 429 });
     }
 
     const { folder, filename } = await req.json();

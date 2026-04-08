@@ -302,7 +302,6 @@ export default function MasterHub() {
   /* Nav cards config */
   const navCards = [
     { label: 'Vitrine Pública', icon: Globe, href: '/vitrine', locked: false, color: 'text-cyan-400' },
-    { label: 'Base de Conhecimento', icon: Terminal, href: '/admin/investigar', locked: false, color: 'text-emerald-400' },
     { label: 'Auditoria', icon: ShieldCheck, href: '/auditor', locked: false, color: 'text-blue-400' },
     { label: 'Configurações de IA', icon: Cpu, href: '#', locked: true, color: 'text-yellow-400' },
     { label: 'Gestão do Vault', icon: Shield, href: '#', locked: true, color: 'text-orange-400' },
@@ -475,7 +474,7 @@ export default function MasterHub() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="relative z-10 max-w-7xl mx-auto px-4 py-12 space-y-16"
+          className="relative z-10 max-w-7xl mx-auto px-4 py-6 sm:py-12 space-y-8 sm:space-y-16"
         >
 
           {/* ══════════════ A. HEADER ══════════════ */}
@@ -614,6 +613,46 @@ export default function MasterHub() {
                 />
               ))}
             </div>
+          </motion.div>
+
+          {/* ══════════════ D2. ANÁLISE FORENSE CTA ══════════════ */}
+          <motion.div variants={itemVariants}>
+            <Link
+              href="/analise"
+              className="group relative flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-950/40 to-blue-950/40 hover:border-cyan-400/40 hover:from-cyan-950/60 hover:to-blue-950/60 transition-all duration-300 overflow-hidden"
+            >
+              {/* Glow sweep */}
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                style={{ background: 'linear-gradient(90deg, transparent, rgba(6,182,212,0.04), transparent)' }} />
+              {/* Icon */}
+              <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0 group-hover:bg-cyan-500/20 transition-all">
+                <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-cyan-400" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+              </div>
+              {/* Text */}
+              <div className="flex-1 text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2 mb-1">
+                  <span className="text-[10px] text-cyan-500/60 font-mono tracking-widest uppercase">Novo Serviço</span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-green-500/20 border border-green-500/30 text-green-400 font-bold">BETA</span>
+                </div>
+                <h3 className="text-lg font-black text-white tracking-tight">Análise Forense por Créditos</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Envie qualquer arquivo — calculamos SHA-256, detectamos Magic Bytes e geramos laudo com cadeia de custódia certificada.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3 justify-center sm:justify-start">
+                  {['SHA-256 Client-Side', 'Magic Bytes', 'Chain of Custody', 'Privacy Mode'].map(t => (
+                    <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">{t}</span>
+                  ))}
+                </div>
+              </div>
+              {/* Arrow */}
+              <div className="shrink-0 w-8 h-8 rounded-full border border-cyan-500/20 flex items-center justify-center group-hover:border-cyan-400/40 group-hover:bg-cyan-500/10 transition-all">
+                <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-cyan-400" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </div>
+            </Link>
           </motion.div>
 
           {/* ══════════════ E. INSTALL BUTTON ══════════════ */}
